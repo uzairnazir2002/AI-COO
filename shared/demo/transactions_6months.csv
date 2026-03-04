@@ -1,0 +1,44 @@
+date,amount,type,category,vendor,notes
+2025-10-01,18500.00,REVENUE,Sales,,Monthly retainers
+2025-10-03,3200.00,EXPENSE,Payroll,ADP,Payroll cycle
+2025-10-05,2100.00,EXPENSE,Rent,Regus,Office rent
+2025-10-09,980.00,EXPENSE,Marketing,Meta Ads,Lead generation
+2025-10-15,460.00,EXPENSE,Subscriptions,Notion,Team collaboration
+2025-10-20,540.00,EXPENSE,Misc,,Supplies and incidentals
+2025-11-01,19200.00,REVENUE,Sales,,Monthly retainers
+2025-11-03,3300.00,EXPENSE,Payroll,ADP,Payroll cycle
+2025-11-05,2100.00,EXPENSE,Rent,Regus,Office rent
+2025-11-08,1020.00,EXPENSE,Marketing,Meta Ads,Lead generation
+2025-11-15,490.00,EXPENSE,Subscriptions,Notion,Team collaboration
+2025-11-18,220.00,EXPENSE,Subscriptions,Slack,Comms plan
+2025-11-21,610.00,EXPENSE,Misc,,Supplies and incidentals
+2025-12-01,20150.00,REVENUE,Sales,,Monthly retainers
+2025-12-03,3400.00,EXPENSE,Payroll,ADP,Payroll cycle
+2025-12-05,2100.00,EXPENSE,Rent,Regus,Office rent
+2025-12-07,1180.00,EXPENSE,Marketing,Meta Ads,Lead generation
+2025-12-12,530.00,EXPENSE,Subscriptions,Notion,Team collaboration
+2025-12-17,280.00,EXPENSE,Subscriptions,Slack,Comms plan
+2025-12-22,740.00,EXPENSE,Misc,,Year-end incidentals
+2026-01-01,19800.00,REVENUE,Sales,,Monthly retainers
+2026-01-03,3500.00,EXPENSE,Payroll,ADP,Payroll cycle
+2026-01-05,2100.00,EXPENSE,Rent,Regus,Office rent
+2026-01-07,1320.00,EXPENSE,Marketing,Meta Ads,Lead generation
+2026-01-10,620.00,EXPENSE,Subscriptions,Notion,Team collaboration
+2026-01-14,360.00,EXPENSE,Subscriptions,Slack,Comms plan
+2026-01-20,940.00,EXPENSE,Misc,,Travel and incidentals
+2026-02-01,20500.00,REVENUE,Sales,,Monthly retainers
+2026-02-03,3600.00,EXPENSE,Payroll,ADP,Payroll cycle
+2026-02-05,2100.00,EXPENSE,Rent,Regus,Office rent
+2026-02-08,1580.00,EXPENSE,Marketing,Meta Ads,Lead generation
+2026-02-11,760.00,EXPENSE,Subscriptions,Notion,Team collaboration
+2026-02-15,430.00,EXPENSE,Subscriptions,Slack,Comms plan
+2026-02-18,540.00,EXPENSE,Subscriptions,Zapier,Automation growth
+2026-02-23,1280.00,EXPENSE,Misc,,Emergency replacements
+2026-03-01,20950.00,REVENUE,Sales,,Monthly retainers
+2026-03-03,3700.00,EXPENSE,Payroll,ADP,Payroll cycle
+2026-03-05,2100.00,EXPENSE,Rent,Regus,Office rent
+2026-03-07,1710.00,EXPENSE,Marketing,Meta Ads,Lead generation
+2026-03-12,980.00,EXPENSE,Subscriptions,Notion,Seat growth
+2026-03-15,530.00,EXPENSE,Subscriptions,Slack,Comms plan
+2026-03-17,720.00,EXPENSE,Subscriptions,Zapier,Automation growth
+2026-03-21,1650.00,EXPENSE,Misc,,Expedited vendor spend

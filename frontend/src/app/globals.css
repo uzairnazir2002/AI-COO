@@ -1,0 +1,59 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: 215 36% 97%;
+  --foreground: 220 35% 13%;
+  --card: 0 0% 100%;
+  --card-foreground: 220 35% 13%;
+  --primary: 219 73% 45%;
+  --primary-foreground: 210 40% 98%;
+  --muted: 220 20% 94%;
+  --muted-foreground: 220 15% 40%;
+  --border: 220 18% 86%;
+  --ring: 221 83% 53%;
+  --success: 160 84% 30%;
+  --warning: 33 90% 45%;
+  --danger: 0 74% 45%;
+  --radius: 0.85rem;
+}
+
+.dark {
+  --background: 222 30% 10%;
+  --foreground: 210 40% 96%;
+  --card: 223 27% 14%;
+  --card-foreground: 210 40% 96%;
+  --primary: 213 89% 63%;
+  --primary-foreground: 222 30% 10%;
+  --muted: 223 20% 19%;
+  --muted-foreground: 215 20% 70%;
+  --border: 224 20% 24%;
+  --ring: 213 89% 63%;
+  --success: 160 72% 45%;
+  --warning: 38 93% 58%;
+  --danger: 0 80% 60%;
+}
+
+* {
+  @apply border-border;
+}
+
+body {
+  @apply bg-background text-foreground antialiased;
+  background-image:
+    radial-gradient(circle at 95% 2%, hsl(var(--primary) / 0.11), transparent 28%),
+    radial-gradient(circle at 5% 4%, hsl(160 84% 30% / 0.09), transparent 24%);
+  min-height: 100vh;
+}
+
+input,
+button,
+select,
+textarea {
+  @apply outline-none;
+}
+
+:focus-visible {
+  @apply ring-2 ring-ring ring-offset-2 ring-offset-background;
+}

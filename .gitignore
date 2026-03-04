@@ -1,0 +1,24 @@
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+
+# Virtual env
+.venv/
+
+# Node
+node_modules/
+.next/
+playwright-report/
+frontend/test-results/
+
+# Env & secrets
+.env
+.env.production
+
+# OS/editor
+.DS_Store
+Thumbs.db
