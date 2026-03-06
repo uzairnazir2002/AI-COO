@@ -20,6 +20,7 @@ class Settings(BaseSettings):
     csv_max_bytes: int = Field(default=5 * 1024 * 1024, alias="CSV_MAX_BYTES")
 
     minio_endpoint: str = Field(default="minio:9000", alias="MINIO_ENDPOINT")
+    minio_public_base_url: str = Field(default="", alias="MINIO_PUBLIC_BASE_URL")
     minio_access_key: str = Field(default="minioadmin", alias="MINIO_ACCESS_KEY")
     minio_secret_key: str = Field(default="minioadmin", alias="MINIO_SECRET_KEY")
     minio_bucket: str = Field(default="reports", alias="MINIO_BUCKET")
@@ -41,6 +42,11 @@ class Settings(BaseSettings):
     csrf_cookie_name: str = Field(default="ai_coo_csrf_token", alias="CSRF_COOKIE_NAME")
     csrf_header_name: str = Field(default="X-CSRF-Token", alias="CSRF_HEADER_NAME")
     expose_invite_token_in_response: bool = Field(default=True, alias="EXPOSE_INVITE_TOKEN_IN_RESPONSE")
+    sentry_dsn: str = Field(default="", alias="SENTRY_DSN")
+    sentry_traces_sample_rate: float = Field(default=0.0, alias="SENTRY_TRACES_SAMPLE_RATE")
+    stripe_secret_key: str = Field(default="", alias="STRIPE_SECRET_KEY")
+    stripe_publishable_key: str = Field(default="", alias="STRIPE_PUBLISHABLE_KEY")
+    stripe_webhook_secret: str = Field(default="", alias="STRIPE_WEBHOOK_SECRET")
 
 
 @lru_cache

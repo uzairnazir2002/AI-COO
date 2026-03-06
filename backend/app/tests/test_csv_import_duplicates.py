@@ -67,7 +67,7 @@ async def test_csv_import_skips_duplicates(monkeypatch):
 
     org_id = uuid.uuid4()
     user_id = uuid.uuid4()
-    _, preview, inserted = await svc.import_csv(user_id, org_id, content, mapping)
+    _, preview, inserted = await svc.import_csv(user_id, org_id, content, mapping, "sample.csv")
 
     assert inserted == 2
     assert preview["rows"] == 3

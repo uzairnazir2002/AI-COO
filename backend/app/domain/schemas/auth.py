@@ -30,6 +30,21 @@ class InviteAcceptIn(BaseModel):
     password: str = Field(min_length=8, max_length=128)
 
 
+class ConfirmIn(BaseModel):
+    token: str
+    password: str | None = Field(default=None, min_length=8, max_length=128)
+
+
+class ResendConfirmationIn(BaseModel):
+    email: EmailStr
+
+
+class ResendConfirmationOut(BaseModel):
+    ok: bool
+    sent: bool
+    already_active: bool = False
+
+
 class TokenOut(BaseModel):
     access_token: str | None = None
     refresh_token: str | None = None

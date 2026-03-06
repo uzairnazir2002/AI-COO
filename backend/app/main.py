@@ -7,10 +7,12 @@ from app.api.v1.router import api_router
 from app.core.config import get_settings
 from app.core.logging import configure_logging
 from app.core.middleware import RequestContextMiddleware
+from app.core.observability import init_sentry
 from app.domain.services.errors import AppError
 
 settings = get_settings()
 configure_logging()
+init_sentry(settings, service_name="backend-api")
 
 app = FastAPI(title=settings.app_name, version="0.1.0")
 app.add_middleware(RequestContextMiddleware)

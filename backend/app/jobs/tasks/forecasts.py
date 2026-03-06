@@ -1,4 +1,3 @@
-import asyncio
 import uuid
 
 import structlog
@@ -8,13 +7,24 @@ from app.db.session import SessionLocal
 from app.domain.repos.analytics_repo import AnalyticsRepo
 from app.domain.repos.forecast_repo import ForecastRepo
 from app.domain.services.forecast_service import ForecastService
+from app.jobs.task_tracking import run_tracked_task
 
 logger = structlog.get_logger(__name__)
 
 
-@shared_task(bind=True, autoretry_for=(Exception,), retry_backoff=True, retry_kwargs={"max_retries": 3})
+@shared_task(bind=True)
 def recalc_forecasts(self, org_id: str, correlation_id: str | None = None):
-    return asyncio.run(_recalc(org_id, correlation_id))
+    return run_tracked_task(
+        self,
+        org_id=org_id,
+        task_name="recalc_forecasts",
+        dedupe_key=f"forecast:{org_id}",
+        payload={"org_id": org_id},
+        correlation_id=correlation_id,
+        max_retries=3,
+        runner=lambda: _recalc(org_id, correlation_id),
+        result_payload_builder=lambda count: {"rows": count},
+    )
 
 
 async def _recalc(org_id: str, correlation_id: str | None = None):

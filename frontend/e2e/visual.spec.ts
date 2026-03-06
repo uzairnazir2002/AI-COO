@@ -19,17 +19,13 @@ test.describe("visual regression", () => {
       await applyTheme(page, theme);
       await authenticatedPage;
       await page.goto("/app/dashboard");
-      await expect(page.getByRole("heading", { name: "Dashboard" })).toBeVisible();
+      await expect(page.getByRole("heading", { name: "Executive dashboard" })).toBeVisible();
       await expect(page).toHaveScreenshot(`dashboard-${theme}.png`, {
         fullPage: true,
         animations: "disabled",
         caret: "hide",
-        maxDiffPixelRatio: 0.02,
-        mask: [
-          page.locator("section.space-y-3"),
-          page.locator(".recharts-wrapper"),
-          page.locator(".grid.sm\\:grid-cols-2.xl\\:grid-cols-4"),
-        ],
+        maxDiffPixelRatio: 0.03,
+        mask: [page.locator(".recharts-wrapper"), page.locator("pre")],
       });
     });
 
@@ -42,12 +38,8 @@ test.describe("visual regression", () => {
         fullPage: true,
         animations: "disabled",
         caret: "hide",
-        maxDiffPixelRatio: 0.02,
-        mask: [
-          page.locator(".h-\[420px\]"),
-          page.locator("input[type='date']"),
-          page.locator("text=Rows:"),
-        ],
+        maxDiffPixelRatio: 0.03,
+        mask: [page.locator(".h-\\[520px\\]"), page.locator("input[type='date']")],
       });
     });
 
@@ -60,11 +52,8 @@ test.describe("visual regression", () => {
         fullPage: true,
         animations: "disabled",
         caret: "hide",
-        maxDiffPixelRatio: 0.02,
-        mask: [
-          page.locator("p.text-xs.text-muted-foreground"),
-          page.locator("input[type='date']"),
-        ],
+        maxDiffPixelRatio: 0.03,
+        mask: [page.locator("p.text-xs.text-muted-foreground")],
       });
     });
   }

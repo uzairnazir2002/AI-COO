@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import uuid
 from datetime import date, timedelta
 from pathlib import Path
@@ -34,13 +35,17 @@ def run(
     auth_mode: str = "bearer",
     csrf_cookie_name: str = "ai_coo_csrf_token",
     csrf_header_name: str = "X-CSRF-Token",
+    seeded_email: str | None = None,
+    seeded_password: str | None = None,
+    seeded_org_id: str | None = None,
 ) -> None:
-    email = f"smoke_{uuid.uuid4().hex[:10]}@example.com"
-    password = "Password123!"
+    email = seeded_email or f"smoke_{uuid.uuid4().hex[:10]}@example.com"
+    password = seeded_password or "Password123!"
 
     with httpx.Client(timeout=30.0) as client:
-        register = client.post(f"{base_url}/auth/register", json={"email": email, "password": password})
-        register.raise_for_status()
+        if not (seeded_email and seeded_password):
+            register = client.post(f"{base_url}/auth/register", json={"email": email, "password": password})
+            register.raise_for_status()
 
         login = client.post(f"{base_url}/auth/login", json={"email": email, "password": password})
         login.raise_for_status()
@@ -48,13 +53,15 @@ def run(
         if auth_mode == "bearer":
             token = login.json()["access_token"]
 
-        org = client.post(
-            f"{base_url}/organizations",
-            headers=_mutating_headers(auth_mode, token, client, csrf_cookie_name, csrf_header_name),
-            json={"name": "Smoke Org"},
-        )
-        org.raise_for_status()
-        org_id = org.json()["org_id"]
+        org_id = seeded_org_id
+        if not org_id:
+            org = client.post(
+                f"{base_url}/organizations",
+                headers=_mutating_headers(auth_mode, token, client, csrf_cookie_name, csrf_header_name),
+                json={"name": "Smoke Org"},
+            )
+            org.raise_for_status()
+            org_id = org.json()["org_id"]
         auth_headers = {"Authorization": f"Bearer {token}"} if auth_mode == "bearer" and token else {}
 
         mapping = {
@@ -148,6 +155,9 @@ def main() -> None:
     parser.add_argument("--auth-mode", choices=["bearer", "cookie"], default="bearer")
     parser.add_argument("--csrf-cookie-name", default="ai_coo_csrf_token")
     parser.add_argument("--csrf-header-name", default="X-CSRF-Token")
+    parser.add_argument("--email", default=os.getenv("SMOKE_USER_EMAIL") or os.getenv("E2E_USER_EMAIL"))
+    parser.add_argument("--password", default=os.getenv("SMOKE_USER_PASSWORD") or os.getenv("E2E_USER_PASSWORD"))
+    parser.add_argument("--org-id", default=os.getenv("SMOKE_ORG_ID") or os.getenv("E2E_ORG_ID"))
     parser.add_argument(
         "--csv",
         default=str(Path(__file__).resolve().parents[1] / "shared" / "demo" / "transactions_6months.csv"),
@@ -159,6 +169,9 @@ def main() -> None:
         auth_mode=args.auth_mode,
         csrf_cookie_name=args.csrf_cookie_name,
         csrf_header_name=args.csrf_header_name,
+        seeded_email=args.email,
+        seeded_password=args.password,
+        seeded_org_id=args.org_id,
     )
 
 

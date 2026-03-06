@@ -16,3 +16,7 @@ class NotFoundError(AppError):
 
 class ConflictError(AppError):
     status_code = 409
+
+
+class LimitExceededError(AppError):
+    status_code = 429

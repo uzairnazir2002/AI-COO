@@ -1,5 +1,6 @@
-﻿import uuid
+import uuid
 from datetime import date as date_type
+from datetime import datetime
 from decimal import Decimal
 
 from pydantic import BaseModel, Field
@@ -36,6 +37,25 @@ class CSVImportOut(BaseModel):
     import_id: str
     preview: dict
     inserted_count: int
+
+
+class ImportHistoryItem(BaseModel):
+    id: uuid.UUID
+    file_name: str
+    status: str
+    total_rows: int
+    inserted_count: int
+    duplicate_count: int
+    error_count: int
+    created_at: datetime
+    created_by: uuid.UUID
+
+
+class ImportHistoryPageOut(BaseModel):
+    items: list[ImportHistoryItem]
+    page: int
+    page_size: int
+    total: int
 
 
 class CSVImportForm(BaseModel):

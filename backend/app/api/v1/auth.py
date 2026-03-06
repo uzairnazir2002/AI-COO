@@ -11,8 +11,10 @@ from app.db.session import get_db
 from app.domain.models.user import User
 from app.domain.repos.audit_repo import AuditRepo
 from app.domain.repos.auth_repo import AuthRepo
+from app.domain.repos.outbox_repo import OutboxRepo
 from app.domain.repos.org_repo import OrgRepo
 from app.domain.schemas.auth import (
+    ConfirmIn,
     InviteAcceptIn,
     LoginIn,
     LogoutIn,
@@ -21,6 +23,8 @@ from app.domain.schemas.auth import (
     MeUser,
     RegisterIn,
     RegisterOut,
+    ResendConfirmationIn,
+    ResendConfirmationOut,
     TokenOut,
     TokenRefreshIn,
 )
@@ -79,7 +83,7 @@ def _token_response(tok: TokenOut) -> TokenOut:
 @router.post("/register", response_model=RegisterOut)
 async def register(request: Request, body: RegisterIn, db: AsyncSession = Depends(get_db)):
     await enforce_auth_rate_limit(request, "register", 10)
-    svc = AuthService(AuthRepo(db), OrgRepo(db), AuditRepo(db))
+    svc = AuthService(AuthRepo(db), OrgRepo(db), AuditRepo(db), OutboxRepo(db))
     user = await svc.register(body.email, body.password)
     await db.commit()
     return RegisterOut(user_id=user.id)
@@ -88,7 +92,7 @@ async def register(request: Request, body: RegisterIn, db: AsyncSession = Depend
 @router.post("/login", response_model=TokenOut)
 async def login(request: Request, response: Response, body: LoginIn, db: AsyncSession = Depends(get_db)):
     await enforce_auth_rate_limit(request, "login", 20)
-    svc = AuthService(AuthRepo(db), OrgRepo(db), AuditRepo(db))
+    svc = AuthService(AuthRepo(db), OrgRepo(db), AuditRepo(db), OutboxRepo(db))
     tok = await svc.login(body.email, body.password, request)
     _set_auth_cookies(response, tok.access_token, tok.refresh_token)
     await db.commit()
@@ -109,7 +113,7 @@ async def refresh(
         refresh_token = request.cookies.get(settings.refresh_cookie_name)
     if not refresh_token:
         raise HTTPException(status_code=401, detail="Missing refresh token")
-    svc = AuthService(AuthRepo(db), OrgRepo(db), AuditRepo(db))
+    svc = AuthService(AuthRepo(db), OrgRepo(db), AuditRepo(db), OutboxRepo(db))
     tok = await svc.refresh(refresh_token, request)
     _set_auth_cookies(response, tok.access_token, tok.refresh_token)
     await db.commit()
@@ -119,20 +123,31 @@ async def refresh(
 @router.post("/invite/accept", response_model=RegisterOut)
 async def accept_invite(request: Request, body: InviteAcceptIn, db: AsyncSession = Depends(get_db)):
     await enforce_auth_rate_limit(request, "accept_invite", 10)
-    svc = AuthService(AuthRepo(db), OrgRepo(db), AuditRepo(db))
+    svc = AuthService(AuthRepo(db), OrgRepo(db), AuditRepo(db), OutboxRepo(db))
     user = await svc.accept_invite(body.token, body.password)
     await db.commit()
     return RegisterOut(user_id=user.id)
 
 
 @router.post("/confirm", response_model=RegisterOut)
-async def confirm(request: Request, body: InviteAcceptIn, db: AsyncSession = Depends(get_db)):
-    # MVP: confirmation is invite token redemption.
+async def confirm(request: Request, body: ConfirmIn, db: AsyncSession = Depends(get_db)):
     await enforce_auth_rate_limit(request, "confirm", 10)
-    svc = AuthService(AuthRepo(db), OrgRepo(db), AuditRepo(db))
-    user = await svc.accept_invite(body.token, body.password)
+    svc = AuthService(AuthRepo(db), OrgRepo(db), AuditRepo(db), OutboxRepo(db))
+    if body.password:
+        user = await svc.accept_invite(body.token, body.password)
+    else:
+        user = await svc.confirm_registration(body.token)
     await db.commit()
     return RegisterOut(user_id=user.id)
+
+
+@router.post("/resend-confirmation", response_model=ResendConfirmationOut)
+async def resend_confirmation(request: Request, body: ResendConfirmationIn, db: AsyncSession = Depends(get_db)):
+    await enforce_auth_rate_limit(request, "resend_confirmation", 10)
+    svc = AuthService(AuthRepo(db), OrgRepo(db), AuditRepo(db), OutboxRepo(db))
+    sent, already_active = await svc.resend_confirmation(body.email)
+    await db.commit()
+    return ResendConfirmationOut(ok=True, sent=sent, already_active=already_active)
 
 
 @router.post("/logout")
@@ -148,7 +163,7 @@ async def logout(
     if not refresh_token and settings.auth_cookie_mode:
         refresh_token = request.cookies.get(settings.refresh_cookie_name)
     if refresh_token:
-        svc = AuthService(AuthRepo(db), OrgRepo(db), AuditRepo(db))
+        svc = AuthService(AuthRepo(db), OrgRepo(db), AuditRepo(db), OutboxRepo(db))
         await svc.logout(refresh_token, user.id)
         await db.commit()
     _clear_auth_cookies(response)

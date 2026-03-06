@@ -13,3 +13,8 @@ class ReportItem(BaseModel):
 
 class ReportsOut(BaseModel):
     items: list[ReportItem]
+
+
+class ReportGenerateOut(BaseModel):
+    report_id: uuid.UUID
+    job_id: str

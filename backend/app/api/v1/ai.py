@@ -6,9 +6,11 @@ from app.db.session import get_db
 from app.domain.models.user import User
 from app.domain.repos.alerts_repo import AlertRepo
 from app.domain.repos.analytics_repo import AnalyticsRepo
+from app.domain.repos.plan_repo import PlanRepo
 from app.domain.schemas.ai import AISummaryOut, AISummaryRequest
 from app.domain.services.ai_service import AIService
 from app.domain.services.analytics_service import AnalyticsService
+from app.domain.services.usage_service import METRIC_AI_SUMMARIES, UsageService
 
 router = APIRouter()
 
@@ -16,6 +18,7 @@ router = APIRouter()
 @router.post("/summary", response_model=AISummaryOut)
 async def ai_summary(body: AISummaryRequest, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     await get_org_context(org_id=body.org_id, user=user, db=db)
+    await UsageService(PlanRepo(db)).consume(body.org_id, METRIC_AI_SUMMARIES, delta=1)
     summary = await AnalyticsService(AnalyticsRepo(db)).summary(body.org_id, body.from_date, body.to_date)
     alerts = await AlertRepo(db).list_alerts(body.org_id, "OPEN")
     metrics = {"kpis": summary, "alerts": [{"title": a.title, "severity": a.severity} for a in alerts]}

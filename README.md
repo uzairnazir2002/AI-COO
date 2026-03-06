@@ -13,6 +13,7 @@ Multi-tenant SaaS for SMB operations with FastAPI + Next.js + Celery.
 ## Implemented MVP capabilities
 - Multi-tenant org/user model with RBAC (`OWNER`, `EDITOR`, `VIEWER`)
 - Auth with Argon2id hashing, JWT access/refresh, refresh rotation/revocation
+- Registration confirmation workflow (`POST /api/v1/auth/confirm`) with outbox-backed email token delivery
 - Transactions CRUD + CSV import with safe parsing, mapping validation, duplicate detection/skip
 - CSV import two-step mode (`commit=false` preview, then `commit=true` apply)
 - Transaction bulk category remap + inline edit support
@@ -22,11 +23,20 @@ Multi-tenant SaaS for SMB operations with FastAPI + Next.js + Celery.
 - Alerts (anomaly + profit leak patterns + runway exposure in summary)
 - Weekly PDF report generation, idempotent by `(org_id, week_start)`, stored in MinIO
 - Background jobs: report generation, email dispatch, forecast recalculation
+- Standardized task lifecycle tracking in `job_states` (`PENDING/RUNNING/RETRYING/SUCCEEDED/FAILED`)
+- Jobs API for org-scoped task visibility and filtering (`GET /api/v1/jobs`)
+- Outbox pattern for report/invite notifications with retryable delivery (`outbox_events`)
+- Refresh token reuse detection with session family revocation + audit event
+- Owner-only admin recompute orchestration endpoint (`POST /api/v1/admin/recompute`)
 - AI summary endpoint grounded in computed metrics with schema validation + deterministic fallback
 - Onboarding wizard for first org creation
 - Invite token acceptance flow (`/register?invite_token=...` -> `/api/v1/auth/invite/accept`)
 - Org-level threshold settings for runway and alert sensitivity
+- Owner-only billing placeholder management (`GET/PUT /api/v1/organizations/{org_id}/billing`)
 - Recompute endpoint to enqueue alerts + forecast refresh
+- Plan + usage metering with soft limits (transactions, reports, AI summaries)
+- CSV import history with error-row CSV download
+- Real-time stream endpoint (`GET /api/v1/events/stream`) plus polling-safe UX fallback
 
 ## Security defaults
 - Argon2id password hashing (`time_cost=3`, `memory_cost=65536`, `parallelism=2`)
@@ -59,6 +69,14 @@ See ADRs:
 - `backend/docs/adr/0002-forecast-algorithm.md`
 - `backend/docs/adr/0003-cash-balance.md`
 - `backend/docs/adr/0004-idempotency.md`
+- `backend/docs/adr/0005-job-state-standardization.md`
+- `backend/docs/adr/0006-outbox-pattern.md`
+- `backend/docs/adr/0007-refresh-token-reuse-detection.md`
+- `backend/docs/adr/0008-performance-harness.md`
+- `backend/docs/adr/0009-plans-and-usage-metering.md`
+- `backend/docs/adr/0010-transaction-import-history.md`
+- `backend/docs/adr/0011-registration-confirmation-and-billing.md`
+- `backend/docs/adr/0012-realtime-updates-sse-with-polling-fallback.md`
 
 ## Local development
 1. Copy env file:
@@ -79,6 +97,7 @@ See ADRs:
 - `AUTH_COOKIE_MODE`, `COOKIE_SECURE`, `COOKIE_SAMESITE`, `ACCESS_COOKIE_NAME`, `REFRESH_COOKIE_NAME`
 - `CSRF_COOKIE_NAME`, `CSRF_HEADER_NAME` (cookie mode mutating requests)
 - `EXPOSE_INVITE_TOKEN_IN_RESPONSE` (set `false` in production)
+- `SENTRY_DSN`, `SENTRY_TRACES_SAMPLE_RATE` (optional backend + worker tracing/error capture)
 - `NEXT_PUBLIC_AUTH_MODE` (`bearer` for local, `cookie` for production)
 - `NEXT_PUBLIC_CSRF_COOKIE_NAME`, `NEXT_PUBLIC_CSRF_HEADER_NAME` (frontend cookie-mode CSRF names)
 
@@ -88,12 +107,16 @@ Prefix: `/api/v1`
 Main groups:
 - `auth`: register/login/refresh/logout/me/invite-accept
 - `organizations`: create/list/invite/members/settings
-- `transactions`: create/list/update/delete/import-csv/bulk-remap-category
+- `organizations`: create/list/invite/members/settings/plan-usage/billing
+- `transactions`: create/list/update/delete/import-csv/import-history/import-errors/bulk-remap-category
 - `analytics`: summary/cashflow/recompute
 - `runway`: runway calculator
 - `forecast`: get/override
 - `alerts`: list/dismiss
 - `reports`: list/generate/download
+- `jobs`: list with status/task/date filters
+- `admin`: owner-only recompute orchestration
+- `events`: SSE stream for summary + alerts updates
 - `ai`: executive summary
 - `health`: service checks
 
@@ -159,6 +182,7 @@ curl -X POST http://localhost:8000/api/v1/transactions/import/csv \
 - Place backend behind an HTTPS reverse proxy (Nginx/Traefik/Caddy) and terminate TLS there.
 - Reference Nginx config: `docker/nginx/default.conf`
 - Backup/restore runbook: `docs/operations/backup_restore.md`
+- Performance harness docs: `docs/performance.md`
 
 ## API examples
 Register:
@@ -173,6 +197,13 @@ Login:
 curl -X POST http://localhost:8000/api/v1/auth/login \
   -H "Content-Type: application/json" \
   -d '{"email":"owner@example.com","password":"Password123!"}'
+```
+
+Confirm account (after register, token is delivered via outbox email transport/stub):
+```bash
+curl -X POST http://localhost:8000/api/v1/auth/confirm \
+  -H "Content-Type: application/json" \
+  -d '{"token":"<CONFIRM_TOKEN>"}'
 ```
 
 Create org:

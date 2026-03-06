@@ -60,3 +60,12 @@ class AnalyticsRepo:
             select(OrganizationSetting.runway_alert_threshold_days).where(OrganizationSetting.org_id == org_id)
         )
         return int(threshold or 60)
+
+    async def transaction_month_starts(self, org_id: uuid.UUID) -> list[date]:
+        q = await self.db.execute(
+            select(func.date_trunc("month", Transaction.date))
+            .where(Transaction.org_id == org_id)
+            .group_by(func.date_trunc("month", Transaction.date))
+            .order_by(func.date_trunc("month", Transaction.date))
+        )
+        return [row[0].date() for row in q.all()]

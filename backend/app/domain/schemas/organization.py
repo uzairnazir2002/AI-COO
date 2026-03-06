@@ -84,3 +84,37 @@ class OrgSettingsUpdateIn(BaseModel):
         if value <= Decimal("1") or value > Decimal("10"):
             raise ValueError("multiplier must be > 1 and <= 10")
         return value
+
+
+class PlanUsageMetricOut(BaseModel):
+    used: int
+    limit: int
+
+
+class PlanUsageOut(BaseModel):
+    plan_code: str
+    period_start: str
+    metrics: dict[str, PlanUsageMetricOut]
+
+
+class OrgBillingOut(BaseModel):
+    org_id: uuid.UUID
+    billing_email: str | None
+    invoice_enabled: bool
+    plan_label: str
+    billing_notes: str | None
+    provider: str
+    customer_id: str | None
+    subscription_id: str | None
+    subscription_status: str | None
+    current_period_end: str | None
+    active_price_id: str | None
+    publishable_key: str | None = None
+
+
+class OrgBillingUpdateIn(BaseModel):
+    billing_email: EmailStr | None = None
+    invoice_enabled: bool | None = None
+    plan_label: str | None = None
+    billing_notes: str | None = None
+

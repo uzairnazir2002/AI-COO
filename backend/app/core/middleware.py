@@ -4,6 +4,7 @@ import uuid
 from fastapi import Request
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
+from structlog.contextvars import bind_contextvars, clear_contextvars
 
 from app.core.config import Settings, get_settings
 
@@ -15,6 +16,8 @@ class RequestContextMiddleware(BaseHTTPMiddleware):
             return JSONResponse(status_code=403, content={"detail": "CSRF validation failed"})
         request_id = request.headers.get("X-Request-ID", str(uuid.uuid4()))
         request.state.request_id = request_id
+        clear_contextvars()
+        bind_contextvars(request_id=request_id, path=request.url.path, method=request.method)
         start = time.perf_counter()
         response = await call_next(request)
         elapsed = (time.perf_counter() - start) * 1000
@@ -26,6 +29,7 @@ class RequestContextMiddleware(BaseHTTPMiddleware):
         response.headers["X-XSS-Protection"] = "1; mode=block"
         if settings.env != "development":
             response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+        clear_contextvars()
         return response
 
     def _csrf_validation_failed(self, request: Request, settings: Settings) -> bool:

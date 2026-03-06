@@ -1,7 +1,7 @@
 ﻿import uuid
 from datetime import date
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy import case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -60,6 +60,7 @@ async def cashflow(
 
 @router.post("/recompute")
 async def recompute(
+    request: Request,
     org_id: uuid.UUID = Query(...),
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
@@ -68,6 +69,7 @@ async def recompute(
     if ctx.role not in {"OWNER", "EDITOR"}:
         raise HTTPException(status_code=403, detail="Forbidden")
     correlation_id = getattr(getattr(user, "id", None), "hex", None)
-    alerts_job = recalc_alerts.delay(str(org_id), correlation_id)
-    forecast_job = recalc_forecasts.delay(str(org_id), correlation_id)
+    headers = {"x-request-id": getattr(request.state, "request_id", "")}
+    alerts_job = recalc_alerts.apply_async(args=[str(org_id), correlation_id], headers=headers)
+    forecast_job = recalc_forecasts.apply_async(args=[str(org_id), correlation_id], headers=headers)
     return {"ok": True, "alerts_job_id": alerts_job.id, "forecast_job_id": forecast_job.id}

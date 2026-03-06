@@ -1,7 +1,7 @@
-﻿import uuid
+import uuid
 from datetime import date
 
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.domain.models.forecast import Forecast
@@ -27,3 +27,7 @@ class ForecastRepo:
         self.db.add(forecast)
         await self.db.flush()
         return forecast
+
+    async def delete_for_org(self, org_id: uuid.UUID) -> int:
+        result = await self.db.execute(delete(Forecast).where(Forecast.org_id == org_id))
+        return int(result.rowcount or 0)

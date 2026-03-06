@@ -1,5 +1,10 @@
-import { redirect } from "next/navigation";
+import ProtectedLayout from "@/app/app/layout";
+import DashboardPage from "@/app/app/dashboard/page";
 
-export default function LegacyDashboardRedirect() {
-  redirect("/app/dashboard");
+export default async function DashboardRoutePage() {
+  return (
+    <ProtectedLayout>
+      <DashboardPage />
+    </ProtectedLayout>
+  );
 }

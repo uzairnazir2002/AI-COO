@@ -4,6 +4,7 @@ import { useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 
+import { clearTokens } from "@/lib/auth/tokens";
 import { bootstrapSession } from "@/lib/api/client";
 import { qk } from "@/lib/query/keys";
 import { useAppStore } from "@/store/appStore";
@@ -27,6 +28,7 @@ export function useSessionBootstrap(required = true) {
 
   useEffect(() => {
     if (query.isError) {
+      clearTokens();
       clearSession();
       if (required) {
         router.replace("/auth/login");

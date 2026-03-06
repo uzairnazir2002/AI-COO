@@ -58,6 +58,11 @@ async function refreshToken(): Promise<string | null> {
   if (refreshPromise) return refreshPromise;
 
   refreshPromise = (async () => {
+    if (!cookieMode && !getRefreshToken()) {
+      clearTokens();
+      return null;
+    }
+
     const body = cookieMode
       ? {}
       : (() => {
@@ -155,9 +160,12 @@ export async function bootstrapSession(): Promise<MeResponse> {
 
 export async function logout(refreshTokenValue?: string) {
   const body = cookieMode ? {} : { refresh_token: refreshTokenValue ?? getRefreshToken() };
-  await api<{ ok: boolean }>(apiPaths.logout, {
-    method: "POST",
-    body: JSON.stringify(body),
-  });
-  clearTokens();
+  try {
+    await api<{ ok: boolean }>(apiPaths.logout, {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  } finally {
+    clearTokens();
+  }
 }

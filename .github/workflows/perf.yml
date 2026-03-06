@@ -1,0 +1,72 @@
+name: Perf Check
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "backend/**"
+      - "scripts/**"
+      - "docker-compose.yml"
+      - ".github/workflows/perf.yml"
+
+jobs:
+  perf-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - uses: grafana/setup-k6-action@v1
+
+      - name: Prepare env
+        run: |
+          cp .env.example .env
+          sed -i "s/^SECRET_KEY=.*/SECRET_KEY=perf-local-secret-key-change-me/" .env
+
+      - name: Start stack
+        run: docker compose --env-file .env up --build -d postgres redis minio backend
+
+      - name: Wait for health
+        run: |
+          for i in {1..50}; do
+            if curl -sf http://localhost:8000/api/v1/health; then exit 0; fi
+            sleep 3
+          done
+          docker compose logs backend --tail 200
+          exit 1
+
+      - name: Install python deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install httpx ./backend
+
+      - name: Bootstrap perf org/user
+        id: bootstrap
+        run: |
+          python scripts/loadtest/bootstrap_perf.py > perf_bootstrap.json
+          cat perf_bootstrap.json
+          echo "ORG_ID=$(python -c 'import json;print(json.load(open(\"perf_bootstrap.json\"))[\"org_id\"])')" >> $GITHUB_ENV
+          echo "USER_ID=$(python -c 'import json;print(json.load(open(\"perf_bootstrap.json\"))[\"user_id\"])')" >> $GITHUB_ENV
+          echo "ACCESS_TOKEN=$(python -c 'import json;print(json.load(open(\"perf_bootstrap.json\"))[\"access_token\"])')" >> $GITHUB_ENV
+          echo "FROM_DATE=$(python -c 'import json;print(json.load(open(\"perf_bootstrap.json\"))[\"month_start\"])')" >> $GITHUB_ENV
+          echo "TO_DATE=$(python -c 'import json;print(json.load(open(\"perf_bootstrap.json\"))[\"today\"])')" >> $GITHUB_ENV
+
+      - name: Seed load dataset (small CI profile)
+        run: |
+          python scripts/seed_load_dataset.py --org-id "$ORG_ID" --created-by "$USER_ID" --months 12 --rows 5000
+
+      - name: Run k6 perf smoke
+        run: |
+          k6 run scripts/loadtest/k6-smoke.js \
+            -e BASE_URL=http://localhost:8000/api/v1 \
+            -e ACCESS_TOKEN="$ACCESS_TOKEN" \
+            -e ORG_ID="$ORG_ID" \
+            -e FROM_DATE="$FROM_DATE" \
+            -e TO_DATE="$TO_DATE"
+
+      - name: Stop stack
+        if: always()
+        run: docker compose --env-file .env down -v

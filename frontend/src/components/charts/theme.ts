@@ -1,0 +1,20 @@
+export const chartPalette = {
+  revenueStroke: "#2563eb",
+  revenueFill: "#93c5fd",
+  expenseStroke: "#dc2626",
+  expenseFill: "#fca5a5",
+  netStroke: "#0f766e",
+  confidenceLowFill: "#bfdbfe",
+  confidenceBandFill: "#93c5fd",
+  confidenceBandStroke: "#3b82f6",
+  baseline: "#64748b",
+  grid: "#cbd5e1",
+  pie: [
+    "#2563eb",
+    "#0ea5e9",
+    "#16a34a",
+    "#f97316",
+    "#dc2626",
+    "#7c3aed",
+  ],
+} as const;

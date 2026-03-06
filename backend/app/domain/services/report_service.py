@@ -1,15 +1,20 @@
 import io
 from datetime import date, timedelta
 from decimal import Decimal
+from urllib.parse import urlparse, urlunparse
 
 from reportlab.lib.pagesizes import letter
 from reportlab.pdfgen import canvas
+from sqlalchemy import select
 
 from app.core.config import get_settings
+from app.domain.models.membership import Membership
 from app.domain.models.report import Report
+from app.domain.models.user import User
 from app.domain.repos.alerts_repo import AlertRepo
 from app.domain.repos.analytics_repo import AnalyticsRepo
 from app.domain.repos.forecast_repo import ForecastRepo
+from app.domain.repos.outbox_repo import OutboxRepo
 from app.domain.repos.report_repo import ReportRepo
 from app.domain.services.ai_service import AIService
 from app.domain.services.alerts_service import AlertsService
@@ -29,24 +34,77 @@ class ReportService:
     async def generate(self, org_id, week_start: date, created_by=None):
         existing = await self.repo.get_by_week(org_id, week_start)
         if existing:
-            return existing
-        week_end = week_start + timedelta(days=6)
-        context = await self._build_context(org_id, week_start, week_end)
-        file_key = report_key(str(org_id), week_start)
-        content = self._build_pdf(org_id, week_start, week_end, context)
-        s3 = s3_client()
-        ensure_bucket(s3)
-        bucket = get_settings().minio_bucket
-        s3.put_object(Bucket=bucket, Key=file_key, Body=content, ContentType="application/pdf")
-        report = Report(org_id=org_id, week_start=week_start, week_end=week_end, file_key=file_key, created_by=created_by)
-        return await self.repo.save(report)
+            report = existing
+        else:
+            week_end = week_start + timedelta(days=6)
+            context = await self._build_context(org_id, week_start, week_end)
+            file_key = report_key(str(org_id), week_start)
+            content = self._build_pdf(org_id, week_start, week_end, context)
+            s3 = s3_client()
+            ensure_bucket(s3)
+            bucket = get_settings().minio_bucket
+            s3.put_object(Bucket=bucket, Key=file_key, Body=content, ContentType="application/pdf")
+            report = Report(org_id=org_id, week_start=week_start, week_end=week_end, file_key=file_key, created_by=created_by)
+            report = await self.repo.save(report)
+
+        await self._enqueue_report_notification_outbox(report)
+        return report
+
+    async def _enqueue_report_notification_outbox(self, report: Report) -> None:
+        db = getattr(self.repo, "db", None)
+        if db is None or not hasattr(db, "execute"):
+            return
+        report_url = await self.download_url(report)
+        recipients = await db.execute(
+            select(User.email)
+            .join(Membership, Membership.user_id == User.id)
+            .where(
+                Membership.org_id == report.org_id,
+                Membership.role.in_(["OWNER", "EDITOR"]),
+                User.is_active.is_(True),
+            )
+        )
+        outbox_repo = OutboxRepo(db)
+        for email in recipients.scalars().all():
+            await outbox_repo.create_event(
+                org_id=report.org_id,
+                event_type="email.send",
+                payload={
+                    "to": email,
+                    "subject": f"AI COO weekly report ({report.week_start.isoformat()})",
+                    "body": f"Your weekly report is ready: {report_url}",
+                },
+                dedupe_key=f"report-email:{report.id}:{email}",
+                max_attempts=5,
+            )
 
     async def download_url(self, report: Report):
         s3 = s3_client()
-        bucket = get_settings().minio_bucket
-        return s3.generate_presigned_url(
+        settings = get_settings()
+        bucket = settings.minio_bucket
+        url = s3.generate_presigned_url(
             "get_object", Params={"Bucket": bucket, "Key": report.file_key}, ExpiresIn=3600
         )
+        public_base = (settings.minio_public_base_url or "").strip()
+        if not public_base:
+            return url
+        try:
+            source = urlparse(url)
+            target = urlparse(public_base)
+            if not target.scheme or not target.netloc:
+                return url
+            return urlunparse(
+                (
+                    target.scheme,
+                    target.netloc,
+                    source.path,
+                    source.params,
+                    source.query,
+                    source.fragment,
+                )
+            )
+        except Exception:
+            return url
 
     async def _build_context(self, org_id, week_start: date, week_end: date) -> dict:
         db = self.repo.db

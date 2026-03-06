@@ -10,4 +10,11 @@ export const qk = {
   reports: (orgId: string) => ["reports", orgId] as const,
   members: (orgId: string) => ["members", orgId] as const,
   settings: (orgId: string) => ["settings", orgId] as const,
+  billing: (orgId: string) => ["billing", orgId] as const,
+  planUsage: (orgId: string) => ["planUsage", orgId] as const,
+  imports: (orgId: string, page: number, pageSize: number) => ["imports", orgId, page, pageSize] as const,
+  jobs: (orgId: string, params: Record<string, string | number | undefined>) => ["jobs", orgId, params] as const,
+  outbox: (orgId: string, params: Record<string, string | number | undefined>) => ["outbox", orgId, params] as const,
+  systemStatus: (orgId: string) => ["systemStatus", orgId] as const,
+  notifications: (orgId: string, unreadOnly: boolean) => ["notifications", orgId, unreadOnly] as const,
 };

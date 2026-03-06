@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 
 import { api } from "@/lib/api/client";
@@ -8,14 +8,14 @@ import { apiPaths } from "@/lib/api/endpoints";
 import { aiSummarySchema, summarySchema } from "@/lib/api/schemas";
 import type { AiSummaryResponse, SummaryResponse } from "@/lib/api/schemas";
 import { qk } from "@/lib/query/keys";
-import { startOfMonthISO, todayISO } from "@/lib/utils/format";
 import { useAppStore } from "@/store/appStore";
 import type { Alert, Cashflow, Runway } from "@/types/domain";
 
 export function useDashboardData() {
   const orgId = useAppStore((s) => s.selectedOrgId);
-  const [from, setFrom] = useState(startOfMonthISO());
-  const [to, setTo] = useState(todayISO());
+  const range = useAppStore((s) => s.globalDateRange);
+  const from = range.from;
+  const to = range.to;
 
   const enabled = Boolean(orgId);
 
@@ -26,9 +26,12 @@ export function useDashboardData() {
     enabled,
   });
 
+  const cashflowGranularity = useAppStore((s) => s.cashflowGranularity ?? "week");
+
   const cashflow = useQuery({
-    queryKey: qk.cashflow(orgId || "", from, to, "week"),
-    queryFn: () => api<Cashflow>(apiPaths.cashflow + `?org_id=${orgId}&from=${from}&to=${to}&granularity=week`),
+    queryKey: qk.cashflow(orgId || "", from, to, cashflowGranularity),
+    queryFn: () =>
+      api<Cashflow>(apiPaths.cashflow + `?org_id=${orgId}&from=${from}&to=${to}&granularity=${cashflowGranularity}`),
     enabled,
   });
 
@@ -63,8 +66,7 @@ export function useDashboardData() {
       orgId,
       from,
       to,
-      setFrom,
-      setTo,
+      cashflowGranularity,
       summary: summary.data,
       cashflow: cashflow.data,
       runway: runway.data,
@@ -73,6 +75,6 @@ export function useDashboardData() {
       loading,
       error,
     }),
-    [orgId, from, to, summary.data, cashflow.data, runway.data, alerts.data, ai.data, loading, error],
+    [orgId, from, to, cashflowGranularity, summary.data, cashflow.data, runway.data, alerts.data, ai.data, loading, error],
   );
 }

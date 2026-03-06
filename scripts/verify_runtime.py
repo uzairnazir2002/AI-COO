@@ -38,6 +38,11 @@ def _npm_cmd() -> str:
     return "npm.cmd" if sys.platform.startswith("win") else "npm"
 
 
+def _cookie_mode_enabled() -> bool:
+    value = os.environ.get("AUTH_COOKIE_MODE", "").strip().lower()
+    return value in {"1", "true", "yes", "on"}
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Verify local runtime end-to-end (backend + frontend).")
     parser.add_argument("--api-base-url", default="http://localhost:8000/api/v1")
@@ -75,18 +80,20 @@ def main() -> None:
         cwd=root,
     )
 
-    # Smoke cookie
-    _run(
-        [
-            str(venv_python),
-            str(root / "scripts" / "smoke_mvp.py"),
-            "--base-url",
-            args.api_base_url,
-            "--auth-mode",
-            "cookie",
-        ],
-        cwd=root,
-    )
+    if _cookie_mode_enabled():
+        _run(
+            [
+                str(venv_python),
+                str(root / "scripts" / "smoke_mvp.py"),
+                "--base-url",
+                args.api_base_url,
+                "--auth-mode",
+                "cookie",
+            ],
+            cwd=root,
+        )
+    else:
+        print("\n[skip] cookie-mode smoke skipped because AUTH_COOKIE_MODE is disabled in the current env")
 
     if not args.skip_e2e:
         npm = _npm_cmd()
@@ -99,15 +106,18 @@ def main() -> None:
                 "E2E_AUTH_MODE": "bearer",
             },
         )
-        _run(
-            [npm, "run", "e2e"],
-            cwd=frontend,
-            env={
-                "E2E_BASE_URL": args.frontend_base_url,
-                "E2E_API_URL": args.api_base_url,
-                "E2E_AUTH_MODE": "cookie",
-            },
-        )
+        if _cookie_mode_enabled():
+            _run(
+                [npm, "run", "e2e"],
+                cwd=frontend,
+                env={
+                    "E2E_BASE_URL": args.frontend_base_url,
+                    "E2E_API_URL": args.api_base_url,
+                    "E2E_AUTH_MODE": "cookie",
+                },
+            )
+        else:
+            print("[skip] cookie-mode E2E skipped because AUTH_COOKIE_MODE is disabled in the current env")
         if args.with_visual:
             _run(
                 [npm, "run", "e2e:visual"],
@@ -125,4 +135,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

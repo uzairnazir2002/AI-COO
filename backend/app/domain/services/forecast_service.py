@@ -1,4 +1,4 @@
-﻿from datetime import date, datetime
+from datetime import date, datetime
 from decimal import Decimal
 
 from app.domain.models.forecast import Forecast
@@ -54,3 +54,8 @@ class ForecastService:
         f.overrides = ov
         await self.forecast_repo.save(f)
         return True
+
+    async def recompute(self, org_id, months: int = 6) -> int:
+        await self.forecast_repo.delete_for_org(org_id)
+        rows = await self.ensure_forecasts(org_id, months)
+        return len(rows)

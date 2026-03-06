@@ -35,7 +35,7 @@ export function AIInsightPanel({ summary, fallbackUsed }: { summary: Summary | n
         <CardDescription>Based strictly on computed metrics</CardDescription>
       </CardHeader>
       <CardContent className="space-y-3 text-sm">
-        <p className="font-medium">{summary.headline}</p>
+        <p className="rounded-2xl border border-primary/15 bg-primary/5 p-4 font-medium">{summary.headline}</p>
         <div>
           <p className="font-medium">Highlights</p>
           <ul className="list-disc pl-5 text-muted-foreground">
@@ -46,6 +46,12 @@ export function AIInsightPanel({ summary, fallbackUsed }: { summary: Summary | n
           <p className="font-medium">Risks</p>
           <ul className="list-disc pl-5 text-muted-foreground">
             {summary.risks.map((line) => <li key={line}>{line}</li>)}
+          </ul>
+        </div>
+        <div>
+          <p className="font-medium">Actions</p>
+          <ul className="list-disc pl-5 text-muted-foreground">
+            {summary.actions.map((line) => <li key={line}>{line}</li>)}
           </ul>
         </div>
       </CardContent>

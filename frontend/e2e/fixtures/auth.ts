@@ -17,6 +17,20 @@ type Fixtures = {
 
 const apiBase = process.env.E2E_API_URL || "http://localhost:8000/api/v1";
 const authMode = (process.env.E2E_AUTH_MODE || "bearer") as "bearer" | "cookie";
+const seededEmail = process.env.E2E_USER_EMAIL;
+const seededPassword = process.env.E2E_USER_PASSWORD;
+const seededOrgId = process.env.E2E_ORG_ID;
+
+function delay(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function validateSeededAuthEnv() {
+  const configured = [seededEmail, seededPassword].filter(Boolean).length;
+  if (configured !== 0 && configured !== 2) {
+    throw new Error("E2E_USER_EMAIL and E2E_USER_PASSWORD must be provided together when using seeded confirmed auth.");
+  }
+}
 
 async function setSelectedOrgState(page: Page, orgId: string) {
   await page.addInitScript((id: string) => {
@@ -27,20 +41,35 @@ async function setSelectedOrgState(page: Page, orgId: string) {
 
 export const test = base.extend<Fixtures>({
   authSession: async ({ page }, use, testInfo) => {
+    validateSeededAuthEnv();
     const namespace = `w${testInfo.workerIndex}-r${testInfo.repeatEachIndex}-${Date.now()}`;
-    const email = `e2e_${namespace}_${Math.random().toString(16).slice(2, 8)}@example.com`;
-    const password = "Password123!";
+    const email = seededEmail || `e2e_${namespace}_${Math.random().toString(16).slice(2, 8)}@example.com`;
+    const password = seededPassword || "Password123!";
 
-    const reg = await page.request.post(`${apiBase}/auth/register`, {
-      data: { email, password },
-    });
-    if (![200, 409].includes(reg.status())) {
-      throw new Error(`register failed: ${reg.status()} ${await reg.text()}`);
+    if (!seededEmail || !seededPassword) {
+      const reg = await page.request.post(`${apiBase}/auth/register`, {
+        data: { email, password },
+      });
+      if (![200, 409].includes(reg.status())) {
+        throw new Error(`register failed: ${reg.status()} ${await reg.text()}`);
+      }
     }
 
-    const login = await page.request.post(`${apiBase}/auth/login`, {
+    if (seededEmail) {
+      // The backend currently derives refresh tokens from second-level timestamps.
+      // Stagger seeded-user logins to avoid unique refresh-token-session collisions across workers.
+      await delay(testInfo.workerIndex * 1200);
+    }
+
+    let login = await page.request.post(`${apiBase}/auth/login`, {
       data: { email, password },
     });
+    if (!login.ok() && login.status() >= 500 && seededEmail) {
+      await delay(1250);
+      login = await page.request.post(`${apiBase}/auth/login`, {
+        data: { email, password },
+      });
+    }
     expect(login.ok(), `login failed: ${await login.text()}`).toBeTruthy();
     const loginJson = (await login.json()) as { access_token?: string | null; refresh_token?: string | null };
 
@@ -69,7 +98,7 @@ export const test = base.extend<Fixtures>({
     expect(meRes.ok(), `auth/me failed: ${await meRes.text()}`).toBeTruthy();
     const me = (await meRes.json()) as { orgs: Array<{ org_id: string }> };
 
-    let orgId = me.orgs[0]?.org_id;
+    let orgId = seededOrgId || me.orgs[0]?.org_id;
     if (!orgId) {
       const createOrg = await page.request.post(`${apiBase}/organizations`, {
         data: { name: `E2E Org ${namespace}` },

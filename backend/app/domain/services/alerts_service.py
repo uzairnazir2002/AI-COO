@@ -19,7 +19,19 @@ class AlertsService:
         self.repo = repo
 
     async def list_alerts(self, org_id, status):
-        return await self.repo.list_alerts(org_id, status)
+        rows = await self.repo.list_alerts(org_id, status)
+        return sorted(rows, key=self._alert_rank_key, reverse=True)
+
+    @staticmethod
+    def _alert_rank_key(alert: Alert):
+        severity_weight = {"HIGH": 3, "MEDIUM": 2, "LOW": 1}.get(str(alert.severity).upper(), 0)
+        meta = alert.meta or {}
+        impact_raw = meta.get("impact") or meta.get("variance_pct") or meta.get("share_pct") or "0"
+        try:
+            impact_val = abs(Decimal(str(impact_raw)))
+        except Exception:
+            impact_val = Decimal("0")
+        return (severity_weight, impact_val, alert.created_at.timestamp())
 
     async def dismiss(self, alert):
         alert.status = "DISMISSED"
@@ -251,3 +263,9 @@ class AlertsService:
                     ),
                 )
         return 0
+
+
+    async def recompute(self, org_id):
+        await self.repo.clear_open(org_id)
+        return await self.detect_and_create(org_id)
+

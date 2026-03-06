@@ -1,7 +1,8 @@
-﻿from datetime import date
+from datetime import date
 from decimal import Decimal
 
 from app.domain.repos.analytics_repo import AnalyticsRepo
+from app.domain.repos.transaction_repo import TransactionRepo
 
 
 class AnalyticsService:
@@ -44,3 +45,10 @@ class AnalyticsService:
             "cash_balance": cash,
             "alert": runway_days < threshold,
         }
+
+    async def recompute_monthly_aggregates(self, org_id) -> int:
+        months = await self.repo.transaction_month_starts(org_id)
+        tx_repo = TransactionRepo(self.repo.db)
+        for month in months:
+            await tx_repo.upsert_monthly_aggregate(org_id, month)
+        return len(months)

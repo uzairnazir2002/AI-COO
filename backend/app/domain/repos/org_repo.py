@@ -7,7 +7,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.domain.models.category import Category
 from app.domain.models.membership import Membership
 from app.domain.models.organization import Organization
+from app.domain.models.organization_billing import OrganizationBilling
 from app.domain.models.organization_invite import OrganizationInvite
+from app.domain.models.organization_plan import OrganizationPlan
 from app.domain.models.organization_setting import OrganizationSetting
 from app.domain.models.user import User
 
@@ -21,6 +23,24 @@ class OrgRepo:
         self.db.add(org)
         await self.db.flush()
         self.db.add(OrganizationSetting(org_id=org.id, starting_cash=0))
+        self.db.add(
+            OrganizationBilling(
+                org_id=org.id,
+                billing_email=None,
+                invoice_enabled=False,
+                plan_label="FREE",
+                billing_notes=None,
+            )
+        )
+        self.db.add(
+            OrganizationPlan(
+                org_id=org.id,
+                code="FREE",
+                transaction_limit_monthly=10000,
+                report_limit_monthly=20,
+                ai_summary_limit_monthly=500,
+            )
+        )
         defaults = [
             ("Sales", "REVENUE"),
             ("Services", "REVENUE"),
@@ -70,6 +90,23 @@ class OrgRepo:
         self.db.add(settings)
         await self.db.flush()
         return settings
+
+    async def get_billing(self, org_id: uuid.UUID) -> OrganizationBilling | None:
+        q = await self.db.execute(select(OrganizationBilling).where(OrganizationBilling.org_id == org_id))
+        return q.scalar_one_or_none()
+
+    async def get_billing_by_customer_id(self, customer_id: str) -> OrganizationBilling | None:
+        q = await self.db.execute(select(OrganizationBilling).where(OrganizationBilling.customer_id == customer_id))
+        return q.scalar_one_or_none()
+
+    async def save_billing(self, billing: OrganizationBilling) -> OrganizationBilling:
+        self.db.add(billing)
+        await self.db.flush()
+        return billing
+
+    async def get_org(self, org_id: uuid.UUID) -> Organization | None:
+        q = await self.db.execute(select(Organization).where(Organization.id == org_id))
+        return q.scalar_one_or_none()
 
     async def create_invite(
         self,

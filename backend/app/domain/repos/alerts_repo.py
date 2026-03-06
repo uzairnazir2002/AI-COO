@@ -1,6 +1,6 @@
-﻿import uuid
+import uuid
 
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.domain.models.alert import Alert
@@ -25,3 +25,7 @@ class AlertRepo:
         self.db.add(alert)
         await self.db.flush()
         return alert
+
+    async def clear_open(self, org_id: uuid.UUID) -> int:
+        result = await self.db.execute(delete(Alert).where(Alert.org_id == org_id, Alert.status == "OPEN"))
+        return int(result.rowcount or 0)
