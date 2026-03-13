@@ -48,12 +48,16 @@ jobs:
         run: |
           python scripts/loadtest/bootstrap_perf.py > perf_bootstrap.json
           cat perf_bootstrap.json
-          echo "ORG_ID=$(python -c 'import json;print(json.load(open(\"perf_bootstrap.json\"))[\"org_id\"])')" >> $GITHUB_ENV
-          echo "ORG_IDS_JSON=$(python -c 'import json; d=json.load(open(\"perf_bootstrap.json\")); print(json.dumps([d[\"org_id\"]]))')" >> $GITHUB_ENV
-          echo "USER_ID=$(python -c 'import json;print(json.load(open(\"perf_bootstrap.json\"))[\"user_id\"])')" >> $GITHUB_ENV
-          echo "ACCESS_TOKEN=$(python -c 'import json;print(json.load(open(\"perf_bootstrap.json\"))[\"access_token\"])')" >> $GITHUB_ENV
-          echo "FROM_DATE=$(python -c 'import json;print(json.load(open(\"perf_bootstrap.json\"))[\"month_start\"])')" >> $GITHUB_ENV
-          echo "TO_DATE=$(python -c 'import json;print(json.load(open(\"perf_bootstrap.json\"))[\"today\"])')" >> $GITHUB_ENV
+          python - <<'PY' >> "$GITHUB_ENV"
+          import json
+          data = json.load(open("perf_bootstrap.json", encoding="utf-8"))
+          print(f"ORG_ID={data['org_id']}")
+          print(f"ORG_IDS_JSON={json.dumps([data['org_id']])}")
+          print(f"USER_ID={data['user_id']}")
+          print(f"ACCESS_TOKEN={data['access_token']}")
+          print(f"FROM_DATE={data['month_start']}")
+          print(f"TO_DATE={data['today']}")
+          PY
 
       - name: Seed load dataset (small CI profile)
         run: |
