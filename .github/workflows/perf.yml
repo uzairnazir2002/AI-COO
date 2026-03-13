@@ -49,6 +49,7 @@ jobs:
           python scripts/loadtest/bootstrap_perf.py > perf_bootstrap.json
           cat perf_bootstrap.json
           echo "ORG_ID=$(python -c 'import json;print(json.load(open(\"perf_bootstrap.json\"))[\"org_id\"])')" >> $GITHUB_ENV
+          echo "ORG_IDS_JSON=$(python -c 'import json; d=json.load(open(\"perf_bootstrap.json\")); print(json.dumps([d[\"org_id\"]]))')" >> $GITHUB_ENV
           echo "USER_ID=$(python -c 'import json;print(json.load(open(\"perf_bootstrap.json\"))[\"user_id\"])')" >> $GITHUB_ENV
           echo "ACCESS_TOKEN=$(python -c 'import json;print(json.load(open(\"perf_bootstrap.json\"))[\"access_token\"])')" >> $GITHUB_ENV
           echo "FROM_DATE=$(python -c 'import json;print(json.load(open(\"perf_bootstrap.json\"))[\"month_start\"])')" >> $GITHUB_ENV
@@ -66,6 +67,57 @@ jobs:
             -e ORG_ID="$ORG_ID" \
             -e FROM_DATE="$FROM_DATE" \
             -e TO_DATE="$TO_DATE"
+
+      - name: Run read hotpaths (pass 1)
+        run: |
+          mkdir -p perf-artifacts
+          k6 run --no-thresholds --summary-export perf-artifacts/read_hotpaths_pass1_summary.json \
+            scripts/loadtest/k6-read-hotpaths.js \
+            -e BASE_URL=http://localhost:8000/api/v1 \
+            -e ACCESS_TOKEN="$ACCESS_TOKEN" \
+            -e ORG_IDS_JSON="$ORG_IDS_JSON" \
+            -e FROM_DATE="$FROM_DATE" \
+            -e TO_DATE="$TO_DATE" \
+            -e RATE=13 \
+            -e RUNTIME_METRICS_ENABLED=false
+
+      - name: Run read hotpaths (pass 2)
+        run: |
+          k6 run --no-thresholds --summary-export perf-artifacts/read_hotpaths_pass2_summary.json \
+            scripts/loadtest/k6-read-hotpaths.js \
+            -e BASE_URL=http://localhost:8000/api/v1 \
+            -e ACCESS_TOKEN="$ACCESS_TOKEN" \
+            -e ORG_IDS_JSON="$ORG_IDS_JSON" \
+            -e FROM_DATE="$FROM_DATE" \
+            -e TO_DATE="$TO_DATE" \
+            -e RATE=13 \
+            -e RUNTIME_METRICS_ENABLED=false
+
+      - name: Run runtime observability (out-of-band)
+        run: |
+          k6 run --no-thresholds --summary-export perf-artifacts/runtime_observability_summary.json \
+            scripts/loadtest/k6-runtime-observability.js \
+            -e BASE_URL=http://localhost:8000/api/v1 \
+            -e ACCESS_TOKEN="$ACCESS_TOKEN" \
+            -e ORG_IDS_JSON="$ORG_IDS_JSON" \
+            -e RATE=2
+
+      - name: Evaluate perf gates
+        run: |
+          python scripts/loadtest/evaluate_perf_gates.py \
+            --slo scripts/loadtest/slo_guardrails.json \
+            --read-pass-1 perf-artifacts/read_hotpaths_pass1_summary.json \
+            --read-pass-2 perf-artifacts/read_hotpaths_pass2_summary.json \
+            --runtime-observability perf-artifacts/runtime_observability_summary.json \
+            --out-json perf-artifacts/perf_gate_summary.json \
+            --out-md perf-artifacts/perf_gate_summary.md
+
+      - name: Upload perf artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: perf-artifacts
+          path: perf-artifacts/
 
       - name: Stop stack
         if: always()
