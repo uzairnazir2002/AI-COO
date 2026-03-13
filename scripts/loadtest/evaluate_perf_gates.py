@@ -12,8 +12,11 @@ def _load_json(path: Path) -> dict[str, Any]:
 
 def _metric_value(summary: dict[str, Any], metric_key: str, stat_key: str, default: float = 0.0) -> float:
     metric = summary.get("metrics", {}).get(metric_key, {})
-    values = metric.get("values", {})
-    value = values.get(stat_key, default)
+    values = metric.get("values")
+    if isinstance(values, dict):
+        value = values.get(stat_key, default)
+    else:
+        value = metric.get(stat_key, default)
     try:
         return float(value)
     except (TypeError, ValueError):
