@@ -61,6 +61,7 @@ jobs:
 
       - name: Seed load dataset (small CI profile)
         run: |
+          DATABASE_URL=postgresql+asyncpg://ai_coo:ai_coo@localhost:5432/ai_coo \
           python scripts/seed_load_dataset.py --org-id "$ORG_ID" --created-by "$USER_ID" --months 12 --rows 5000
 
       - name: Run k6 perf smoke
