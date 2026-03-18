@@ -11,37 +11,86 @@ import type { StreamUpdate } from "@/types/domain";
 
 const apiBase = process.env.NEXT_PUBLIC_API_URL || process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000";
 const authMode = process.env.NEXT_PUBLIC_AUTH_MODE || "bearer";
+const reconnectDelayMs = Number(process.env.NEXT_PUBLIC_SSE_RECONNECT_DELAY_MS || "5000");
+const fallbackFailureThreshold = Number(process.env.NEXT_PUBLIC_SSE_FAILURE_THRESHOLD || "3");
+const fallbackPollIntervalMs = Number(process.env.NEXT_PUBLIC_SSE_FALLBACK_POLL_INTERVAL_MS || "15000");
 
 export function useOrgEventFeed() {
   const orgId = useAppStore((s) => s.selectedOrgId);
   const pushToast = useToastStore((s) => s.push);
   const queryClient = useQueryClient();
-  const [status, setStatus] = useState<"idle" | "connecting" | "live" | "error">("idle");
+  const [status, setStatus] = useState<"idle" | "connecting" | "live" | "error" | "fallback_polling">("idle");
   const lastSnapshotRef = useRef<{ openAlerts: number; cashBalance: string } | null>(null);
+  const statusRef = useRef<typeof status>("idle");
+  const pushToastRef = useRef(pushToast);
+  const queryClientRef = useRef(queryClient);
+
+  useEffect(() => {
+    pushToastRef.current = pushToast;
+  }, [pushToast]);
+
+  useEffect(() => {
+    queryClientRef.current = queryClient;
+  }, [queryClient]);
 
   useEffect(() => {
     if (!orgId) {
       setStatus("idle");
+      statusRef.current = "idle";
       lastSnapshotRef.current = null;
       return;
     }
 
     let stopped = false;
     let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+    let fallbackPollTimer: ReturnType<typeof setInterval> | null = null;
+    let fallbackArmTimer: ReturnType<typeof setTimeout> | null = null;
     let controller: AbortController | null = null;
+    let consecutiveFailures = 0;
+
+    const invalidateAffectedQueries = () => {
+      queryClientRef.current.invalidateQueries({ queryKey: ["summary", orgId] });
+      queryClientRef.current.invalidateQueries({ queryKey: ["alerts", orgId] });
+      queryClientRef.current.invalidateQueries({ queryKey: ["runway", orgId] });
+      queryClientRef.current.invalidateQueries({ queryKey: ["notifications", orgId] });
+    };
+
+    const startFallbackPolling = () => {
+      if (fallbackPollTimer || stopped) return;
+      fallbackPollTimer = setInterval(() => {
+        invalidateAffectedQueries();
+      }, fallbackPollIntervalMs);
+    };
+
+    const enableFallbackMode = () => {
+      if (statusRef.current !== "fallback_polling") {
+        pushToastRef.current({
+          title: "Realtime fallback enabled",
+          description: "Live stream degraded; switched to polling mode.",
+          variant: "warning",
+          durationMs: 3500,
+        });
+      }
+      setStatus("fallback_polling");
+      statusRef.current = "fallback_polling";
+      startFallbackPolling();
+    };
+
+    const stopFallbackPolling = () => {
+      if (!fallbackPollTimer) return;
+      clearInterval(fallbackPollTimer);
+      fallbackPollTimer = null;
+    };
 
     const scheduleReconnect = () => {
       if (stopped) return;
       reconnectTimer = setTimeout(() => {
         void connect();
-      }, 5000);
+      }, reconnectDelayMs);
     };
 
     const handleUpdate = (update: StreamUpdate) => {
-      queryClient.invalidateQueries({ queryKey: ["summary", orgId] });
-      queryClient.invalidateQueries({ queryKey: ["alerts", orgId] });
-      queryClient.invalidateQueries({ queryKey: ["runway", orgId] });
-      queryClient.invalidateQueries({ queryKey: ["notifications", orgId] });
+      invalidateAffectedQueries();
 
       const nextSnapshot = {
         openAlerts: update.open_alerts,
@@ -52,7 +101,7 @@ export function useOrgEventFeed() {
       if (!previous) return;
 
       if (previous.openAlerts !== nextSnapshot.openAlerts) {
-        pushToast({
+        pushToastRef.current({
           title: "Live alert count updated",
           description: `${nextSnapshot.openAlerts} open alerts for the selected organization.`,
           variant: nextSnapshot.openAlerts > previous.openAlerts ? "warning" : "success",
@@ -62,7 +111,7 @@ export function useOrgEventFeed() {
       }
 
       if (previous.cashBalance !== nextSnapshot.cashBalance) {
-        pushToast({
+        pushToastRef.current({
           title: "Live financial update received",
           description: `Cash balance changed to ${nextSnapshot.cashBalance}.`,
           variant: "default",
@@ -89,7 +138,10 @@ export function useOrgEventFeed() {
 
     const connect = async () => {
       if (stopped) return;
-      setStatus("connecting");
+      if (statusRef.current !== "fallback_polling") {
+        setStatus("connecting");
+        statusRef.current = "connecting";
+      }
       controller = new AbortController();
       try {
         const headers = new Headers({
@@ -116,7 +168,14 @@ export function useOrgEventFeed() {
           throw new Error(`Stream failed (${response.status})`);
         }
 
+        consecutiveFailures = 0;
+        if (fallbackArmTimer) {
+          clearTimeout(fallbackArmTimer);
+          fallbackArmTimer = null;
+        }
+        stopFallbackPolling();
         setStatus("live");
+        statusRef.current = "live";
         const reader = response.body.getReader();
         const decoder = new TextDecoder();
         let buffer = "";
@@ -131,9 +190,30 @@ export function useOrgEventFeed() {
             parseEventBlock(block);
           }
         }
+        if (!stopped) {
+          throw new Error("SSE stream closed unexpectedly");
+        }
       } catch (error) {
         if (stopped || (error instanceof DOMException && error.name === "AbortError")) return;
-        setStatus("error");
+        consecutiveFailures += 1;
+        if (consecutiveFailures === 1 && !fallbackArmTimer) {
+          fallbackArmTimer = setTimeout(() => {
+            if (stopped) return;
+            if (statusRef.current !== "live") {
+              enableFallbackMode();
+            }
+          }, Math.max(1000, fallbackFailureThreshold * reconnectDelayMs));
+        }
+        if (consecutiveFailures >= fallbackFailureThreshold) {
+          if (fallbackArmTimer) {
+            clearTimeout(fallbackArmTimer);
+            fallbackArmTimer = null;
+          }
+          enableFallbackMode();
+        } else {
+          setStatus("error");
+          statusRef.current = "error";
+        }
         scheduleReconnect();
       }
     };
@@ -143,9 +223,11 @@ export function useOrgEventFeed() {
     return () => {
       stopped = true;
       if (reconnectTimer) clearTimeout(reconnectTimer);
+      if (fallbackArmTimer) clearTimeout(fallbackArmTimer);
+      stopFallbackPolling();
       controller?.abort();
     };
-  }, [orgId, pushToast, queryClient]);
+  }, [orgId]);
 
   return status;
 }

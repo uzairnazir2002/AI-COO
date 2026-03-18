@@ -44,6 +44,11 @@ export const aiSummarySchema = z.object({
 
 export const registerOutSchema = z.object({
   user_id: z.string().uuid(),
+  access_token: z.string().nullable().optional(),
+  refresh_token: z.string().nullable().optional(),
+  token_type: z.string().optional(),
+  expires_in: z.number().nullable().optional(),
+  account_confirmed: z.boolean().optional(),
 });
 
 export const resendConfirmationSchema = z.object({
@@ -53,8 +58,9 @@ export const resendConfirmationSchema = z.object({
 });
 
 export const reportGenerateSchema = z.object({
-  report_id: z.string().uuid(),
+  report_id: z.string().uuid().nullable().optional(),
   job_id: z.string(),
+  status: z.string(),
 });
 
 export const jobSchema = z.object({

@@ -32,6 +32,9 @@ Next.js App Router + TypeScript frontend for AI COO.
 - `NEXT_PUBLIC_CSRF_COOKIE_NAME` default `ai_coo_csrf_token`
 - `NEXT_PUBLIC_CSRF_HEADER_NAME` default `X-CSRF-Token`
 - `NEXT_PUBLIC_CSV_MAX_BYTES` optional CSV upload cap override
+- `NEXT_PUBLIC_SSE_RECONNECT_DELAY_MS` default `5000`
+- `NEXT_PUBLIC_SSE_FAILURE_THRESHOLD` default `3`
+- `NEXT_PUBLIC_SSE_FALLBACK_POLL_INTERVAL_MS` default `15000`
 
 ## Auth mode notes
 - `bearer`
@@ -112,3 +115,4 @@ npm run e2e:visual:update
 - Reports generation shows a frontend "generating" state because the current endpoint does not expose detailed job progress there.
 - Forecast empty states explain when insufficient historical data prevents useful output.
 - Settings and billing panels remain read-only when backend capability or role access is unavailable.
+- Notification stream auto-falls back to polling after sustained SSE failures and resumes live mode when stream connectivity returns.

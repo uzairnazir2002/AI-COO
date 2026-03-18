@@ -1,4 +1,3 @@
-import traceback
 import uuid
 from datetime import date
 
@@ -15,6 +14,7 @@ from app.domain.repos.report_repo import ReportRepo
 from app.domain.schemas.reports import ReportGenerateOut, ReportItem, ReportsOut
 from app.domain.services.report_service import ReportService
 from app.domain.services.usage_service import METRIC_REPORTS, UsageService
+from app.jobs.tasks.reports import generate_weekly_report
 
 router = APIRouter()
 
@@ -36,41 +36,47 @@ async def generate(
     db: AsyncSession = Depends(get_db),
 ):
     await get_org_context(org_id=org_id, user=user, db=db)
-    task_id = str(uuid.uuid4())
+    dedupe_key = f"report:{org_id}:{week_start.isoformat()}"
+    repo = ReportRepo(db)
+    existing_report = await repo.get_by_week(org_id, week_start)
+    if existing_report:
+        # Fast path for idempotent reuse: avoid extra queries/writes in churn-heavy traffic.
+        return ReportGenerateOut(report_id=existing_report.id, job_id=f"reused-{existing_report.id}", status="SUCCEEDED")
+
     job_repo = JobRepo(db)
-    await job_repo.upsert_running(
+    existing_job = await job_repo.by_dedupe_key(dedupe_key, org_id)
+    if existing_job and existing_job.status in {"PENDING", "RUNNING", "RETRYING"}:
+        await db.commit()
+        return ReportGenerateOut(
+            report_id=(uuid.UUID(existing_job.result["report_id"]) if existing_job.result and existing_job.result.get("report_id") else None),
+            job_id=existing_job.task_id,
+            status=existing_job.status,
+        )
+
+    await UsageService(PlanRepo(db)).consume(org_id, METRIC_REPORTS, delta=1)
+    task = generate_weekly_report.apply_async(
+        args=[str(org_id), week_start.isoformat(), str(user.id), str(user.id)],
+    )
+    task_id = str(task.id)
+    await job_repo.upsert_pending(
         task_id=task_id,
         task_name="generate_weekly_report",
-        dedupe_key=f"report:{org_id}:{week_start.isoformat()}",
+        dedupe_key=dedupe_key,
         payload={"org_id": str(org_id), "week_start": week_start.isoformat(), "created_by": str(user.id)},
         org_id=org_id,
         request_id=getattr(request.state, "request_id", None),
         correlation_id=str(user.id),
     )
-    try:
-        await UsageService(PlanRepo(db)).consume(org_id, METRIC_REPORTS, delta=1)
-        report = await ReportService(ReportRepo(db)).generate(org_id, week_start, user.id)
-        await job_repo.mark_succeeded(task_id, {"report_id": str(report.id)})
-    except Exception as exc:
-        await job_repo.mark_failed(
-            task_id,
-            retry_count=0,
-            error=str(exc),
-            traceback_summary="".join(traceback.format_exception(type(exc), exc, exc.__traceback__))[:2000],
-        )
-        await db.commit()
-        raise
-
     await AuditRepo(db).log(
         user.id,
         org_id,
-        "report.generate",
-        "report",
-        str(report.id),
+        "report.generate.enqueue",
+        "job_state",
+        task_id,
         {"week_start": week_start.isoformat(), "job_id": task_id},
     )
     await db.commit()
-    return ReportGenerateOut(report_id=report.id, job_id=task_id)
+    return ReportGenerateOut(report_id=None, job_id=task_id, status="PENDING")
 
 
 @router.get("/{report_id}/download")

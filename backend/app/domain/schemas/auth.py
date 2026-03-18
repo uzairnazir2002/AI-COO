@@ -23,6 +23,11 @@ class LogoutIn(BaseModel):
 
 class RegisterOut(BaseModel):
     user_id: uuid.UUID
+    access_token: str | None = None
+    refresh_token: str | None = None
+    token_type: str = "bearer"
+    expires_in: int | None = None
+    account_confirmed: bool = False
 
 
 class InviteAcceptIn(BaseModel):

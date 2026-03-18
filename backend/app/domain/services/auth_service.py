@@ -80,19 +80,26 @@ class AuthService:
         user = await self.auth_repo.get_user_by_email(email.lower())
         if not user or not user.is_active or not verify_password(password, user.password_hash):
             raise UnauthorizedError("Invalid credentials")
-        refresh = create_token(str(user.id), "refresh", refresh_ttl())
-        access = create_token(str(user.id), "access", access_ttl())
+        return await self._issue_tokens(user.id, request, audit_action="auth.login")
+
+    async def issue_registration_tokens(self, user_id: uuid.UUID, request: Request) -> TokenOut:
+        return await self._issue_tokens(user_id, request)
+
+    async def _issue_tokens(self, user_id: uuid.UUID, request: Request, audit_action: str | None = None) -> TokenOut:
+        refresh = create_token(str(user_id), "refresh", refresh_ttl())
+        access = create_token(str(user_id), "access", access_ttl())
         refresh_payload = decode_token(refresh) or {}
         exp = utc_now().replace(tzinfo=timezone.utc)
         exp = exp.fromtimestamp(refresh_payload["exp"], tz=timezone.utc)
         await self.auth_repo.create_token_session(
-            user_id=user.id,
+            user_id=user_id,
             refresh_token_hash=_h(refresh),
             expires_at=exp,
             user_agent=request.headers.get("user-agent"),
             ip_address=request.client.host if request.client else None,
         )
-        await self.audit_repo.log(user.id, None, "auth.login", "user", str(user.id), {})
+        if audit_action:
+            await self.audit_repo.log(user_id, None, audit_action, "user", str(user_id), {})
         return TokenOut(access_token=access, refresh_token=refresh, expires_in=int(access_ttl().total_seconds()))
 
     async def refresh(self, refresh_token: str, request: Request) -> TokenOut:
@@ -118,6 +125,10 @@ class AuthService:
         if session.expires_at <= now:
             raise UnauthorizedError("Refresh revoked")
         user_id = uuid.UUID(payload["sub"])
+        user = await self.auth_repo.get_user(user_id)
+        if not user or not user.is_active:
+            await self.auth_repo.revoke_token(session)
+            raise UnauthorizedError("Account is not active")
         access = create_token(str(user_id), "access", access_ttl())
         new_refresh = create_token(str(user_id), "refresh", refresh_ttl())
         p2 = decode_token(new_refresh) or {}

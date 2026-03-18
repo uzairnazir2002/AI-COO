@@ -11,15 +11,18 @@ class AnalyticsService:
 
     async def summary(self, org_id, from_date: date, to_date: date):
         this_month = date(to_date.year, to_date.month, 1)
-        rev, exp = await self.repo.month_totals(org_id, this_month)
+        snapshot = await self.repo.summary_snapshot(org_id, this_month)
+        rev = snapshot["revenue_mtd"]
+        exp = snapshot["expense_mtd"]
         burn = max(Decimal("0"), exp - rev)
+        cash = snapshot["starting_cash"] + snapshot["revenue_total"] - snapshot["expense_total"]
         return {
-            "cash_balance": await self.repo.cash_balance(org_id),
+            "cash_balance": cash,
             "revenue_mtd": rev,
             "expenses_mtd": exp,
             "net_profit_mtd": rev - exp,
             "burn_rate_monthly": burn,
-            "alerts_count_open": await self.repo.alerts_open_count(org_id),
+            "alerts_count_open": int(snapshot["alerts_open"]),
         }
 
     async def runway(self, org_id, lookback_months: int, conservative: bool):

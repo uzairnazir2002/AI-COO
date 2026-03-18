@@ -49,7 +49,13 @@ class TransactionRepo:
         if category:
             filters.append(Transaction.category == category)
         if q:
-            filters.append(or_(Transaction.vendor.ilike(f"%{q}%"), Transaction.notes.ilike(f"%{q}%")))
+            filters.append(
+                or_(
+                    Transaction.vendor.ilike(f"%{q}%"),
+                    Transaction.notes.ilike(f"%{q}%"),
+                    Transaction.category.ilike(f"%{q}%"),
+                )
+            )
 
         query = select(Transaction).where(and_(*filters)).order_by(Transaction.date.desc())
         total_q = select(func.count()).select_from(Transaction).where(and_(*filters))

@@ -44,3 +44,10 @@ class SystemStatusOut(BaseModel):
     system_jobs: list[JobOut]
     system_job_total: int
     org_outbox_counts: dict[str, int]
+
+
+class RuntimeMetricsOut(BaseModel):
+    org_id: uuid.UUID
+    queue_depth_active: int
+    outbox_pending: int
+    db_active_connections: int

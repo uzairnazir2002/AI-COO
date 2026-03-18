@@ -27,10 +27,14 @@ import { formatDate, formatMoney, startOfMonthISO, todayISO } from "@/lib/utils/
 import { useAppStore } from "@/store/appStore";
 import type { Transaction } from "@/types/domain";
 import {
+  useCreateImportProfile,
+  useDeleteImportProfile,
   downloadImportErrors,
   importCsv,
+  useImportProfiles,
   useBulkRemapCategory,
   useCreateTransaction,
+  useUpdateImportProfile,
   useDeleteTransaction,
   useImportHistory,
   useTransactions,
@@ -117,6 +121,9 @@ export default function TransactionsPage() {
   const [csvRows, setCsvRows] = useState<CsvRawRow[]>([]);
   const [csvPreview, setCsvPreview] = useState<{ rows: number; detected_duplicates: number } | null>(null);
   const [mapping, setMapping] = useState<CsvMapping>({ date: "", amount: "", type: "", category: "", vendor: "", notes: "" });
+  const [selectedProfileId, setSelectedProfileId] = useState<string>("");
+  const [profileName, setProfileName] = useState("");
+  const [profileShared, setProfileShared] = useState(false);
   const [csvBusy, setCsvBusy] = useState(false);
   const [bulkRemapState, setBulkRemapState] = useState({ from_category: "", to_category: "", from_date: filters.from, to_date: filters.to });
 
@@ -127,10 +134,15 @@ export default function TransactionsPage() {
   const updateTx = useUpdateTransaction();
   const deleteTx = useDeleteTransaction();
   const bulkRemap = useBulkRemapCategory();
+  const profiles = useImportProfiles();
+  const createProfile = useCreateImportProfile();
+  const updateProfile = useUpdateImportProfile();
+  const deleteProfile = useDeleteImportProfile();
 
   const data = useMemo(() => query.data?.items ?? [], [query.data?.items]);
   const total = query.data?.total ?? 0;
   const requiredMissing = csvFields.filter((field) => field.required && !mapping[field.key]).map((field) => field.label);
+  const selectedProfile = profiles.data?.find((p) => p.id === selectedProfileId) || null;
 
   const mappedPreviewRows = useMemo(
     () =>
@@ -204,6 +216,7 @@ export default function TransactionsPage() {
     setCsvHeaders(parsed.headers);
     setCsvRows(parsed.rows);
     setMapping(autoDetectMapping(parsed.headers));
+    setSelectedProfileId("");
   }
 
   const columns = useMemo(
@@ -332,6 +345,92 @@ export default function TransactionsPage() {
                     {csvHeaders.length > 0 ? (
                       <div className="grid gap-4 lg:grid-cols-[1fr_1.2fr]">
                         <div className="space-y-3">
+                          <div className="rounded-xl border border-border/70 p-3">
+                            <p className="text-sm font-medium">Saved profiles</p>
+                            <div className="mt-2 grid gap-2 md:grid-cols-[1fr_auto_auto]">
+                              <Select
+                                value={selectedProfileId || "__none__"}
+                                onValueChange={(value) => {
+                                  if (value === "__none__") {
+                                    setSelectedProfileId("");
+                                    return;
+                                  }
+                                  const profile = profiles.data?.find((p) => p.id === value);
+                                  if (!profile) return;
+                                  setSelectedProfileId(profile.id);
+                                  setProfileName(profile.name);
+                                  setProfileShared(profile.user_id === null);
+                                  setMapping((prev) => ({ ...prev, ...(profile.column_map as Partial<CsvMapping>) }));
+                                }}
+                              >
+                                <SelectTrigger><SelectValue placeholder="Use saved profile" /></SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="__none__">No profile</SelectItem>
+                                  {(profiles.data || []).map((profile) => (
+                                    <SelectItem key={profile.id} value={profile.id}>
+                                      {profile.name}{profile.user_id === null ? " (shared)" : ""}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                              <Button
+                                variant="outline"
+                                disabled={!selectedProfileId || deleteProfile.isPending}
+                                onClick={async () => {
+                                  if (!selectedProfileId) return;
+                                  try {
+                                    await deleteProfile.mutateAsync(selectedProfileId);
+                                    setSelectedProfileId("");
+                                    toast.toast({ title: "Profile deleted" });
+                                  } catch (error) {
+                                    handleApiError(error, "Delete profile failed");
+                                  }
+                                }}
+                              >
+                                Delete
+                              </Button>
+                            </div>
+                            <div className="mt-2 grid gap-2 md:grid-cols-[1fr_auto_auto]">
+                              <Input
+                                placeholder="Profile name"
+                                value={profileName}
+                                onChange={(e) => setProfileName(e.target.value)}
+                              />
+                              <Select value={profileShared ? "shared" : "personal"} onValueChange={(v) => setProfileShared(v === "shared")}>
+                                <SelectTrigger><SelectValue /></SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="personal">Personal</SelectItem>
+                                  <SelectItem value="shared">Shared</SelectItem>
+                                </SelectContent>
+                              </Select>
+                              <Button
+                                variant="outline"
+                                disabled={profileName.trim().length === 0 || requiredMissing.length > 0 || createProfile.isPending || updateProfile.isPending}
+                                onClick={async () => {
+                                  const payload = {
+                                    name: profileName.trim(),
+                                    column_map: mappingToApiPayload(mapping),
+                                    shared: profileShared,
+                                  };
+                                  try {
+                                    if (selectedProfileId) {
+                                      const saved = await updateProfile.mutateAsync({ profile_id: selectedProfileId, ...payload });
+                                      setSelectedProfileId(saved.id);
+                                      toast.toast({ title: "Profile updated" });
+                                    } else {
+                                      const saved = await createProfile.mutateAsync(payload);
+                                      setSelectedProfileId(saved.id);
+                                      toast.toast({ title: "Profile saved" });
+                                    }
+                                  } catch (error) {
+                                    handleApiError(error, "Save profile failed");
+                                  }
+                                }}
+                              >
+                                {selectedProfile ? "Update profile" : "Save profile"}
+                              </Button>
+                            </div>
+                          </div>
                           <p className="text-sm font-medium">Column mapping</p>
                           {csvFields.map((field) => (
                             <div key={field.key} className="space-y-1">
@@ -358,7 +457,7 @@ export default function TransactionsPage() {
                                 if (!csvFile || requiredMissing.length > 0) return;
                                 setCsvBusy(true);
                                 try {
-                                  const out = await importCsv(orgId, csvFile, mappingToApiPayload(mapping), false);
+                                  const out = await importCsv(orgId, csvFile, selectedProfileId ? undefined : mappingToApiPayload(mapping), false, selectedProfileId || undefined);
                                   setCsvPreview(out.preview);
                                 } catch (error) {
                                   handleApiError(error, "CSV preview failed");
@@ -376,7 +475,7 @@ export default function TransactionsPage() {
                                 if (!csvFile || requiredMissing.length > 0) return;
                                 setCsvBusy(true);
                                 try {
-                                  const out = await importCsv(orgId, csvFile, mappingToApiPayload(mapping), true);
+                                  const out = await importCsv(orgId, csvFile, selectedProfileId ? undefined : mappingToApiPayload(mapping), true, selectedProfileId || undefined);
                                   setCsvPreview(out.preview);
                                   toast.toast({ title: "CSV imported", description: `Inserted ${out.inserted_count}` });
                                   void query.refetch();
@@ -692,6 +791,7 @@ export default function TransactionsPage() {
                     <p className="font-medium">{item.file_name}</p>
                     <p className="mt-2 text-xs text-muted-foreground">
                       {item.status} | rows {item.total_rows} | inserted {item.inserted_count} | duplicates {item.duplicate_count} | errors {item.error_count}
+                      {item.mapping_profile_id ? ` | profile ${item.mapping_profile_id.slice(0, 8)}` : ""}
                     </p>
                     <Button
                       variant="ghost"

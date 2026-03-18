@@ -22,6 +22,7 @@ Multi-tenant SaaS for SMB operations with FastAPI + Next.js + Celery.
 - Forecast scenarios (`BASE/HIGH/LOW`) + overrides
 - Alerts (anomaly + profit leak patterns + runway exposure in summary)
 - Weekly PDF report generation, idempotent by `(org_id, week_start)`, stored in MinIO
+- Reports API generation endpoint enqueues async Celery jobs and returns immediate job status
 - Background jobs: report generation, email dispatch, forecast recalculation
 - Standardized task lifecycle tracking in `job_states` (`PENDING/RUNNING/RETRYING/SUCCEEDED/FAILED`)
 - Jobs API for org-scoped task visibility and filtering (`GET /api/v1/jobs`)
@@ -36,6 +37,7 @@ Multi-tenant SaaS for SMB operations with FastAPI + Next.js + Celery.
 - Recompute endpoint to enqueue alerts + forecast refresh
 - Plan + usage metering with soft limits (transactions, reports, AI summaries)
 - CSV import history with error-row CSV download
+- Persistent CSV import mapping profiles (personal/shared) with profile-based import execution
 - Real-time stream endpoint (`GET /api/v1/events/stream`) plus polling-safe UX fallback
 
 ## Security defaults
@@ -109,6 +111,7 @@ Main groups:
 - `organizations`: create/list/invite/members/settings
 - `organizations`: create/list/invite/members/settings/plan-usage/billing
 - `transactions`: create/list/update/delete/import-csv/import-history/import-errors/bulk-remap-category
+- `transactions`: import profile CRUD (`/transactions/import-profiles`) and profile-referenced import (`profile_id`)
 - `analytics`: summary/cashflow/recompute
 - `runway`: runway calculator
 - `forecast`: get/override
@@ -219,3 +222,4 @@ Generate report:
 curl -X POST "http://localhost:8000/api/v1/reports/generate?org_id=<ORG_ID>&week_start=2026-03-02" \
   -H "Authorization: Bearer <ACCESS_TOKEN>"
 ```
+Response includes `job_id`, `status`, and `report_id` when an existing report is reused.

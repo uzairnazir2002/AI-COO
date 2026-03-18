@@ -7,7 +7,7 @@ import { apiPaths } from "@/lib/api/endpoints";
 import { getAccessToken } from "@/lib/auth/tokens";
 import { qk } from "@/lib/query/keys";
 import { useAppStore } from "@/store/appStore";
-import type { ImportHistoryPage, PaginatedTransactions, Transaction } from "@/types/domain";
+import type { ImportHistoryPage, ImportMappingProfile, PaginatedTransactions, Transaction } from "@/types/domain";
 
 export type TransactionFilters = {
   from?: string;
@@ -142,15 +142,68 @@ export function useDeleteTransaction() {
 export async function importCsv(
   orgId: string,
   file: File,
-  mapping: Record<string, string>,
+  mapping: Record<string, string> | undefined,
   commit: boolean,
+  profileId?: string,
 ): Promise<{ import_id: string; preview: { rows: number; detected_duplicates: number }; inserted_count: number }> {
   const form = new FormData();
   form.append("org_id", orgId);
-  form.append("mapping", JSON.stringify(mapping));
+  if (mapping) form.append("mapping", JSON.stringify(mapping));
+  if (profileId) form.append("profile_id", profileId);
   form.append("commit", String(commit));
   form.append("file", file);
   return api(apiPaths.importCsv, { method: "POST", body: form });
+}
+
+export function useImportProfiles() {
+  const orgId = useAppStore((s) => s.selectedOrgId);
+  return useQuery({
+    queryKey: ["import-profiles", orgId],
+    queryFn: () => api<ImportMappingProfile[]>(`${apiPaths.importProfiles}?org_id=${orgId}`),
+    enabled: Boolean(orgId),
+  });
+}
+
+export function useCreateImportProfile() {
+  const orgId = useAppStore((s) => s.selectedOrgId);
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: { name: string; column_map: Record<string, string>; shared?: boolean }) =>
+      api<ImportMappingProfile>(apiPaths.importProfiles, {
+        method: "POST",
+        body: JSON.stringify({ org_id: orgId, name: payload.name, column_map: payload.column_map, shared: payload.shared ?? false }),
+      }),
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: ["import-profiles", orgId] });
+    },
+  });
+}
+
+export function useUpdateImportProfile() {
+  const orgId = useAppStore((s) => s.selectedOrgId);
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: { profile_id: string; name?: string; column_map?: Record<string, string>; shared?: boolean }) =>
+      api<ImportMappingProfile>(apiPaths.importProfileById(payload.profile_id), {
+        method: "PUT",
+        body: JSON.stringify({ org_id: orgId, name: payload.name, column_map: payload.column_map, shared: payload.shared }),
+      }),
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: ["import-profiles", orgId] });
+    },
+  });
+}
+
+export function useDeleteImportProfile() {
+  const orgId = useAppStore((s) => s.selectedOrgId);
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (profileId: string) =>
+      api<{ ok: boolean }>(`${apiPaths.importProfileById(profileId)}?org_id=${orgId}`, { method: "DELETE" }),
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: ["import-profiles", orgId] });
+    },
+  });
 }
 
 export function useBulkRemapCategory() {

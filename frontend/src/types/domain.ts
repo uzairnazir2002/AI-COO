@@ -136,8 +136,9 @@ export type JobPage = {
 
 export type AnalyticsRecomputeResult = {
   ok: boolean;
-  alerts_job_id: string;
-  forecast_job_id: string;
+  job_id: string;
+  status: string;
+  result?: Record<string, unknown> | null;
 };
 
 export type AdminRecomputeResult = {
@@ -157,8 +158,9 @@ export type ResendConfirmationResult = {
 };
 
 export type ReportGenerationResult = {
-  report_id: string;
+  report_id?: string | null;
   job_id: string;
+  status: string;
 };
 
 export type OutboxEvent = {
@@ -215,6 +217,7 @@ export type ImportHistoryItem = {
   inserted_count: number;
   duplicate_count: number;
   error_count: number;
+  mapping_profile_id?: string | null;
   created_at: string;
   created_by: string;
 };
@@ -224,6 +227,16 @@ export type ImportHistoryPage = {
   page: number;
   page_size: number;
   total: number;
+};
+
+export type ImportMappingProfile = {
+  id: string;
+  org_id: string;
+  user_id: string | null;
+  name: string;
+  column_map: Record<string, string>;
+  created_at: string;
+  updated_at: string;
 };
 
 export type NotificationItem = {

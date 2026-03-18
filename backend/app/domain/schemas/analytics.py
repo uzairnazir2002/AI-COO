@@ -29,3 +29,10 @@ class RunwayOut(BaseModel):
     monthly_burn: Decimal
     cash_balance: Decimal
     alert: bool
+
+
+class AnalyticsRecomputeOut(BaseModel):
+    ok: bool
+    job_id: str
+    status: str
+    result: dict | None = None

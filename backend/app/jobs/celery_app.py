@@ -6,7 +6,17 @@ from app.core.observability import init_sentry
 
 settings = get_settings()
 init_sentry(settings, service_name="celery-worker")
-celery_app = Celery("ai_coo", broker=settings.redis_url, backend=settings.redis_url)
+TASK_MODULES = [
+    "app.jobs.tasks.admin",
+    "app.jobs.tasks.analytics",
+    "app.jobs.tasks.alerts",
+    "app.jobs.tasks.emails",
+    "app.jobs.tasks.forecasts",
+    "app.jobs.tasks.outbox",
+    "app.jobs.tasks.reports",
+]
+
+celery_app = Celery("ai_coo", broker=settings.redis_url, backend=settings.redis_url, include=TASK_MODULES)
 celery_app.conf.update(
     timezone="UTC",
     enable_utc=True,
@@ -23,4 +33,8 @@ celery_app.conf.update(
         },
     },
 )
+celery_app.set_default()
+# Import task modules explicitly so shared_task decorators bind to this app.
+from app.jobs import tasks as _registered_tasks  # noqa: F401,E402
+
 celery_app.autodiscover_tasks(["app.jobs.tasks"])

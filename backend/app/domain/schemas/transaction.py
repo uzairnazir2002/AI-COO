@@ -37,6 +37,7 @@ class CSVImportOut(BaseModel):
     import_id: str
     preview: dict
     inserted_count: int
+    mapping_profile_id: uuid.UUID | None = None
 
 
 class ImportHistoryItem(BaseModel):
@@ -47,6 +48,7 @@ class ImportHistoryItem(BaseModel):
     inserted_count: int
     duplicate_count: int
     error_count: int
+    mapping_profile_id: uuid.UUID | None = None
     created_at: datetime
     created_by: uuid.UUID
 
@@ -61,6 +63,31 @@ class ImportHistoryPageOut(BaseModel):
 class CSVImportForm(BaseModel):
     org_id: uuid.UUID
     mapping: dict[str, str] = Field(default_factory=dict)
+    profile_id: uuid.UUID | None = None
+
+
+class ImportMappingProfileIn(BaseModel):
+    org_id: uuid.UUID
+    name: str = Field(min_length=1, max_length=120)
+    column_map: dict[str, str]
+    shared: bool = False
+
+
+class ImportMappingProfileUpdateIn(BaseModel):
+    org_id: uuid.UUID
+    name: str | None = Field(default=None, min_length=1, max_length=120)
+    column_map: dict[str, str] | None = None
+    shared: bool | None = None
+
+
+class ImportMappingProfileOut(BaseModel):
+    id: uuid.UUID
+    org_id: uuid.UUID
+    user_id: uuid.UUID | None
+    name: str
+    column_map: dict[str, str]
+    created_at: datetime
+    updated_at: datetime
 
 
 class BulkCategoryRemapIn(BaseModel):

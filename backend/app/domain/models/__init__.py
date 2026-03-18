@@ -3,6 +3,7 @@ from app.domain.models.alert import Alert
 from app.domain.models.audit_log import AuditLog
 from app.domain.models.category import Category
 from app.domain.models.forecast import Forecast
+from app.domain.models.import_mapping_profile import ImportMappingProfile
 from app.domain.models.job_state import JobState
 from app.domain.models.membership import Membership
 from app.domain.models.monthly_aggregate import MonthlyAggregate
@@ -30,6 +31,7 @@ __all__ = [
     "Transaction",
     "Alert",
     "Forecast",
+    "ImportMappingProfile",
     "Report",
     "AuditLog",
     "TokenSession",

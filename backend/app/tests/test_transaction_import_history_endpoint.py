@@ -57,6 +57,7 @@ def test_import_history_list_and_error_download(monkeypatch, transactions_module
                         inserted_count=8,
                         duplicate_count=2,
                         error_count=2,
+                        mapping_profile_id=None,
                         created_at=now,
                         created_by=uuid.uuid4(),
                     )

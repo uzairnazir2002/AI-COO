@@ -81,12 +81,22 @@ def _token_response(tok: TokenOut) -> TokenOut:
 
 
 @router.post("/register", response_model=RegisterOut)
-async def register(request: Request, body: RegisterIn, db: AsyncSession = Depends(get_db)):
+async def register(request: Request, response: Response, body: RegisterIn, db: AsyncSession = Depends(get_db)):
     await enforce_auth_rate_limit(request, "register", 10)
     svc = AuthService(AuthRepo(db), OrgRepo(db), AuditRepo(db), OutboxRepo(db))
     user = await svc.register(body.email, body.password)
+    tok = await svc.issue_registration_tokens(user.id, request)
+    _set_auth_cookies(response, tok.access_token, tok.refresh_token)
     await db.commit()
-    return RegisterOut(user_id=user.id)
+    body_token = _token_response(tok)
+    return RegisterOut(
+        user_id=user.id,
+        access_token=body_token.access_token,
+        refresh_token=body_token.refresh_token,
+        token_type=body_token.token_type,
+        expires_in=body_token.expires_in,
+        account_confirmed=False,
+    )
 
 
 @router.post("/login", response_model=TokenOut)
@@ -126,7 +136,7 @@ async def accept_invite(request: Request, body: InviteAcceptIn, db: AsyncSession
     svc = AuthService(AuthRepo(db), OrgRepo(db), AuditRepo(db), OutboxRepo(db))
     user = await svc.accept_invite(body.token, body.password)
     await db.commit()
-    return RegisterOut(user_id=user.id)
+    return RegisterOut(user_id=user.id, account_confirmed=True)
 
 
 @router.post("/confirm", response_model=RegisterOut)
@@ -138,7 +148,7 @@ async def confirm(request: Request, body: ConfirmIn, db: AsyncSession = Depends(
     else:
         user = await svc.confirm_registration(body.token)
     await db.commit()
-    return RegisterOut(user_id=user.id)
+    return RegisterOut(user_id=user.id, account_confirmed=True)
 
 
 @router.post("/resend-confirmation", response_model=ResendConfirmationOut)

@@ -85,7 +85,15 @@ class TransactionService:
             )
         return rows, normalized
 
-    async def preview_csv(self, user_id: uuid.UUID, org_id: uuid.UUID, content: bytes, mapping: dict[str, str], file_name: str):
+    async def preview_csv(
+        self,
+        user_id: uuid.UUID,
+        org_id: uuid.UUID,
+        content: bytes,
+        mapping: dict[str, str],
+        file_name: str,
+        mapping_profile_id: uuid.UUID | None = None,
+    ):
         rows, normalized = await self._normalized_csv_rows(content, mapping)
         existing_keys = await self.tx_repo.existing_duplicate_keys(org_id, normalized)
         dup = 0
@@ -110,10 +118,19 @@ class TransactionService:
             duplicate_count=dup,
             error_rows=error_rows,
             mapping=mapping,
+            mapping_profile_id=mapping_profile_id,
         )
         return str(record.id), {"rows": len(rows), "detected_duplicates": dup}
 
-    async def import_csv(self, user_id: uuid.UUID, org_id: uuid.UUID, content: bytes, mapping: dict[str, str], file_name: str):
+    async def import_csv(
+        self,
+        user_id: uuid.UUID,
+        org_id: uuid.UUID,
+        content: bytes,
+        mapping: dict[str, str],
+        file_name: str,
+        mapping_profile_id: uuid.UUID | None = None,
+    ):
         rows, normalized = await self._normalized_csv_rows(content, mapping)
         existing_keys = await self.tx_repo.existing_duplicate_keys(org_id, normalized)
         dup = 0
@@ -160,6 +177,7 @@ class TransactionService:
             duplicate_count=dup,
             error_rows=error_rows,
             mapping=mapping,
+            mapping_profile_id=mapping_profile_id,
         )
 
         await self.audit_repo.log(
@@ -212,6 +230,7 @@ class TransactionService:
         duplicate_count: int,
         error_rows: list[dict],
         mapping: dict[str, str],
+        mapping_profile_id: uuid.UUID | None = None,
     ) -> TransactionImport:
         if self.import_repo is None:
             return TransactionImport(
@@ -223,6 +242,7 @@ class TransactionService:
                 inserted_count=inserted_count,
                 duplicate_count=duplicate_count,
                 error_count=len(error_rows),
+                mapping_profile_id=mapping_profile_id,
                 mapping_json=mapping,
                 error_rows_json=error_rows,
             )
@@ -236,6 +256,7 @@ class TransactionService:
             inserted_count=inserted_count,
             duplicate_count=duplicate_count,
             error_count=len(error_rows),
+            mapping_profile_id=mapping_profile_id,
             mapping_json=mapping,
             error_rows_json=error_rows,
         )

@@ -21,6 +21,7 @@ class _FakeAuthRepo:
         self.session = session
         self.revoked_all_called = False
         self.created = []
+        self.users = {session.user_id: SimpleNamespace(id=session.user_id, is_active=True)}
 
     async def get_token_session(self, _refresh_hash: str):
         return self.session
@@ -32,6 +33,9 @@ class _FakeAuthRepo:
     async def create_token_session(self, **kwargs):
         self.created.append(kwargs)
         return kwargs
+
+    async def get_user(self, user_id: uuid.UUID):
+        return self.users.get(user_id)
 
     async def revoke_all_user_sessions(self, user_id: uuid.UUID):
         assert user_id == self.session.user_id

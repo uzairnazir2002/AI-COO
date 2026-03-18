@@ -1,6 +1,7 @@
 import uuid
 
 from fastapi import APIRouter, Depends, Query, Request
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user, get_org_context, require_roles
@@ -11,7 +12,7 @@ from app.domain.repos.notification_repo import NotificationRepo
 from app.domain.repos.outbox_repo import OutboxRepo
 from app.domain.repos.schedule_repo import ScheduleRepo
 from app.domain.schemas.job import JobOut
-from app.domain.schemas.operations import BeatScheduleItemOut, OutboxEventOut, OutboxPageOut, SystemStatusOut
+from app.domain.schemas.operations import BeatScheduleItemOut, OutboxEventOut, OutboxPageOut, RuntimeMetricsOut, SystemStatusOut
 from app.domain.services.notification_service import NotificationService
 from app.jobs.celery_app import celery_app
 from app.jobs.tasks.admin import recompute_alerts, recompute_forecasts, recompute_monthly_aggregates, verify_report_objects
@@ -60,7 +61,8 @@ async def recompute_all(
             }
         },
     )
-    await db.commit()
+    if hasattr(db, "commit"):
+        await db.commit()
 
     return {
         "ok": True,
@@ -150,7 +152,7 @@ async def system_status(
                 name=name,
                 task=str(entry.get("task", "")),
                 schedule=str(entry.get("schedule", "")),
-                paused=bool(control.paused) if control else False,
+                paused=bool(getattr(control, "paused", False)),
             )
         )
 
@@ -162,6 +164,25 @@ async def system_status(
         system_jobs=[JobOut.model_validate(item) for item in system_jobs],
         system_job_total=total,
         org_outbox_counts=outbox_counts,
+    )
+
+
+@router.get("/runtime-metrics", response_model=RuntimeMetricsOut)
+async def runtime_metrics(
+    org_id: uuid.UUID = Query(...),
+    user: User = Depends(get_current_user),
+    _: object = Depends(require_roles("OWNER")),
+    db: AsyncSession = Depends(get_db),
+):
+    ctx = await get_org_context(org_id=org_id, user=user, db=db)
+    active_jobs = await JobRepo(db).count_active(ctx.org_id)
+    outbox_counts = await OutboxRepo(db).counts_by_status(org_id=ctx.org_id)
+    db_active = await db.scalar(text("SELECT count(*)::int FROM pg_stat_activity WHERE state = 'active'"))
+    return RuntimeMetricsOut(
+        org_id=ctx.org_id,
+        queue_depth_active=active_jobs,
+        outbox_pending=int((outbox_counts.get("PENDING") or 0) + (outbox_counts.get("RETRYING") or 0)),
+        db_active_connections=int(db_active or 0),
     )
 
 
@@ -184,7 +205,8 @@ async def pause_schedule(
         link="/app/activity",
         metadata_json={"schedule": name},
     )
-    await db.commit()
+    if hasattr(db, "commit"):
+        await db.commit()
     return {"ok": True, "name": control.name, "paused": control.paused}
 
 
@@ -207,7 +229,8 @@ async def resume_schedule(
         link="/app/activity",
         metadata_json={"schedule": name},
     )
-    await db.commit()
+    if hasattr(db, "commit"):
+        await db.commit()
     return {"ok": True, "name": control.name, "paused": control.paused}
 
 
@@ -237,5 +260,6 @@ async def run_schedule_now(
         link="/app/activity",
         metadata_json={"schedule": name, "task_id": result.id},
     )
-    await db.commit()
+    if hasattr(db, "commit"):
+        await db.commit()
     return {"ok": True, "name": name, "task_id": result.id}

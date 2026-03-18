@@ -16,5 +16,6 @@ class ReportsOut(BaseModel):
 
 
 class ReportGenerateOut(BaseModel):
-    report_id: uuid.UUID
+    report_id: uuid.UUID | None = None
     job_id: str
+    status: str

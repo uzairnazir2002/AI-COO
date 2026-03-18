@@ -30,7 +30,10 @@ def process_outbox(self, batch_size: int = 100, correlation_id: str | None = Non
 async def _process(batch_size: int, correlation_id: str | None = None) -> int:
     processed = 0
     async with SessionLocal() as db:
-        control = await ScheduleRepo(db).get("outbox-consumer")
+        try:
+            control = await ScheduleRepo(db).get("outbox-consumer")
+        except AttributeError:
+            control = None
         if control and control.paused:
             return 0
         repo = OutboxRepo(db)
@@ -49,7 +52,7 @@ async def _process(batch_size: int, correlation_id: str | None = None) -> int:
                 await repo.mark_sent(event)
             except Exception as exc:
                 await repo.mark_retry_or_failed(event, str(exc))
-                if event.org_id:
+                if getattr(event, "org_id", None):
                     await NotificationService(NotificationRepo(db)).create_org_notification(
                         org_id=event.org_id,
                         category="OPS",

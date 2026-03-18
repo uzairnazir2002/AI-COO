@@ -1,0 +1,9 @@
+﻿date,amount,type,category,vendor,notes
+2026-02-01,19000.00,REVENUE,Sales,Stripe,Valid row
+2026-02-02,abc,EXPENSE,Payroll,Remote Payroll,Invalid amount text
+not-a-date,4500.00,EXPENSE,Payroll,Remote Payroll,Invalid date format
+2026-02-04,-500.00,EXPENSE,Software,Slack,Negative amount should fail if non-negative enforced
+2026-02-05,1600.00,UNKNOWN,Marketing,Meta Ads,Invalid type
+2026-02-06,1120.00,EXPENSE,,Google Ads,Missing category
+,500.00,EXPENSE,Operations,Amazon,Missing date
+2026-02-08,0.00,REVENUE,Sales,Wise,Zero amount edge case

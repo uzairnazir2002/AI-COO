@@ -13,7 +13,7 @@ function formatTime(ts: number) {
   return new Date(ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 }
 
-export function NotificationCenter({ streamStatus = "idle" }: { streamStatus?: "idle" | "connecting" | "live" | "error" }) {
+export function NotificationCenter({ streamStatus = "idle" }: { streamStatus?: "idle" | "connecting" | "live" | "error" | "fallback_polling" }) {
   const [open, setOpen] = useState(false);
   const history = useToastStore((s) => s.history);
   const active = useToastStore((s) => s.toasts);
@@ -25,6 +25,7 @@ export function NotificationCenter({ streamStatus = "idle" }: { streamStatus?: "
 
   const unreadCount = active.length + (inbox.data?.unread_count ?? 0);
   const items = useMemo(() => history.slice(0, 30), [history]);
+  const streamLabel = streamStatus === "fallback_polling" ? "fallback polling" : streamStatus;
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -42,7 +43,7 @@ export function NotificationCenter({ streamStatus = "idle" }: { streamStatus?: "
       <DialogContent className="max-w-xl">
         <DialogHeader>
           <DialogTitle>Notification Center</DialogTitle>
-          <DialogDescription>Durable org notifications plus session toasts. Stream status: {streamStatus}.</DialogDescription>
+          <DialogDescription>Durable org notifications plus session toasts. Stream status: {streamLabel}.</DialogDescription>
         </DialogHeader>
         <div className="flex items-center justify-end gap-2">
           <Button

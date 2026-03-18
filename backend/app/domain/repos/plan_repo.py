@@ -2,6 +2,7 @@ import uuid
 from datetime import date
 
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.domain.models.organization_plan import OrganizationPlan
@@ -46,9 +47,20 @@ class PlanRepo:
             soft_limit=soft_limit,
             updated_at=utc_now(),
         )
-        self.db.add(usage)
-        await self.db.flush()
-        return usage
+        try:
+            async with self.db.begin_nested():
+                self.db.add(usage)
+                await self.db.flush()
+                return usage
+        except IntegrityError:
+            # Concurrent insert for the same unique key won the race.
+            usage = await self.get_usage(org_id, metric, period_start)
+            if usage is None:
+                raise
+            if usage.soft_limit != soft_limit:
+                usage.soft_limit = soft_limit
+                await self.db.flush()
+            return usage
 
     async def increment_usage(self, usage: UsageMeter, delta: int) -> UsageMeter:
         usage.used_count += delta

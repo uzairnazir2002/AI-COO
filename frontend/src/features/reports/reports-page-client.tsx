@@ -25,8 +25,10 @@ export function ReportsPageClient() {
   const [weekStart, setWeekStart] = useState(weekStartISO());
   const [dialogOpen, setDialogOpen] = useState(false);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [lastQueuedJobId, setLastQueuedJobId] = useState<string | null>(null);
   const router = useRouter();
   const reportJobs = useJobs({ task_name: "generate_weekly_report", page: 1, page_size: 5 });
+  const trackedJob = reportJobs.data?.items.find((job) => job.task_id === lastQueuedJobId);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -57,10 +59,13 @@ export function ReportsPageClient() {
                     disabled={generate.isPending}
                     onClick={async () => {
                       const result = await generate.mutateAsync(weekStart);
+                      setLastQueuedJobId(result.job_id);
                       toast.toast({
-                        title: "Report generated",
-                        description: `Report ${result.report_id} recorded under job ${result.job_id}.`,
-                        variant: "success",
+                        title: result.report_id ? "Report already available" : "Report generation requested",
+                        description: result.report_id
+                          ? `Reused existing report ${result.report_id}.`
+                          : `Job ${result.job_id} is ${result.status.toLowerCase()}.`,
+                        variant: result.report_id ? "success" : "default",
                       });
                       setDialogOpen(false);
                     }}
@@ -79,6 +84,33 @@ export function ReportsPageClient() {
           <CardContent className="flex items-center gap-3 p-5 text-sm text-muted-foreground">
             <LoaderCircle className="h-4 w-4 animate-spin" />
             Generating report. This view will refresh from the existing reports endpoint once the request completes.
+          </CardContent>
+        </Card>
+      ) : null}
+      {!generate.isPending && trackedJob ? (
+        <Card>
+          <CardContent className="flex items-center gap-3 p-5 text-sm text-muted-foreground">
+            {trackedJob.status === "FAILED" ? (
+              <>
+                <Badge variant="destructive">failed</Badge>
+                Report generation failed. Check Activity for retry details.
+              </>
+            ) : trackedJob.status === "SUCCEEDED" ? (
+              <>
+                <Badge variant="success">completed</Badge>
+                Report generation completed.
+              </>
+            ) : trackedJob.status === "RUNNING" ? (
+              <>
+                <LoaderCircle className="h-4 w-4 animate-spin" />
+                Report is generating.
+              </>
+            ) : (
+              <>
+                <Badge variant="secondary">queued</Badge>
+                Report job is queued.
+              </>
+            )}
           </CardContent>
         </Card>
       ) : null}

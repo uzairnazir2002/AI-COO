@@ -86,6 +86,10 @@ class FakeJobRepo:
         )
         return [item], 1
 
+    async def count_active(self, org_id):
+        assert org_id
+        return 3
+
 
 @pytest.fixture
 def admin_module(monkeypatch):
@@ -108,6 +112,9 @@ def _app_with_overrides(monkeypatch, admin, role: str, ctx_org_id: uuid.UUID):
     class _FakeDb:
         async def commit(self):
             return None
+
+        async def scalar(self, *_args, **_kwargs):
+            return 11
 
     async def fake_db():
         yield _FakeDb()
@@ -164,3 +171,19 @@ def test_admin_outbox_retry_endpoint(monkeypatch, admin_module):
     assert res.status_code == 200
     assert res.json()["ok"] is True
     assert res.json()["status"] == "PENDING"
+
+
+def test_admin_runtime_metrics_endpoint(monkeypatch, admin_module):
+    monkeypatch.setattr(admin_module, "OutboxRepo", FakeOutboxRepo)
+    monkeypatch.setattr(admin_module, "JobRepo", FakeJobRepo)
+    org_id = uuid.uuid4()
+    app = _app_with_overrides(monkeypatch, admin_module, "OWNER", org_id)
+    client = TestClient(app)
+
+    res = client.get(f"/api/v1/admin/runtime-metrics?org_id={org_id}")
+    assert res.status_code == 200
+    body = res.json()
+    assert body["org_id"] == str(org_id)
+    assert body["queue_depth_active"] == 3
+    assert body["outbox_pending"] == 3
+    assert body["db_active_connections"] == 11

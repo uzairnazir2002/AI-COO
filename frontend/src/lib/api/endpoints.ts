@@ -20,6 +20,8 @@ export const apiPaths = {
   importCsv: "/api/v1/transactions/import/csv",
   imports: "/api/v1/transactions/imports",
   importErrors: (id: string) => `/api/v1/transactions/imports/${id}/errors`,
+  importProfiles: "/api/v1/transactions/import-profiles",
+  importProfileById: (id: string) => `/api/v1/transactions/import-profiles/${id}`,
   bulkRemap: "/api/v1/transactions/bulk/remap-category",
   summary: "/api/v1/analytics/summary",
   cashflow: "/api/v1/analytics/cashflow",

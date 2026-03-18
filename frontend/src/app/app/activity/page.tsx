@@ -79,7 +79,7 @@ export default function ActivityPage() {
                 const result = await analyticsRecompute.mutateAsync();
                 toast.toast({
                   title: "Analytics recompute queued",
-                  description: `Alerts job ${result.alerts_job_id} and forecast job ${result.forecast_job_id} were enqueued.`,
+                  description: `Job ${result.job_id} is ${result.status.toLowerCase()}.`,
                   variant: "success",
                 });
               }}

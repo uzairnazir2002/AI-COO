@@ -10,10 +10,12 @@ import { useAppStore } from "@/store/appStore";
 
 export function useNotifications(unreadOnly = false) {
   const orgId = useAppStore((s) => s.selectedOrgId);
+  const userId = useAppStore((s) => s.user?.id);
   return useQuery({
     queryKey: qk.notifications(orgId || "", unreadOnly),
     queryFn: () => api<NotificationPageResponse>(`${apiPaths.notifications}?org_id=${orgId}&unread_only=${String(unreadOnly)}&page=1&page_size=30`, { schema: notificationPageSchema }),
-    enabled: Boolean(orgId),
+    enabled: Boolean(orgId && userId),
+    retry: false,
     refetchInterval: 15000,
   });
 }
