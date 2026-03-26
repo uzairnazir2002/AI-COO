@@ -325,7 +325,7 @@ jobs:
         run: docker compose --env-file .env down -v
 
   plaid-epic-a:
-    if: ${{ secrets.PLAID_CLIENT_ID != '' && secrets.PLAID_SECRET != '' }}
+    if: ${{ vars.PLAID_CLIENT_ID != '' && vars.PLAID_SECRET != '' }}
     runs-on: ubuntu-latest
     env:
       PLAID_CLIENT_ID: ${{ secrets.PLAID_CLIENT_ID }}
@@ -420,7 +420,7 @@ jobs:
         run: docker compose --env-file .env down -v
 
   stripe-epic-b:
-    if: ${{ secrets.STRIPE_SECRET_KEY != '' && secrets.STRIPE_WEBHOOK_SECRET != '' }}
+    if: ${{ vars.STRIPE_SECRET_KEY != '' && vars.STRIPE_WEBHOOK_SECRET != '' }}
     runs-on: ubuntu-latest
     env:
       STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
