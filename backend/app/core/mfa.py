@@ -3,14 +3,13 @@ import hashlib
 import hmac
 import secrets
 import struct
-import time
 from datetime import datetime, timezone
 from urllib.parse import quote
 
 from app.core.config import get_settings
 
 
-def _fernet_from_secret() -> "Fernet":
+def _fernet_from_secret():
     from cryptography.fernet import Fernet
 
     secret = get_settings().secret_key.encode("utf-8")
@@ -47,7 +46,9 @@ def _totp_code(secret: str, counter: int) -> str:
     return f"{code_int:06d}"
 
 
-def verify_totp_code(secret: str, code: str, *, now: datetime | None = None, window: int = 1) -> bool:
+def verify_totp_code(
+    secret: str, code: str, *, now: datetime | None = None, window: int = 1
+) -> bool:
     if not code or not code.isdigit() or len(code) != 6:
         return False
     ts = int((now or datetime.now(timezone.utc)).timestamp())

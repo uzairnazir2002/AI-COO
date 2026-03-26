@@ -1,5 +1,5 @@
 import uuid
-from datetime import date, datetime, timezone
+from datetime import datetime, timezone
 from importlib import reload
 from types import SimpleNamespace
 
@@ -27,7 +27,9 @@ class _FakeBudgetService:
     def __init__(self, *_args, **_kwargs):
         self.rows = _ROWS
 
-    async def list_budgets(self, *, org_id, period_month=None, budget_type=None, include_history=False):
+    async def list_budgets(
+        self, *, org_id, period_month=None, budget_type=None, include_history=False
+    ):
         out = [row for row in self.rows if row.org_id == org_id]
         if period_month:
             out = [row for row in out if row.period_month == period_month]
@@ -37,7 +39,17 @@ class _FakeBudgetService:
             out = [row for row in out if row.is_current]
         return out
 
-    async def create_budget(self, *, org_id, actor_user_id, category, period_month, planned_amount, budget_type="EXPENSE", notes=None):
+    async def create_budget(
+        self,
+        *,
+        org_id,
+        actor_user_id,
+        category,
+        period_month,
+        planned_amount,
+        budget_type="EXPENSE",
+        notes=None,
+    ):
         _ = actor_user_id
         version = (
             max(
@@ -79,9 +91,14 @@ class _FakeBudgetService:
         self.rows.append(row)
         return row
 
-    async def update_budget_version(self, *, org_id, actor_user_id, budget_id, planned_amount, notes=None):
+    async def update_budget_version(
+        self, *, org_id, actor_user_id, budget_id, planned_amount, notes=None
+    ):
         _ = actor_user_id
-        row = next((item for item in self.rows if item.id == budget_id and item.org_id == org_id), None)
+        row = next(
+            (item for item in self.rows if item.id == budget_id and item.org_id == org_id),
+            None,
+        )
         if not row:
             raise ValueError("Budget not found")
         return await self.create_budget(

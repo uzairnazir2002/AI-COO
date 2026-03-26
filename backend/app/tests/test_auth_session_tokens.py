@@ -1,4 +1,4 @@
-from datetime import timedelta, timezone
+from datetime import timedelta
 from types import SimpleNamespace
 import uuid
 
@@ -33,7 +33,9 @@ class _FakeAuthRepo:
         self.refresh_lookup = {}
         self.users = {}
 
-    async def create_token_session(self, user_id, refresh_token_hash, expires_at, user_agent, ip_address):
+    async def create_token_session(
+        self, user_id, refresh_token_hash, expires_at, user_agent, ip_address
+    ):
         rec = _TokenSession(user_id, refresh_token_hash)
         rec.expires_at = expires_at
         rec.user_agent = user_agent

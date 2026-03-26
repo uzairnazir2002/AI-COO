@@ -95,12 +95,13 @@ class FakeJobRepo:
         return datetime.now(timezone.utc)
 
     async def by_id(self, job_id):
-        now = datetime.now(timezone.utc)
         return SimpleNamespace(
             id=job_id,
             org_id=self.db.org_id if hasattr(self.db, "org_id") else uuid.uuid4(),
             task_name="recompute_alerts",
-            payload={"org_id": str(self.db.org_id) if hasattr(self.db, "org_id") else str(uuid.uuid4())},
+            payload={
+                "org_id": (str(self.db.org_id) if hasattr(self.db, "org_id") else str(uuid.uuid4()))
+            },
             correlation_id="corr-1",
         )
 
@@ -469,7 +470,9 @@ def test_admin_dead_letter_dismiss_endpoint(monkeypatch, admin_module):
     client = TestClient(app)
 
     event_id = uuid.uuid4()
-    res = client.post(f"/api/v1/admin/dead-letter/{event_id}/dismiss?org_id={org_id}&reason=resolved")
+    res = client.post(
+        f"/api/v1/admin/dead-letter/{event_id}/dismiss?org_id={org_id}&reason=resolved"
+    )
     assert res.status_code == 200
     body = res.json()
     assert body["ok"] is True

@@ -58,19 +58,29 @@ jobs:
           pip install .[dev]
       - name: Wait for Postgres
         run: |
-          for i in {1..40}; do
-            python - <<'PY'
-            import psycopg2
-            try:
-                psycopg2.connect(dbname="ai_coo", user="ai_coo", password="ai_coo", host="localhost", port=5432).close()
-                print("ok")
-            except Exception:
-                raise SystemExit(1)
-            PY
-            if [ "$?" -eq 0 ]; then exit 0; fi
-            sleep 2
-          done
-          exit 1
+          python - <<'PY'
+          import time
+          import psycopg2
+
+          last_error = None
+          for _ in range(40):
+              try:
+                  conn = psycopg2.connect(
+                      dbname="ai_coo",
+                      user="ai_coo",
+                      password="ai_coo",
+                      host="localhost",
+                      port=5432,
+                  )
+                  conn.close()
+                  print("postgres ready")
+                  raise SystemExit(0)
+              except Exception as exc:  # pragma: no cover - CI-only path
+                  last_error = exc
+                  time.sleep(2)
+          print(f"postgres not ready after retries: {last_error}")
+          raise SystemExit(1)
+          PY
       - name: Migration safety gate (upgrade/downgrade/re-upgrade)
         run: |
           python scripts/migration_safety_check.py
@@ -80,6 +90,11 @@ jobs:
     defaults:
       run:
         working-directory: backend
+    env:
+      SECRET_KEY: ci-backend-secret
+      DATABASE_URL: postgresql+asyncpg://ai_coo:ai_coo@localhost:5432/ai_coo
+      REDIS_URL: redis://localhost:6379/0
+      ENV: development
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5

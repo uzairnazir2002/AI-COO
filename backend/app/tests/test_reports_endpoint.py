@@ -1,4 +1,3 @@
-from datetime import date
 from importlib import reload
 from types import SimpleNamespace
 import uuid
@@ -139,7 +138,9 @@ def test_generate_report_returns_active_job_when_already_running(monkeypatch, re
     org_id = uuid.uuid4()
     user_id = uuid.uuid4()
     fake_job_repo = _FakeJobRepo(object())
-    fake_job_repo.existing_job = SimpleNamespace(task_id="task-running", status="RUNNING", result=None)
+    fake_job_repo.existing_job = SimpleNamespace(
+        task_id="task-running", status="RUNNING", result=None
+    )
 
     monkeypatch.setattr(reports_module, "JobRepo", lambda _db: fake_job_repo)
     monkeypatch.setattr(reports_module, "ReportRepo", lambda _db: _FakeReportRepo(object()))
@@ -147,7 +148,11 @@ def test_generate_report_returns_active_job_when_already_running(monkeypatch, re
     monkeypatch.setattr(
         reports_module,
         "generate_weekly_report",
-        SimpleNamespace(apply_async=lambda args: (_ for _ in ()).throw(AssertionError("apply_async should not be called"))),
+        SimpleNamespace(
+            apply_async=lambda args: (_ for _ in ()).throw(
+                AssertionError("apply_async should not be called")
+            )
+        ),
     )
 
     app = _app_with_overrides(reports_module, monkeypatch, org_id, user_id)
@@ -205,7 +210,11 @@ def test_generate_report_replays_from_idempotency_store(monkeypatch, reports_mod
     monkeypatch.setattr(
         reports_module,
         "generate_weekly_report",
-        SimpleNamespace(apply_async=lambda args: (_ for _ in ()).throw(AssertionError("apply_async should not be called on replay"))),
+        SimpleNamespace(
+            apply_async=lambda args: (_ for _ in ()).throw(
+                AssertionError("apply_async should not be called on replay")
+            )
+        ),
     )
     app = _app_with_overrides(reports_module, monkeypatch, org_id, user_id)
     client = TestClient(app)
@@ -231,6 +240,7 @@ def test_generate_report_location_scope_changes_dedupe_key(monkeypatch, reports_
     monkeypatch.setattr(reports_module, "AuditRepo", lambda _db: fake_audit_repo)
     monkeypatch.setattr(reports_module, "PlanRepo", lambda _db: object())
     monkeypatch.setattr(reports_module, "UsageService", _FakeUsageService)
+
     class _FakeLocationService:
         def __init__(self, _repo):
             pass

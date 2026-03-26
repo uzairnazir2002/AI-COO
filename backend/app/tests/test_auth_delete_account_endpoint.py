@@ -68,7 +68,6 @@ def test_list_delete_account_requests(monkeypatch):
 
     now = datetime.now(timezone.utc)
     request_id = uuid4()
-    user_id = uuid4()
 
     class _FakePrivacyService:
         def __init__(self, *_args, **_kwargs):

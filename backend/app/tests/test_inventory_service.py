@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from datetime import date, datetime, timedelta, timezone
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from uuid import UUID, uuid4
 
@@ -197,4 +197,6 @@ async def test_forecast_marks_high_risk_when_cover_is_short():
     assert line.risk_level == "HIGH"
     assert line.units_per_day == Decimal("1.0000")
     assert line.days_of_cover == Decimal("5.0")
-    assert line.projected_stockout_date <= (datetime.now(tz=timezone.utc).date() + timedelta(days=6))
+    assert line.projected_stockout_date <= (
+        datetime.now(tz=timezone.utc).date() + timedelta(days=6)
+    )

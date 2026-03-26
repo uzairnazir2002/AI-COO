@@ -6,7 +6,12 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
-from app.core.pii_crypto import active_pii_key_id, pii_decrypt, pii_encrypt, pii_reencrypt
+from app.core.pii_crypto import (
+    active_pii_key_id,
+    pii_decrypt,
+    pii_encrypt,
+    pii_reencrypt,
+)
 from app.domain.models.membership import Membership
 from app.domain.models.organization import Organization
 from app.domain.models.organization_billing import OrganizationBilling
@@ -15,7 +20,7 @@ from app.domain.models.token_session import TokenSession
 from app.domain.models.user import User
 from app.domain.repos.audit_repo import AuditRepo
 from app.domain.repos.deletion_repo import DeletionRepo
-from app.domain.services.errors import ConflictError, ForbiddenError, NotFoundError
+from app.domain.services.errors import ConflictError, ForbiddenError
 from app.utils.time import utc_now
 
 
@@ -39,15 +44,26 @@ class PrivacyService:
             reason=reason,
             delete_after=delete_after,
         )
-        await self.audit_repo.log(user_id, None, "auth.delete.requested", "deletion_request", str(row.id), {"delete_after": delete_after.isoformat()})
+        await self.audit_repo.log(
+            user_id,
+            None,
+            "auth.delete.requested",
+            "deletion_request",
+            str(row.id),
+            {"delete_after": delete_after.isoformat()},
+        )
         return {"request_id": row.id, "delete_after": delete_after}
 
     async def list_account_deletion_requests(self, *, user_id: uuid.UUID, limit: int = 20) -> list:
         return await self.deletion_repo.list_for_user(user_id, limit=limit)
 
-    async def request_org_deletion(self, *, actor_user_id: uuid.UUID, org_id: uuid.UUID, reason: str | None) -> dict:
+    async def request_org_deletion(
+        self, *, actor_user_id: uuid.UUID, org_id: uuid.UUID, reason: str | None
+    ) -> dict:
         membership = await self.db.scalar(
-            select(Membership).where(Membership.user_id == actor_user_id, Membership.org_id == org_id)
+            select(Membership).where(
+                Membership.user_id == actor_user_id, Membership.org_id == org_id
+            )
         )
         if not membership or str(membership.role) != "OWNER":
             raise ForbiddenError("Forbidden")
@@ -64,12 +80,23 @@ class PrivacyService:
             reason=reason,
             delete_after=delete_after,
         )
-        await self.audit_repo.log(actor_user_id, org_id, "org.delete.requested", "deletion_request", str(row.id), {"delete_after": delete_after.isoformat()})
+        await self.audit_repo.log(
+            actor_user_id,
+            org_id,
+            "org.delete.requested",
+            "deletion_request",
+            str(row.id),
+            {"delete_after": delete_after.isoformat()},
+        )
         return {"request_id": row.id, "delete_after": delete_after}
 
-    async def list_org_deletion_requests(self, *, actor_user_id: uuid.UUID, org_id: uuid.UUID, limit: int = 50) -> list:
+    async def list_org_deletion_requests(
+        self, *, actor_user_id: uuid.UUID, org_id: uuid.UUID, limit: int = 50
+    ) -> list:
         membership = await self.db.scalar(
-            select(Membership).where(Membership.user_id == actor_user_id, Membership.org_id == org_id)
+            select(Membership).where(
+                Membership.user_id == actor_user_id, Membership.org_id == org_id
+            )
         )
         if not membership or str(membership.role) != "OWNER":
             raise ForbiddenError("Forbidden")
@@ -77,12 +104,16 @@ class PrivacyService:
 
     async def rotate_org_pii(self, *, actor_user_id: uuid.UUID, org_id: uuid.UUID) -> dict:
         membership = await self.db.scalar(
-            select(Membership).where(Membership.user_id == actor_user_id, Membership.org_id == org_id)
+            select(Membership).where(
+                Membership.user_id == actor_user_id, Membership.org_id == org_id
+            )
         )
         if not membership or str(membership.role) != "OWNER":
             raise ForbiddenError("Forbidden")
         rotated = 0
-        billing = await self.db.scalar(select(OrganizationBilling).where(OrganizationBilling.org_id == org_id))
+        billing = await self.db.scalar(
+            select(OrganizationBilling).where(OrganizationBilling.org_id == org_id)
+        )
         if billing and billing.billing_email:
             new_value = pii_reencrypt(billing.billing_email)
             if new_value != billing.billing_email:
@@ -91,23 +122,35 @@ class PrivacyService:
         invites = list(
             (
                 await self.db.execute(
-                    select(OrganizationInvite).where(OrganizationInvite.org_id == org_id, OrganizationInvite.accepted_at.is_(None))
+                    select(OrganizationInvite).where(
+                        OrganizationInvite.org_id == org_id,
+                        OrganizationInvite.accepted_at.is_(None),
+                    )
                 )
-            ).scalars().all()
+            )
+            .scalars()
+            .all()
         )
         for invite in invites:
             new_email = pii_reencrypt(invite.email)
             if new_email != invite.email:
                 invite.email = new_email
                 rotated += 1
-        user_ids = [row[0] for row in (await self.db.execute(select(Membership.user_id).where(Membership.org_id == org_id))).all()]
+        user_ids = [
+            row[0]
+            for row in (
+                await self.db.execute(select(Membership.user_id).where(Membership.org_id == org_id))
+            ).all()
+        ]
         if user_ids:
             sessions = list(
                 (
                     await self.db.execute(
                         select(TokenSession).where(TokenSession.user_id.in_(user_ids))
                     )
-                ).scalars().all()
+                )
+                .scalars()
+                .all()
             )
             for s in sessions:
                 new_ip = pii_reencrypt(s.ip_address)
@@ -141,7 +184,11 @@ class PrivacyService:
                 if await self._purge_org(row.target_org_id):
                     processed_orgs += 1
             await self.deletion_repo.mark_processed(row, processed_at=now)
-        return {"processed_requests": len(rows), "users": processed_users, "orgs": processed_orgs}
+        return {
+            "processed_requests": len(rows),
+            "users": processed_users,
+            "orgs": processed_orgs,
+        }
 
     async def _purge_user(self, user_id: uuid.UUID) -> bool:
         user = await self.db.scalar(select(User).where(User.id == user_id))
@@ -153,9 +200,15 @@ class PrivacyService:
         user.mfa_enabled = False
         user.mfa_secret_encrypted = None
         user.mfa_recovery_code_hashes = []
-        user.email = pii_encrypt(f"deleted+{user.id}@redacted.local") or f"deleted+{user.id}@redacted.local"
+        user.email = (
+            pii_encrypt(f"deleted+{user.id}@redacted.local") or f"deleted+{user.id}@redacted.local"
+        )
         user.password_hash = f"deleted:{secrets.token_hex(16)}"
-        sessions = list((await self.db.execute(select(TokenSession).where(TokenSession.user_id == user_id))).scalars().all())
+        sessions = list(
+            (await self.db.execute(select(TokenSession).where(TokenSession.user_id == user_id)))
+            .scalars()
+            .all()
+        )
         for s in sessions:
             s.is_revoked = True
             s.ip_address = pii_encrypt(pii_decrypt(s.ip_address) or "redacted")
@@ -170,7 +223,9 @@ class PrivacyService:
         if org.deleted_at is None:
             org.deleted_at = utc_now()
         org.name = f"Deleted Organization {str(org.id)[:8]}"
-        billing = await self.db.scalar(select(OrganizationBilling).where(OrganizationBilling.org_id == org_id))
+        billing = await self.db.scalar(
+            select(OrganizationBilling).where(OrganizationBilling.org_id == org_id)
+        )
         if billing:
             billing.billing_email = pii_encrypt("redacted@redacted.local")
             billing.billing_notes = None
@@ -178,7 +233,9 @@ class PrivacyService:
             billing.subscription_id = None
             billing.subscription_status = None
             billing.active_price_id = None
-        await self.audit_repo.log(None, org_id, "org.delete.purged", "organization", str(org_id), {})
+        await self.audit_repo.log(
+            None, org_id, "org.delete.purged", "organization", str(org_id), {}
+        )
         return True
 
 
