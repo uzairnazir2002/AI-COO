@@ -8,7 +8,7 @@ import { qk } from "@/lib/query/keys";
 import { useAppStore } from "@/store/appStore";
 import type { Alert, AlertHistoryItem } from "@/types/domain";
 
-export function useAlerts(status: "open" | "dismissed", assigneeUserId?: string) {
+export function useAlerts(status: "open" | "dismissed", assigneeUserId?: string, enabled = true) {
   const orgId = useAppStore((s) => s.selectedOrgId);
   const selectedLocationId = useAppStore((s) => s.selectedLocationId);
   const assigneeQuery = assigneeUserId ? `&assignee_user_id=${assigneeUserId}` : "";
@@ -17,7 +17,7 @@ export function useAlerts(status: "open" | "dismissed", assigneeUserId?: string)
     queryKey: qk.alerts(orgId || "", status, assigneeUserId || "", selectedLocationId || ""),
     queryFn: () =>
       api<{ items: Alert[] }>(`${apiPaths.alerts}?org_id=${orgId}&status=${status}${assigneeQuery}${locationQuery}`),
-    enabled: Boolean(orgId),
+    enabled: Boolean(orgId) && enabled,
   });
 }
 

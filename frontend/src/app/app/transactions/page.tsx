@@ -464,55 +464,63 @@ export default function TransactionsPage() {
                             </div>
                           ))}
                           {requiredMissing.length > 0 ? <p className="text-sm text-danger">Missing required mappings: {requiredMissing.join(", ")}</p> : null}
-                          <div className="flex gap-2">
-                            <Button
-                              data-testid="csv-preview-button"
-                              variant="outline"
-                              disabled={!csvFile || requiredMissing.length > 0 || csvBusy}
-                              onClick={async () => {
-                                if (!csvFile || requiredMissing.length > 0) return;
-                                setCsvBusy(true);
-                                try {
-                                  const out = await importCsv(orgId, csvFile, selectedProfileId ? undefined : mappingToApiPayload(mapping), false, selectedProfileId || undefined);
-                                  setCsvPreview(out.preview);
-                                } catch (error) {
-                                  handleApiError(error, "CSV preview failed");
-                                } finally {
-                                  setCsvBusy(false);
-                                }
-                              }}
-                            >
-                              Preview Import
-                            </Button>
-                            <Button
-                              data-testid="csv-confirm-button"
-                              disabled={!csvFile || requiredMissing.length > 0 || csvBusy}
-                              onClick={async () => {
-                                if (!csvFile || requiredMissing.length > 0) return;
-                                setCsvBusy(true);
-                                try {
-                                  const out = await importCsv(orgId, csvFile, selectedProfileId ? undefined : mappingToApiPayload(mapping), true, selectedProfileId || undefined);
-                                  setCsvPreview(out.preview);
-                                  const refreshText = describeAlertRefresh(out.alertRecalc);
-                                  toast.toast({
-                                    title: "CSV imported",
-                                    description: refreshText ? `Inserted ${out.inserted_count}. ${refreshText}` : `Inserted ${out.inserted_count}`,
-                                  });
-                                  void query.refetch();
-                                  void importHistory.refetch();
-                                  setImportOpen(false);
-                                } catch (error) {
-                                  handleApiError(error, "CSV import failed");
-                                } finally {
-                                  setCsvBusy(false);
-                                }
-                              }}
-                            >
-                              Confirm Import
-                            </Button>
+                          <div
+                            data-testid="csv-action-footer"
+                            className="sticky bottom-0 z-20 -mx-3 mt-2 space-y-2 border-t border-border/70 bg-background/95 px-3 pb-1 pt-3 backdrop-blur"
+                          >
+                            <p className="text-xs text-muted-foreground">
+                              Validation summary: {requiredMissing.length > 0 ? `Missing ${requiredMissing.join(", ")}` : "All required fields mapped"}
+                            </p>
+                            <div className="flex flex-wrap gap-2">
+                              <Button
+                                data-testid="csv-preview-button"
+                                variant="outline"
+                                disabled={!csvFile || requiredMissing.length > 0 || csvBusy}
+                                onClick={async () => {
+                                  if (!csvFile || requiredMissing.length > 0) return;
+                                  setCsvBusy(true);
+                                  try {
+                                    const out = await importCsv(orgId, csvFile, selectedProfileId ? undefined : mappingToApiPayload(mapping), false, selectedProfileId || undefined);
+                                    setCsvPreview(out.preview);
+                                  } catch (error) {
+                                    handleApiError(error, "CSV preview failed");
+                                  } finally {
+                                    setCsvBusy(false);
+                                  }
+                                }}
+                              >
+                                Preview Import
+                              </Button>
+                              <Button
+                                data-testid="csv-confirm-button"
+                                disabled={!csvFile || requiredMissing.length > 0 || csvBusy}
+                                onClick={async () => {
+                                  if (!csvFile || requiredMissing.length > 0) return;
+                                  setCsvBusy(true);
+                                  try {
+                                    const out = await importCsv(orgId, csvFile, selectedProfileId ? undefined : mappingToApiPayload(mapping), true, selectedProfileId || undefined);
+                                    setCsvPreview(out.preview);
+                                    const refreshText = describeAlertRefresh(out.alertRecalc);
+                                    toast.toast({
+                                      title: "CSV imported",
+                                      description: refreshText ? `Inserted ${out.inserted_count}. ${refreshText}` : `Inserted ${out.inserted_count}`,
+                                    });
+                                    void query.refetch();
+                                    void importHistory.refetch();
+                                    setImportOpen(false);
+                                  } catch (error) {
+                                    handleApiError(error, "CSV import failed");
+                                  } finally {
+                                    setCsvBusy(false);
+                                  }
+                                }}
+                              >
+                                Confirm Import
+                              </Button>
+                            </div>
+                            {csvPreview ? <p className="text-sm text-muted-foreground">Rows: {csvPreview.rows} | Duplicates detected by backend: {csvPreview.detected_duplicates}</p> : null}
+                            <p className="text-sm text-muted-foreground">Local duplicate hints: {localDupes}</p>
                           </div>
-                          {csvPreview ? <p className="text-sm text-muted-foreground">Rows: {csvPreview.rows} | Duplicates detected by backend: {csvPreview.detected_duplicates}</p> : null}
-                          <p className="text-sm text-muted-foreground">Local duplicate hints: {localDupes}</p>
                         </div>
                         <div className="space-y-3">
                           <p className="text-sm font-medium">Preview</p>

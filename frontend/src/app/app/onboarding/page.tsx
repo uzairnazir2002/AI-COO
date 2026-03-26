@@ -8,19 +8,12 @@ import { SectionHeader } from "@/components/common/section-header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { useAlerts } from "@/features/alerts/hooks";
-import { useForecast } from "@/features/forecast/hooks";
-import { useReports } from "@/features/reports/hooks";
-import { useTransactions } from "@/features/transactions/hooks";
+import { useOnboardingProgress } from "@/features/onboarding/hooks";
 import { useAppStore } from "@/store/appStore";
 
 export default function OnboardingPage() {
-  const selectedOrg = useAppStore((s) => s.orgs.find((org) => org.org_id === s.selectedOrgId));
-  const orgId = selectedOrg?.org_id;
-  const transactions = useTransactions({ page: 1, page_size: 1 });
-  const reports = useReports();
-  const alerts = useAlerts("open");
-  const forecast = useForecast(3);
+  const progress = useOnboardingProgress({ includeAlerts: true });
+  const orgId = progress.orgId;
 
   if (!orgId) {
     return (
@@ -33,43 +26,22 @@ export default function OnboardingPage() {
     );
   }
 
-  const hasTransactions = (transactions.data?.total ?? 0) > 0;
-  const hasReports = (reports.data?.items.length ?? 0) > 0;
-  const hasForecast = (forecast.data?.scenarios.base.length ?? 0) > 0;
-  const hasAlerts = (alerts.data?.items.length ?? 0) > 0;
+  const hasTransactions = progress.hasTransactions;
+  const hasReports = progress.hasReports;
+  const hasForecast = progress.hasForecast;
+  const hasAlerts = progress.hasAlerts;
 
-  const steps = [
-    {
-      title: "Load operating data",
-      description: "Manual entry and CSV import are both active. Until you load transactions, the rest of the cockpit stays mostly empty.",
-      done: hasTransactions,
-      href: "/app/transactions?action=import",
-      cta: hasTransactions ? "Review transactions" : "Import data",
-      icon: Wallet,
-    },
-    {
-      title: "Generate financial signal",
-      description: "Forecasts, runway, and alerting become useful once the backend has enough history to compute trends.",
-      done: hasForecast || hasAlerts,
-      href: "/app/forecast",
-      cta: hasForecast ? "Review forecast" : "Open forecast",
-      icon: Rocket,
-    },
-    {
-      title: "Publish a weekly report",
-      description: "Reports are stored in object storage and stay idempotent by organization and week start.",
-      done: hasReports,
-      href: "/app/reports?action=generate",
-      cta: hasReports ? "View reports" : "Generate report",
-      icon: FileText,
-    },
-  ];
+  const iconByStep = {
+    transactions: Wallet,
+    signal: Rocket,
+    reports: FileText,
+  } as const;
 
   return (
     <div className="space-y-6">
       <SectionHeader
         title="Onboarding"
-        description={`Bring ${selectedOrg.name} from empty workspace to live financial cockpit.`}
+        description={`Bring ${progress.orgName || "your organization"} from empty workspace to live financial cockpit.`}
         actions={
           <Button asChild variant="outline">
             <Link href="/app/dashboard">
@@ -92,12 +64,14 @@ export default function OnboardingPage() {
       </Card>
 
       <div className="grid gap-4 xl:grid-cols-3">
-        {steps.map((step) => (
-          <Card key={step.title}>
+        {progress.steps.map((step) => {
+          const Icon = iconByStep[step.key];
+          return (
+          <Card key={step.key}>
             <CardHeader>
               <div className="flex items-center justify-between">
                 <div className="rounded-2xl bg-primary/10 p-3 text-primary">
-                  <step.icon className="h-5 w-5" />
+                  <Icon className="h-5 w-5" />
                 </div>
                 <Badge variant={step.done ? "success" : "secondary"}>{step.done ? "Complete" : "Next step"}</Badge>
               </div>
@@ -112,7 +86,8 @@ export default function OnboardingPage() {
               </Button>
             </CardContent>
           </Card>
-        ))}
+          );
+        })}
       </div>
     </div>
   );

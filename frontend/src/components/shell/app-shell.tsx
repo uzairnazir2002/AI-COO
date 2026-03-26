@@ -25,10 +25,12 @@ import { Breadcrumbs } from "@/components/shell/breadcrumbs";
 import { CommandPalette } from "@/components/shell/command-palette";
 import { DateRangeControl } from "@/components/shell/date-range-control";
 import { NotificationCenter } from "@/components/shell/notification-center";
+import { OnboardingProgressRail } from "@/components/shell/onboarding-progress-rail";
 import { ThemeToggle } from "@/components/common/theme-toggle";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useLocations } from "@/features/locations/hooks";
+import { useOnboardingProgress } from "@/features/onboarding/hooks";
 import { useOrgEventFeed } from "@/features/notifications/hooks";
 import { logout } from "@/lib/api/client";
 import { useAppStore } from "@/store/appStore";
@@ -62,6 +64,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const setCollapsed = useAppStore((s) => s.setShellCollapsed);
   const streamStatus = useOrgEventFeed();
   const locationsQuery = useLocations();
+  const onboardingProgress = useOnboardingProgress();
+  const showOnboardingRail =
+    Boolean(onboardingProgress.orgId) && !onboardingProgress.isComplete && !pathname.startsWith("/app/onboarding");
 
   useEffect(() => {
     if (!selectedOrgId || typeof document === "undefined") return;
@@ -204,6 +209,15 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               </div>
             </div>
             <Breadcrumbs />
+            {showOnboardingRail ? (
+              <OnboardingProgressRail
+                orgName={onboardingProgress.orgName}
+                completedCount={onboardingProgress.completedCount}
+                totalSteps={onboardingProgress.steps.length}
+                progressPercent={onboardingProgress.progressPercent}
+                nextStep={onboardingProgress.nextStep}
+              />
+            ) : null}
           </div>
         </header>
         <main className="page-container">

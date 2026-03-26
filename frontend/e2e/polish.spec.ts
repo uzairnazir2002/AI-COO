@@ -3,6 +3,8 @@ import path from "node:path";
 import type { Page } from "@playwright/test";
 import { expect, test } from "./fixtures/auth";
 
+const apiBase = process.env.E2E_API_URL || "http://localhost:8000/api/v1";
+
 async function chooseSelectOptionByTestId(page: Page, testId: string, option: string) {
   await page.getByTestId(testId).click();
   await page.getByRole("option", { name: option }).click();
@@ -24,11 +26,39 @@ test("transactions csv mapping required-field guard disables import actions", as
   const csvPath = path.resolve(process.cwd(), "..", "shared", "demo", "transactions_6months.csv");
   await page.getByTestId("csv-file-input").setInputFiles(csvPath);
   await expect(page.getByText("Column mapping")).toBeVisible();
+  await expect(page.getByTestId("csv-action-footer")).toBeVisible();
 
   await chooseSelectOptionByTestId(page, "csv-map-date", "Not mapped");
   await expect(page.getByText(/Missing required mappings: Date/)).toBeVisible();
   await expect(page.getByTestId("csv-preview-button")).toBeDisabled();
   await expect(page.getByTestId("csv-confirm-button")).toBeDisabled();
+});
+
+test("guided onboarding rail appears for a fresh organization", async ({ page, authenticatedPage, authSession }) => {
+  await authenticatedPage;
+  test.skip(authSession.authMode !== "bearer", "Onboarding rail bootstrap helper currently uses bearer-mode org creation.");
+
+  const createOrg = await page.request.post(`${apiBase}/organizations`, {
+    data: { name: `Onboarding ${authSession.namespace}` },
+    headers: { Authorization: `Bearer ${authSession.accessToken}` },
+  });
+  expect(createOrg.ok(), await createOrg.text()).toBeTruthy();
+  const created = (await createOrg.json()) as { org_id: string };
+
+  await page.evaluate((orgId: string) => {
+    localStorage.setItem(
+      "ai-coo-app-store",
+      JSON.stringify({
+        state: { selectedOrgId: orgId },
+        version: 0,
+      }),
+    );
+    document.cookie = `ai_coo_selected_org=${orgId}; path=/; max-age=31536000; SameSite=Lax`;
+  }, created.org_id);
+
+  await page.goto("/app/dashboard");
+  await expect(page.getByTestId("onboarding-progress-rail")).toBeVisible();
+  await expect(page.getByTestId("onboarding-progress-next")).toBeVisible();
 });
 
 test("transactions bulk remap success path updates category and shows toast", async ({ page, authenticatedPage, authSession }) => {
