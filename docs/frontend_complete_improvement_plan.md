@@ -218,3 +218,14 @@ Acceptance:
 | `sse-fallback.spec.ts` | 1 | 0 | 0 | 1 | SKIPPED (env-gated) |
 | `stripe-integration.spec.ts` | 1 | 1 | 0 | 0 | PASS |
 | `visual.spec.ts` | 6 | 0 | 0 | 6 | SKIPPED (env-gated) |
+
+### Env-Gated CI Lane Validation
+- Enabled repository variable: `CI_E2E_COOKIE_LANE=1`.
+- Triggered CI workflow on branch `sub-branch` with cookie lane input.
+  - Run URL: `https://github.com/uzairnazir2002/AI-COO/actions/runs/23615860967`
+  - Cookie lane job: `playwright-cookie-csrf` executed.
+  - Artifact upload validated:
+    - Artifact name: `playwright-cookie-csrf-report`
+    - Artifact ID: `6132112247`
+    - Downloaded locally for verification: `tmp/ci-artifacts/`
+- Note: workflow overall is red due unrelated failing jobs in same run (`backend`, `precommit`, `migration-safety`) and the cookie spec assertion itself, but artifact upload path is confirmed working.
