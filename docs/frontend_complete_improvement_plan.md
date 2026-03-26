@@ -221,11 +221,17 @@ Acceptance:
 
 ### Env-Gated CI Lane Validation
 - Enabled repository variable: `CI_E2E_COOKIE_LANE=1`.
-- Triggered CI workflow on branch `sub-branch` with cookie lane input.
+- Triggered initial CI workflow on branch `sub-branch` with cookie lane input.
   - Run URL: `https://github.com/uzairnazir2002/AI-COO/actions/runs/23615860967`
-  - Cookie lane job: `playwright-cookie-csrf` executed.
+  - Cookie lane job executed, failed on CSRF bootstrap in auth fixture.
   - Artifact upload validated:
     - Artifact name: `playwright-cookie-csrf-report`
     - Artifact ID: `6132112247`
-    - Downloaded locally for verification: `tmp/ci-artifacts/`
-- Note: workflow overall is red due unrelated failing jobs in same run (`backend`, `precommit`, `migration-safety`) and the cookie spec assertion itself, but artifact upload path is confirmed working.
+- Patched cookie-mode fixture CSRF header injection and re-ran CI.
+  - Run URL: `https://github.com/uzairnazir2002/AI-COO/actions/runs/23616346624`
+  - Cookie lane job URL: `https://github.com/uzairnazir2002/AI-COO/actions/runs/23616346624/job/68784676842`
+  - Cookie lane conclusion: `success`
+  - Artifact upload validated:
+    - Artifact name: `playwright-cookie-csrf-report`
+    - Artifact ID: `6132418474`
+- Note: full workflow remains red due unrelated jobs (`backend`, `precommit`, `migration-safety`), but cookie-lane spec + artifact pipeline is now healthy.
