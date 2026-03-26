@@ -24,6 +24,8 @@ type Fixtures = {
 
 const apiBase = process.env.E2E_API_URL || "http://localhost:8000/api/v1";
 const authMode = (process.env.E2E_AUTH_MODE || "bearer") as "bearer" | "cookie";
+const csrfCookieName = process.env.E2E_CSRF_COOKIE_NAME || "ai_coo_csrf_token";
+const csrfHeaderName = process.env.E2E_CSRF_HEADER_NAME || "X-CSRF-Token";
 const seededEmail = process.env.E2E_USER_EMAIL;
 const seededPassword = process.env.E2E_USER_PASSWORD;
 const seededOrgId = process.env.E2E_ORG_ID;
@@ -31,6 +33,13 @@ const useSeededIdentity = process.env.E2E_USE_SEEDED === "1";
 const loginRetryLimit = Math.max(1, Number(process.env.E2E_LOGIN_RETRY_LIMIT || 5));
 const loginBackoffBaseMs = Math.max(100, Number(process.env.E2E_LOGIN_BACKOFF_BASE_MS || 400));
 const loginBackoffMaxMs = Math.max(loginBackoffBaseMs, Number(process.env.E2E_LOGIN_BACKOFF_MAX_MS || 3_500));
+const apiOrigin = (() => {
+  try {
+    return new URL(apiBase).origin;
+  } catch {
+    return undefined;
+  }
+})();
 
 const runNonce = `${Date.now()}-${Math.random().toString(16).slice(2, 10)}`;
 let uniqueIdentityCounter = 0;
@@ -51,7 +60,7 @@ async function confirmAccountIfNeeded(page: Page, email: string) {
   if (!tokenJson.found || !tokenJson.token) {
     return false;
   }
-  const confirmRes = await page.request.post(`${apiBase}/auth/confirm`, {
+  const confirmRes = await postWithCookieCsrf(page, `${apiBase}/auth/confirm`, {
     data: { token: tokenJson.token },
   });
   return confirmRes.ok();
@@ -75,7 +84,7 @@ function nextUniqueIdentity(workerIndex: number) {
 }
 
 async function ensureRegistered(page: Page, email: string, password: string, errorPrefix = "register failed") {
-  const reg = await page.request.post(`${apiBase}/auth/register`, {
+  const reg = await postWithCookieCsrf(page, `${apiBase}/auth/register`, {
     data: { email, password },
   });
   if (![200, 409].includes(reg.status())) {
@@ -83,8 +92,38 @@ async function ensureRegistered(page: Page, email: string, password: string, err
   }
 }
 
+async function readCookieFromContext(page: Page, name: string): Promise<string | undefined> {
+  const cookies = apiOrigin ? await page.context().cookies([apiOrigin]) : await page.context().cookies();
+  return cookies.find((cookie) => cookie.name === name)?.value;
+}
+
+async function withCookieCsrfHeaders(
+  page: Page,
+  headers?: Record<string, string>,
+): Promise<Record<string, string> | undefined> {
+  if (authMode !== "cookie") return headers;
+  const csrfToken = await readCookieFromContext(page, csrfCookieName);
+  if (!csrfToken) return headers;
+  return {
+    ...(headers || {}),
+    [csrfHeaderName]: csrfToken,
+  };
+}
+
+async function postWithCookieCsrf(
+  page: Page,
+  url: string,
+  options: { data?: unknown; headers?: Record<string, string> },
+) {
+  const headers = await withCookieCsrfHeaders(page, options.headers);
+  return page.request.post(url, {
+    data: options.data,
+    headers,
+  });
+}
+
 async function loginWithBackoff(page: Page, email: string, password: string) {
-  let last = await page.request.post(`${apiBase}/auth/login`, { data: { email, password } });
+  let last = await postWithCookieCsrf(page, `${apiBase}/auth/login`, { data: { email, password } });
   if (last.ok()) {
     return last;
   }
@@ -96,7 +135,7 @@ async function loginWithBackoff(page: Page, email: string, password: string) {
     }
     const delayMs = Math.min(loginBackoffMaxMs, loginBackoffBaseMs * 2 ** (attempt - 2));
     await delay(delayMs);
-    last = await page.request.post(`${apiBase}/auth/login`, { data: { email, password } });
+    last = await postWithCookieCsrf(page, `${apiBase}/auth/login`, { data: { email, password } });
     if (last.ok()) {
       return last;
     }
@@ -237,7 +276,7 @@ export const test = base.extend<Fixtures>({
 
     let orgId = seededOrgIsAccessible ? seededOrgId : knownOrgs[0]?.org_id;
     if (!orgId) {
-      const createOrg = await page.request.post(`${apiBase}/organizations`, {
+      const createOrg = await postWithCookieCsrf(page, `${apiBase}/organizations`, {
         data: { name: `E2E Org ${namespace}` },
         headers: authMode === "bearer" ? { Authorization: `Bearer ${accessToken}` } : undefined,
       });
