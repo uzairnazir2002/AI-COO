@@ -3,6 +3,7 @@ import uuid
 from datetime import datetime
 
 from sqlalchemy import func, or_, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.domain.models.job_state import JobState
@@ -47,11 +48,30 @@ class JobRepo:
                 progress=0,
                 retry_count=0,
             )
-            self.db.add(state)
-            await self.db.flush()
+            try:
+                async with self.db.begin_nested():
+                    self.db.add(state)
+                    await self.db.flush()
+            except IntegrityError:
+                state = await self.db.scalar(
+                    select(JobState).where(or_(JobState.task_id == task_id, JobState.dedupe_key == dedupe_key))
+                )
+                if not state:
+                    raise
+                # If a concurrent runner already promoted this job, keep that stronger state.
+                if state.status in {"RUNNING", "RETRYING", "SUCCEEDED"}:
+                    return state
+                state.status = "PENDING"
+                state.progress = 0
+                state.result = None
+                state.retry_count = 0
+                state.last_retry_at = None
+                state.last_error = None
+                state.traceback_summary = None
+                state.updated_at = utc_now()
+                await self.db.flush()
             return state
 
-        state.task_id = task_id
         state.task_name = task_name
         state.job_name = task_name
         state.dedupe_key = dedupe_key
@@ -59,6 +79,10 @@ class JobRepo:
         state.org_id = org_id
         state.request_id = request_id
         state.correlation_id = correlation_id
+        if state.status in {"RUNNING", "RETRYING", "SUCCEEDED"}:
+            state.updated_at = utc_now()
+            await self.db.flush()
+            return state
         state.status = "PENDING"
         state.progress = 0
         state.result = None
@@ -98,11 +122,31 @@ class JobRepo:
                 progress=0,
                 retry_count=0,
             )
-            self.db.add(state)
-            await self.db.flush()
+            try:
+                async with self.db.begin_nested():
+                    self.db.add(state)
+                    await self.db.flush()
+            except IntegrityError:
+                state = await self.db.scalar(
+                    select(JobState).where(or_(JobState.task_id == task_id, JobState.dedupe_key == dedupe_key))
+                )
+                if not state:
+                    raise
+                state.status = "RUNNING"
+                state.task_name = task_name
+                state.job_name = task_name
+                state.dedupe_key = dedupe_key
+                state.payload = payload
+                state.org_id = org_id
+                state.request_id = request_id
+                state.correlation_id = correlation_id
+                state.last_error = None
+                state.traceback_summary = None
+                state.updated_at = utc_now()
+                await self.db.flush()
             return state
 
-        state.task_id = task_id
+        # Preserve existing task_id; API enqueue and worker execution should refer to one stable identifier.
         state.status = "RUNNING"
         state.task_name = task_name
         state.job_name = task_name
@@ -213,6 +257,9 @@ class JobRepo:
     async def by_id(self, job_id: uuid.UUID) -> JobState | None:
         return await self.db.scalar(select(JobState).where(JobState.id == job_id))
 
+    async def by_task_id(self, task_id: str) -> JobState | None:
+        return await self.db.scalar(select(JobState).where(JobState.task_id == task_id))
+
     async def count_active(self, org_id: uuid.UUID) -> int:
         count = await self.db.scalar(
             select(func.count())
@@ -223,3 +270,11 @@ class JobRepo:
             )
         )
         return int(count or 0)
+
+    async def oldest_active_created_at(self, org_id: uuid.UUID) -> datetime | None:
+        return await self.db.scalar(
+            select(func.min(JobState.created_at)).where(
+                JobState.org_id == org_id,
+                JobState.status.in_(["PENDING", "RUNNING", "RETRYING"]),
+            )
+        )

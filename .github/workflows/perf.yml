@@ -107,6 +107,15 @@ jobs:
             -e ORG_IDS_JSON="$ORG_IDS_JSON" \
             -e RATE=2
 
+      - name: Run inventory churn profile (Epic E gate)
+        run: |
+          k6 run --summary-export perf-artifacts/inventory_churn_summary.json \
+            scripts/loadtest/k6-inventory-churn.js \
+            -e BASE_URL=http://localhost:8000/api/v1 \
+            -e ACCESS_TOKEN="$ACCESS_TOKEN" \
+            -e ORG_IDS_JSON="$ORG_IDS_JSON" \
+            -e RATE=6
+
       - name: Evaluate perf gates
         run: |
           python scripts/loadtest/evaluate_perf_gates.py \

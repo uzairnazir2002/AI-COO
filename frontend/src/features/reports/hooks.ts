@@ -11,19 +11,24 @@ import type { Report } from "@/types/domain";
 
 export function useReports() {
   const orgId = useAppStore((s) => s.selectedOrgId);
+  const locationId = useAppStore((s) => s.selectedLocationId);
+  const locationQuery = locationId ? `&location_id=${locationId}` : "";
   return useQuery({
-    queryKey: qk.reports(orgId || ""),
-    queryFn: () => api<{ items: Report[] }>(`${apiPaths.reports}?org_id=${orgId}`),
+    queryKey: qk.reports(orgId || "", locationId || ""),
+    queryFn: () => api<{ items: Report[] }>(`${apiPaths.reports}?org_id=${orgId}${locationQuery}`),
     enabled: Boolean(orgId),
   });
 }
 
 export function useGenerateReport() {
   const orgId = useAppStore((s) => s.selectedOrgId);
+  const locationId = useAppStore((s) => s.selectedLocationId);
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (weekStart: string) =>
-      api<ReportGenerateResponse>(`${apiPaths.generateReport}?org_id=${orgId}&week_start=${weekStart}`, {
+      api<ReportGenerateResponse>(
+        `${apiPaths.generateReport}?org_id=${orgId}&week_start=${weekStart}${locationId ? `&location_id=${locationId}` : ""}`,
+        {
         method: "POST",
         schema: reportGenerateSchema,
       }),
@@ -34,8 +39,10 @@ export function useGenerateReport() {
   });
 }
 
-export async function fetchReportDownload(reportId: string, orgId: string) {
-  const payload = await api<{ url?: string }>(`${apiPaths.downloadReport(reportId)}?org_id=${orgId}`);
+export async function fetchReportDownload(reportId: string, orgId: string, locationId?: string | null) {
+  const payload = await api<{ url?: string }>(
+    `${apiPaths.downloadReport(reportId)}?org_id=${orgId}${locationId ? `&location_id=${locationId}` : ""}`,
+  );
   if (!payload.url) return payload;
 
   try {

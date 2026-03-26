@@ -11,7 +11,27 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { useAdminRecompute, useAnalyticsRecompute, useCancelJob, useJobs, useOutbox, usePauseSchedule, useResumeSchedule, useRetryJob, useRetryOutboxEvent, useRunSchedule, useSystemStatus } from "@/features/activity/hooks";
+import {
+  useAdminRecompute,
+  useAuditExport,
+  useAnalyticsRecompute,
+  useCancelJob,
+  useDeletionRequests,
+  useDeadLetter,
+  useDismissDeadLetter,
+  useJobs,
+  useOutbox,
+  useReplayDeadLetter,
+  useRuntimeMetrics,
+  usePauseSchedule,
+  useRotateOrgPii,
+  useResumeSchedule,
+  useRetryJob,
+  useRetryOutboxEvent,
+  useRunSchedule,
+  useRuntimeSlos,
+  useSystemStatus,
+} from "@/features/activity/hooks";
 import { isOwner } from "@/lib/auth/rbac";
 import { formatDate } from "@/lib/utils/format";
 import { useAppStore } from "@/store/appStore";
@@ -34,16 +54,28 @@ export default function ActivityPage() {
   const [outboxPage, setOutboxPage] = useState(1);
   const jobs = useJobs({ status: status === "ALL" ? undefined : status, task_name: taskName || undefined, page, page_size: 12 });
   const outbox = useOutbox({ status: outboxStatus === "ALL" ? undefined : outboxStatus, page: outboxPage, page_size: 8 });
+  const deletionRequests = useDeletionRequests();
   const systemStatus = useSystemStatus();
+  const runtimeSlos = useRuntimeSlos();
+  const runtimeMetrics = useRuntimeMetrics();
+  const [deadLetterStatus, setDeadLetterStatus] = useState("OPEN");
+  const [deadLetterPage, setDeadLetterPage] = useState(1);
+  const deadLetter = useDeadLetter({ status: deadLetterStatus === "ALL" ? undefined : deadLetterStatus, page: deadLetterPage, page_size: 8 });
+  const replayDeadLetter = useReplayDeadLetter();
+  const dismissDeadLetter = useDismissDeadLetter();
   const retryOutboxEvent = useRetryOutboxEvent();
   const retryJob = useRetryJob();
   const cancelJob = useCancelJob();
+  const rotateOrgPii = useRotateOrgPii();
+  const auditExport = useAuditExport();
   const pauseSchedule = usePauseSchedule();
   const resumeSchedule = useResumeSchedule();
   const runSchedule = useRunSchedule();
   const analyticsRecompute = useAnalyticsRecompute();
   const adminRecompute = useAdminRecompute();
   const toast = useToast();
+  const [auditSince, setAuditSince] = useState("");
+  const [auditUntil, setAuditUntil] = useState("");
 
   const activeJobs = useMemo(
     () => jobs.data?.items.filter((item) => ["PENDING", "RUNNING", "RETRYING"].includes(item.status)).length ?? 0,
@@ -275,6 +307,109 @@ export default function ActivityPage() {
       </Card>
 
       {isOwner(role) ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>Security & compliance</CardTitle>
+            <CardDescription>
+              Owner-only controls for immutable audit export and organization PII key rotation workflows.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="grid gap-4 xl:grid-cols-2">
+            <div className="rounded-[22px] border border-border/70 bg-card/70 p-4 space-y-3">
+              <p className="text-sm font-medium">Audit export</p>
+              <p className="text-xs text-muted-foreground">
+                Download NDJSON audit logs for an org-scoped time range. Export includes integrity checksum headers.
+              </p>
+              <div className="grid gap-2 md:grid-cols-2">
+                <Input type="datetime-local" value={auditSince} onChange={(event) => setAuditSince(event.target.value)} />
+                <Input type="datetime-local" value={auditUntil} onChange={(event) => setAuditUntil(event.target.value)} />
+              </div>
+              <Button
+                variant="outline"
+                disabled={auditExport.isPending}
+                onClick={async () => {
+                  try {
+                    const result = await auditExport.mutateAsync({
+                      since: auditSince ? new Date(auditSince).toISOString() : undefined,
+                      until: auditUntil ? new Date(auditUntil).toISOString() : undefined,
+                    });
+                    const url = URL.createObjectURL(result.blob);
+                    const link = document.createElement("a");
+                    link.href = url;
+                    link.download = `audit-export-${orgId}.ndjson`;
+                    document.body.appendChild(link);
+                    link.click();
+                    link.remove();
+                    URL.revokeObjectURL(url);
+                    toast.toast({
+                      title: "Audit export downloaded",
+                      description: `${result.eventCount} events exported${result.checksum ? ` (sha256: ${result.checksum.slice(0, 12)}...)` : ""}.`,
+                      variant: "success",
+                    });
+                  } catch (err) {
+                    toast.toast({ title: err instanceof Error ? err.message : "Audit export failed", variant: "danger" });
+                  }
+                }}
+              >
+                Download audit NDJSON
+              </Button>
+            </div>
+
+            <div className="rounded-[22px] border border-danger/30 bg-danger/5 p-4 space-y-3">
+              <p className="text-sm font-medium text-danger">PII key rotation</p>
+              <p className="text-xs text-muted-foreground">
+                Re-encrypts org-scoped sensitive values with the active key set and writes a security audit event.
+              </p>
+              <Button
+                variant="destructive"
+                disabled={rotateOrgPii.isPending}
+                onClick={async () => {
+                  try {
+                    const result = await rotateOrgPii.mutateAsync();
+                    toast.toast({
+                      title: "PII rotation completed",
+                      description: `users: ${result.updated_users}, org settings: ${result.updated_org_settings}, at: ${result.rotated_at}`,
+                      variant: "warning",
+                    });
+                  } catch (err) {
+                    toast.toast({ title: err instanceof Error ? err.message : "PII rotation failed", variant: "danger" });
+                  }
+                }}
+              >
+                Rotate organization PII
+              </Button>
+            </div>
+            <div className="xl:col-span-2 rounded-[22px] border border-border/70 bg-card/70 p-4 space-y-3">
+              <p className="text-sm font-medium">Deletion request lifecycle</p>
+              <p className="text-xs text-muted-foreground">
+                Track organization deletion workflow state and purge completion timestamps.
+              </p>
+              {(deletionRequests.data?.items.length ?? 0) === 0 ? (
+                <p className="text-sm text-muted-foreground">No deletion requests for this organization.</p>
+              ) : (
+                <div className="space-y-2">
+                  {(deletionRequests.data?.items ?? []).map((item) => (
+                    <div key={item.id} className="rounded-[18px] border border-border/60 bg-background/65 p-3">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <p className="text-sm font-medium">{item.scope} request</p>
+                        <Badge variant={item.status === "PROCESSED" ? "success" : item.status === "PENDING" ? "warning" : "secondary"}>
+                          {item.status}
+                        </Badge>
+                      </div>
+                      <p className="mt-2 text-xs text-muted-foreground">
+                        delete_after {formatDate(item.delete_after)} | processed_at {item.processed_at ? formatDate(item.processed_at) : "-"}
+                      </p>
+                      {item.reason ? <p className="mt-1 text-xs text-muted-foreground">reason: {item.reason}</p> : null}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      ) : null}
+
+      {isOwner(role) ? (
         <div className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
           <Card>
             <CardHeader>
@@ -452,6 +587,164 @@ export default function ActivityPage() {
             </CardContent>
           </Card>
         </div>
+      ) : null}
+
+      {isOwner(role) ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>Runtime SLOs</CardTitle>
+            <CardDescription>
+              Rolling endpoint p95 and 5xx error-rate window ({runtimeSlos.data?.window_seconds ?? 0}s).
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {(runtimeSlos.data?.endpoints.length ?? 0) === 0 ? (
+              <p className="text-sm text-muted-foreground">No runtime samples yet for this window.</p>
+            ) : (
+              runtimeSlos.data?.endpoints.map((row) => (
+                <div key={row.endpoint} className="rounded-[22px] border border-border/70 bg-card/70 p-4">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <p className="font-medium">{row.endpoint}</p>
+                    <Badge variant={row.breach ? "destructive" : "success"}>{row.breach ? "breach" : "ok"}</Badge>
+                  </div>
+                  <p className="mt-2 text-xs text-muted-foreground">
+                    requests {row.requests} | p95 {row.p95_ms}ms (threshold {runtimeSlos.data?.p95_threshold_ms}ms) | 5xx{" "}
+                    {row.error_rate_pct}% (threshold {runtimeSlos.data?.error_rate_threshold_pct}%)
+                  </p>
+                </div>
+              ))
+            )}
+          </CardContent>
+        </Card>
+      ) : null}
+
+      {isOwner(role) ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>Operational diagnostics</CardTitle>
+            <CardDescription>DLQ replay controls, queue lag, and worker-health indicators in one panel.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid gap-3 md:grid-cols-5">
+              <div className="rounded-[18px] border border-border/60 bg-background/65 p-3">
+                <p className="text-xs uppercase text-muted-foreground">Worker health</p>
+                <p className={`mt-2 text-sm font-semibold ${runtimeMetrics.data?.worker_health === "degraded" ? "text-danger" : "text-emerald-600"}`}>
+                  {runtimeMetrics.data?.worker_health ?? "-"}
+                </p>
+              </div>
+              <div className="rounded-[18px] border border-border/60 bg-background/65 p-3">
+                <p className="text-xs uppercase text-muted-foreground">Queue lag</p>
+                <p className="mt-2 text-sm font-semibold">{runtimeMetrics.data?.queue_lag_seconds ?? 0}s</p>
+              </div>
+              <div className="rounded-[18px] border border-border/60 bg-background/65 p-3">
+                <p className="text-xs uppercase text-muted-foreground">Dead-letter open</p>
+                <p className="mt-2 text-sm font-semibold">{runtimeMetrics.data?.dead_letter_open ?? 0}</p>
+              </div>
+              <div className="rounded-[18px] border border-border/60 bg-background/65 p-3">
+                <p className="text-xs uppercase text-muted-foreground">DB active</p>
+                <p className="mt-2 text-sm font-semibold">{runtimeMetrics.data?.db_active_connections ?? 0}</p>
+              </div>
+              <div className="rounded-[18px] border border-border/60 bg-background/65 p-3">
+                <p className="text-xs uppercase text-muted-foreground">Lockout escalations</p>
+                <p className="mt-2 text-sm font-semibold">{runtimeMetrics.data?.auth_lockout_escalations_total ?? 0}</p>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="w-40">
+                <Select
+                  value={deadLetterStatus}
+                  onValueChange={(value) => {
+                    setDeadLetterStatus(value);
+                    setDeadLetterPage(1);
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="ALL">All statuses</SelectItem>
+                    <SelectItem value="OPEN">Open</SelectItem>
+                    <SelectItem value="REPLAYED">Replayed</SelectItem>
+                    <SelectItem value="DISMISSED">Dismissed</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              {Object.entries(deadLetter.data?.counts_by_status ?? {}).map(([key, value]) => (
+                <Badge key={key} variant={key === "OPEN" ? "destructive" : key === "REPLAYED" ? "success" : "secondary"}>
+                  {key}: {value}
+                </Badge>
+              ))}
+            </div>
+
+            {(deadLetter.data?.items.length ?? 0) === 0 ? (
+              <p className="text-sm text-muted-foreground">No dead-letter entries for this filter.</p>
+            ) : (
+              deadLetter.data?.items.map((item) => (
+                <div key={item.id} className="rounded-[22px] border border-border/70 bg-card/70 p-4">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <p className="font-medium">{item.source_type}: {item.source_name}</p>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        Attempts {item.attempts} | Last failed {formatDate(item.last_failed_at)}
+                      </p>
+                    </div>
+                    <Badge variant={item.status === "OPEN" ? "destructive" : item.status === "REPLAYED" ? "success" : "secondary"}>
+                      {item.status}
+                    </Badge>
+                  </div>
+                  {item.last_error ? <p className="mt-3 text-xs text-danger">{item.last_error}</p> : null}
+                  <pre className="mt-3 overflow-auto rounded-[18px] border border-border/60 bg-background/65 p-3 text-xs">
+                    {JSON.stringify(item.payload ?? {}, null, 2)}
+                  </pre>
+                  {item.status === "OPEN" ? (
+                    <div className="mt-3 flex flex-wrap justify-end gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={dismissDeadLetter.isPending}
+                        onClick={async () => {
+                          await dismissDeadLetter.mutateAsync({ eventId: item.id, reason: "operator-dismissed" });
+                          toast.toast({ title: "Dead-letter dismissed", description: item.id, variant: "warning" });
+                        }}
+                      >
+                        Dismiss
+                      </Button>
+                      <Button
+                        size="sm"
+                        disabled={replayDeadLetter.isPending}
+                        onClick={async () => {
+                          const result = await replayDeadLetter.mutateAsync(item.id);
+                          toast.toast({ title: "Replay dispatched", description: result.replay_ref ?? item.id, variant: "success" });
+                        }}
+                      >
+                        Replay
+                      </Button>
+                    </div>
+                  ) : null}
+                </div>
+              ))
+            )}
+
+            <div className="flex items-center justify-between">
+              <p className="text-sm text-muted-foreground">{deadLetter.data?.total ?? 0} total dead-letter rows</p>
+              <div className="flex items-center gap-2">
+                <Button variant="outline" size="sm" disabled={deadLetterPage <= 1} onClick={() => setDeadLetterPage((value) => value - 1)}>
+                  Prev
+                </Button>
+                <span className="text-sm">Page {deadLetterPage}</span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={Boolean(deadLetter.data && deadLetterPage * deadLetter.data.page_size >= deadLetter.data.total)}
+                  onClick={() => setDeadLetterPage((value) => value + 1)}
+                >
+                  Next
+                </Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
       ) : null}
     </div>
   );

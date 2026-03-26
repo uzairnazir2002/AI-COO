@@ -33,6 +33,14 @@ def parse_csv(content: bytes, mapping: dict[str, str], max_bytes: int) -> list[d
     missing_columns = [mapping[k] for k in required if mapping[k] not in available_columns]
     if missing_columns:
         raise ValueError(f"Mapped columns not found in CSV header: {', '.join(sorted(missing_columns))}")
+    optional = ["vendor", "notes", "location"]
+    missing_optional = [
+        mapping[key]
+        for key in optional
+        if mapping.get(key) and mapping[key] not in available_columns
+    ]
+    if missing_optional:
+        raise ValueError(f"Mapped columns not found in CSV header: {', '.join(sorted(missing_optional))}")
 
     rows: list[dict] = []
     for index, row in enumerate(reader, start=2):
@@ -64,6 +72,7 @@ def parse_csv(content: bytes, mapping: dict[str, str], max_bytes: int) -> list[d
                 "category": category_value,
                 "vendor": row.get(mapping.get("vendor", ""), "") or None,
                 "notes": row.get(mapping.get("notes", ""), "") or None,
+                "location": row.get(mapping.get("location", ""), "") or None,
             }
         )
 

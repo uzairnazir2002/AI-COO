@@ -18,7 +18,7 @@ class OrganizationBilling(Base, UUIDPrimaryKeyMixin, TimestampMixin):
         nullable=False,
         unique=True,
     )
-    billing_email: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    billing_email: Mapped[str | None] = mapped_column(String(1024), nullable=True)
     invoice_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     plan_label: Mapped[str] = mapped_column(String(64), nullable=False, default="FREE")
     billing_notes: Mapped[str | None] = mapped_column(Text, nullable=True)

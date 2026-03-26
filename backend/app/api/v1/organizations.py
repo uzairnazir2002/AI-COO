@@ -5,20 +5,23 @@ import stripe
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_current_user, get_org_context, require_roles
+from app.api.deps import get_current_user, get_org_context, require_roles, require_sensitive_reauth
 from app.core.config import get_settings as get_app_settings
 from app.db.session import get_db
 from app.domain.models.user import User
 from app.domain.repos.audit_repo import AuditRepo
 from app.domain.repos.auth_repo import AuthRepo
+from app.domain.repos.deletion_repo import DeletionRepo
 from app.domain.repos.notification_repo import NotificationRepo
 from app.domain.repos.org_repo import OrgRepo
 from app.domain.repos.outbox_repo import OutboxRepo
 from app.domain.repos.plan_repo import PlanRepo
 from app.domain.schemas.billing import BillingCheckoutIn, BillingCheckoutOut, BillingPortalIn, BillingPortalOut
-from app.domain.schemas.organization import InviteIn, MemberOut, OrgBillingOut, OrgBillingUpdateIn, OrganizationCreateIn, OrganizationOut, OrgSettingsOut, OrgSettingsUpdateIn, PlanUsageOut
+from app.domain.schemas.auth import DeletionRequestOut
+from app.domain.schemas.organization import InviteIn, MemberOut, OrgBillingOut, OrgBillingUpdateIn, OrgDeletionRequestIn, OrganizationCreateIn, OrganizationOut, OrgSettingsOut, OrgSettingsUpdateIn, PlanUsageOut
 from app.domain.services.billing_service import BillingService
 from app.domain.services.org_service import OrgService
+from app.domain.services.privacy_service import PrivacyService
 from app.domain.services.usage_service import UsageService
 
 router = APIRouter()
@@ -61,6 +64,7 @@ async def invite(
     body: InviteIn,
     user: User = Depends(get_current_user),
     _: object = Depends(require_roles("OWNER")),
+    __: object = Depends(require_sensitive_reauth()),
     db: AsyncSession = Depends(get_db),
 ):
     svc = OrgService(OrgRepo(db), AuthRepo(db), AuditRepo(db), OutboxRepo(db))
@@ -94,8 +98,12 @@ async def get_settings(
         starting_cash=settings.starting_cash,
         runway_alert_threshold_days=settings.runway_alert_threshold_days,
         vendor_concentration_threshold_pct=settings.vendor_concentration_threshold_pct,
+        budget_variance_alert_threshold_pct=settings.budget_variance_alert_threshold_pct,
         misc_growth_multiplier=settings.misc_growth_multiplier,
         anomaly_spike_multiplier=settings.anomaly_spike_multiplier,
+        owner_mfa_required=settings.owner_mfa_required,
+        owner_session_max_minutes=settings.owner_session_max_minutes,
+        sensitive_action_reauth_minutes=settings.sensitive_action_reauth_minutes,
     )
 
 
@@ -105,9 +113,18 @@ async def update_settings(
     body: OrgSettingsUpdateIn,
     user: User = Depends(get_current_user),
     _: object = Depends(require_roles("OWNER", "EDITOR")),
+    ctx=Depends(get_org_context),
+    __: object = Depends(require_sensitive_reauth()),
     db: AsyncSession = Depends(get_db),
 ):
-    await get_org_context(org_id=org_id, user=user, db=db)
+    if ctx.role != "OWNER":
+        security_fields = (
+            "owner_mfa_required",
+            "owner_session_max_minutes",
+            "sensitive_action_reauth_minutes",
+        )
+        if any(getattr(body, field) is not None for field in security_fields):
+            raise HTTPException(status_code=403, detail="Only owners can update security policy settings")
     settings = await OrgService(OrgRepo(db), AuthRepo(db), AuditRepo(db), OutboxRepo(db)).update_settings(user.id, org_id, body)
     await db.commit()
     return OrgSettingsOut(
@@ -115,8 +132,12 @@ async def update_settings(
         starting_cash=settings.starting_cash,
         runway_alert_threshold_days=settings.runway_alert_threshold_days,
         vendor_concentration_threshold_pct=settings.vendor_concentration_threshold_pct,
+        budget_variance_alert_threshold_pct=settings.budget_variance_alert_threshold_pct,
         misc_growth_multiplier=settings.misc_growth_multiplier,
         anomaly_spike_multiplier=settings.anomaly_spike_multiplier,
+        owner_mfa_required=settings.owner_mfa_required,
+        owner_session_max_minutes=settings.owner_session_max_minutes,
+        sensitive_action_reauth_minutes=settings.sensitive_action_reauth_minutes,
     )
 
 
@@ -154,6 +175,7 @@ async def update_billing(
     body: OrgBillingUpdateIn,
     user: User = Depends(get_current_user),
     _: object = Depends(require_roles("OWNER")),
+    __: object = Depends(require_sensitive_reauth()),
     db: AsyncSession = Depends(get_db),
 ):
     await get_org_context(org_id=org_id, user=user, db=db)
@@ -175,6 +197,7 @@ async def create_billing_checkout(
     body: BillingCheckoutIn,
     user: User = Depends(get_current_user),
     _: object = Depends(require_roles("OWNER")),
+    __: object = Depends(require_sensitive_reauth()),
     db: AsyncSession = Depends(get_db),
 ):
     await get_org_context(org_id=org_id, user=user, db=db)
@@ -205,6 +228,7 @@ async def create_billing_portal(
     body: BillingPortalIn,
     user: User = Depends(get_current_user),
     _: object = Depends(require_roles("OWNER")),
+    __: object = Depends(require_sensitive_reauth()),
     db: AsyncSession = Depends(get_db),
 ):
     await get_org_context(org_id=org_id, user=user, db=db)
@@ -276,3 +300,19 @@ async def billing_webhook(request: Request, db: AsyncSession = Depends(get_db)):
     )
     await db.commit()
     return {"ok": True}
+
+
+@router.post("/{org_id}/delete", response_model=DeletionRequestOut)
+async def request_org_deletion(
+    org_id: uuid.UUID,
+    body: OrgDeletionRequestIn,
+    user: User = Depends(get_current_user),
+    _: object = Depends(require_roles("OWNER")),
+    __: object = Depends(require_sensitive_reauth()),
+    db: AsyncSession = Depends(get_db),
+):
+    await get_org_context(org_id=org_id, user=user, db=db)
+    svc = PrivacyService(db, AuditRepo(db), DeletionRepo(db))
+    out = await svc.request_org_deletion(actor_user_id=user.id, org_id=org_id, reason=body.reason)
+    await db.commit()
+    return DeletionRequestOut(ok=True, request_id=out["request_id"], delete_after=out["delete_after"])

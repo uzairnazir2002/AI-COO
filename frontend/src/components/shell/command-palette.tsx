@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import * as Dialog from "@radix-ui/react-dialog";
-import { Activity, Calculator, ChevronRight, FileText, Landmark, Search, Settings, Wallet, X } from "lucide-react";
+import { Activity, Boxes, Calculator, ChevronRight, FileText, Landmark, MessageSquare, PiggyBank, Search, Settings, Wallet, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,10 +18,12 @@ type Command = {
 
 export function CommandPalette({
   onAddTransaction,
+  onOpenInventory,
   onImportCsv,
   onGenerateReport,
 }: {
   onAddTransaction?: () => void;
+  onOpenInventory?: () => void;
   onImportCsv?: () => void;
   onGenerateReport?: () => void;
 }) {
@@ -46,14 +48,18 @@ export function CommandPalette({
       { id: "dashboard", label: "Go to Dashboard", keywords: "kpi alerts summary", icon: Landmark, run: () => router.push("/app/dashboard") },
       { id: "activity", label: "Go to Activity", keywords: "jobs workers automation outbox", icon: Activity, run: () => router.push("/app/activity") },
       { id: "transactions", label: "Go to Transactions", keywords: "ledger import csv table", icon: Wallet, run: () => router.push("/app/transactions") },
+      { id: "inventory", label: "Go to Inventory", keywords: "stock items purchase orders forecast", icon: Boxes, run: () => router.push("/app/inventory") },
+      { id: "budgets", label: "Go to Budgets", keywords: "budget variance planning category", icon: PiggyBank, run: () => router.push("/app/budgets") },
       { id: "forecast", label: "Go to Forecast", keywords: "runway scenario overrides", icon: Calculator, run: () => router.push("/app/forecast") },
+      { id: "assistant", label: "Go to AI Chat", keywords: "assistant grounded fallback chat", icon: MessageSquare, run: () => router.push("/app/assistant") },
       { id: "reports", label: "Go to Reports", keywords: "weekly report download", icon: FileText, run: () => router.push("/app/reports") },
       { id: "settings", label: "Go to Settings", keywords: "members billing invite", icon: Settings, run: () => router.push("/app/settings") },
       ...(onAddTransaction ? [{ id: "new-tx", label: "Add transaction", keywords: "create expense revenue", icon: Wallet, run: onAddTransaction }] : []),
+      ...(onOpenInventory ? [{ id: "open-inventory", label: "Open inventory", keywords: "stock events demand forecast", icon: Boxes, run: onOpenInventory }] : []),
       ...(onImportCsv ? [{ id: "import-csv", label: "Import CSV", keywords: "upload mapping preview", icon: Wallet, run: onImportCsv }] : []),
       ...(onGenerateReport ? [{ id: "generate-report", label: "Generate weekly report", keywords: "regenerate export", icon: FileText, run: onGenerateReport }] : []),
     ],
-    [onAddTransaction, onGenerateReport, onImportCsv, router],
+    [onAddTransaction, onGenerateReport, onImportCsv, onOpenInventory, router],
   );
 
   const filtered = commands.filter((command) => {

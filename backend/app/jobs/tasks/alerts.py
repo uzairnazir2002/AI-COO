@@ -5,6 +5,7 @@ from celery import shared_task
 
 from app.db.session import SessionLocal
 from app.domain.repos.alerts_repo import AlertRepo
+from app.domain.repos.audit_repo import AuditRepo
 from app.domain.services.alerts_service import AlertsService
 from app.jobs.task_tracking import run_tracked_task
 
@@ -29,7 +30,7 @@ def recalc_alerts(self, org_id: str, correlation_id: str | None = None):
 async def _recalc(org_id: str, correlation_id: str | None = None):
     org_uuid = uuid.UUID(org_id)
     async with SessionLocal() as db:
-        created = await AlertsService(db, AlertRepo(db)).detect_and_create(org_uuid)
+        created = await AlertsService(db, AlertRepo(db), AuditRepo(db)).detect_and_create(org_uuid)
         await db.commit()
     logger.info(
         "alerts_recalc_done",

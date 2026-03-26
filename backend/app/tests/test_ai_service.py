@@ -90,3 +90,43 @@ async def test_ai_service_falls_back_on_grounding_violation(monkeypatch, sample_
 
     assert out.fallback_used is True
     assert out.summary_json.headline == "Weekly COO Summary"
+
+
+@pytest.mark.asyncio
+async def test_ai_chat_uses_grounded_summary(monkeypatch, sample_metrics):
+    monkeypatch.setattr(
+        "app.domain.services.ai_service.generate_summary",
+        lambda _metrics: AISummaryResponse(
+            headline="Weekly COO Summary",
+            highlights=["Revenue remains steady this period."],
+            risks=["Runway risk remains visible."],
+            actions=["Reduce discretionary spend."],
+            confidence="high",
+        ),
+    )
+
+    out = await AIService().chat("What should I focus on this week?", sample_metrics)
+
+    assert out.fallback_used is False
+    assert out.grounding_violations == []
+    assert "What should I focus on this week?" in out.answer
+
+
+@pytest.mark.asyncio
+async def test_ai_chat_falls_back_on_grounding_violation(monkeypatch, sample_metrics):
+    monkeypatch.setattr(
+        "app.domain.services.ai_service.generate_summary",
+        lambda _metrics: AISummaryResponse(
+            headline="Weekly COO Summary",
+            highlights=["EBITDA improved significantly."],
+            risks=[],
+            actions=[],
+            confidence="high",
+        ),
+    )
+
+    out = await AIService().chat("Is margin healthy?", sample_metrics)
+
+    assert out.fallback_used is True
+    assert any(v.startswith("unsupported_metric") for v in out.grounding_violations)
+    assert "Question: \"Is margin healthy?\"" in out.answer

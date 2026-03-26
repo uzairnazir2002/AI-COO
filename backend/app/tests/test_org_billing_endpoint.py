@@ -28,6 +28,9 @@ def _app_with_overrides(monkeypatch, organizations_module, role: str, ctx_org_id
         async def commit(self):
             return None
 
+        async def execute(self, *_args, **_kwargs):
+            return SimpleNamespace(scalar_one_or_none=lambda: SimpleNamespace(sensitive_action_reauth_minutes=30))
+
     async def fake_db():
         yield _FakeDB()
 
@@ -37,6 +40,11 @@ def _app_with_overrides(monkeypatch, organizations_module, role: str, ctx_org_id
     app.dependency_overrides[organizations_module.get_current_user] = fake_user
     app.dependency_overrides[organizations_module.get_db] = fake_db
     app.dependency_overrides[organizations_module.get_org_context] = fake_ctx
+    from app.api import deps as shared_deps
+
+    app.dependency_overrides[shared_deps.get_db] = fake_db
+    app.dependency_overrides[shared_deps.get_current_user] = fake_user
+    app.dependency_overrides[shared_deps.get_org_context] = fake_ctx
     monkeypatch.setattr(organizations_module, "get_org_context", fake_ctx)
     monkeypatch.setattr(organizations_module, "OrgService", lambda *args, **kwargs: service)
     return app
@@ -103,3 +111,27 @@ def test_billing_editor_forbidden(monkeypatch, organizations_module):
 
     res = client.get(f"/api/v1/organizations/{org_id}/billing")
     assert res.status_code == 403
+
+
+def test_org_delete_request_owner(monkeypatch, organizations_module):
+    org_id = uuid.uuid4()
+
+    class _Svc:
+        async def get_billing(self, _org_id):
+            return _billing_obj(org_id)
+
+    class _FakePrivacyService:
+        def __init__(self, *_args, **_kwargs):
+            pass
+
+        async def request_org_deletion(self, *, actor_user_id, org_id, reason):
+            _ = (actor_user_id, org_id, reason)
+            return {"request_id": uuid.uuid4(), "delete_after": "2026-04-01T00:00:00Z"}
+
+    monkeypatch.setattr(organizations_module, "PrivacyService", _FakePrivacyService)
+    app = _app_with_overrides(monkeypatch, organizations_module, "OWNER", org_id, _Svc())
+    client = TestClient(app)
+
+    res = client.post(f"/api/v1/organizations/{org_id}/delete", json={"reason": "close business"})
+    assert res.status_code == 200
+    assert res.json()["ok"] is True

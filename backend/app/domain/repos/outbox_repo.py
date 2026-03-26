@@ -5,6 +5,7 @@ from sqlalchemy import Select, func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.domain.repos.dead_letter_repo import DeadLetterRepo
 from app.domain.models.outbox_event import OutboxEvent
 from app.utils.time import utc_now
 
@@ -80,6 +81,17 @@ class OutboxRepo:
         event.last_error = error[:2000]
         if event.attempts >= event.max_attempts:
             event.status = "FAILED"
+            await DeadLetterRepo(self.db).record_failure(
+                org_id=event.org_id,
+                source_type="OUTBOX",
+                source_id=event.id,
+                source_task_id=None,
+                source_name=event.event_type,
+                attempts=event.attempts,
+                last_error=event.last_error,
+                payload=event.payload,
+                metadata_json={"max_attempts": event.max_attempts},
+            )
         else:
             event.status = "RETRYING"
             delay_seconds = min(300, 2 ** event.attempts)

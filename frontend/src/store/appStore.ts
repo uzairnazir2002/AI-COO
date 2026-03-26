@@ -10,12 +10,14 @@ export type MeUser = { id: string; email: string; created_at: string };
 
 type AppState = {
   selectedOrgId: string | null;
+  selectedLocationId: string | null;
   user: MeUser | null;
   orgs: MeOrg[];
   shellCollapsed: boolean;
   globalDateRange: { from: string; to: string };
   cashflowGranularity: "day" | "week" | "month";
   setSelectedOrgId: (orgId: string | null) => void;
+  setSelectedLocationId: (locationId: string | null) => void;
   setSession: (user: MeUser, orgs: MeOrg[]) => void;
   setShellCollapsed: (collapsed: boolean) => void;
   setGlobalDateRange: (range: { from: string; to: string }) => void;
@@ -36,6 +38,7 @@ export const useAppStore = create<AppState>()(
   persist(
     (set, get) => ({
       selectedOrgId: null,
+      selectedLocationId: null,
       user: null,
       orgs: [],
       shellCollapsed: false,
@@ -46,26 +49,28 @@ export const useAppStore = create<AppState>()(
       cashflowGranularity: "week",
       setSelectedOrgId: (selectedOrgId) => {
         persistSelectedOrgCookie(selectedOrgId);
-        set({ selectedOrgId });
+        set({ selectedOrgId, selectedLocationId: null });
       },
+      setSelectedLocationId: (selectedLocationId) => set({ selectedLocationId }),
       setSession: (user, orgs) => {
         const prev = get().selectedOrgId;
         const selectedOrgId = prev && orgs.some((o) => o.org_id === prev) ? prev : orgs[0]?.org_id ?? null;
         persistSelectedOrgCookie(selectedOrgId);
-        set({ user, orgs, selectedOrgId });
+        set({ user, orgs, selectedOrgId, selectedLocationId: null });
       },
       setShellCollapsed: (shellCollapsed) => set({ shellCollapsed }),
       setGlobalDateRange: (globalDateRange) => set({ globalDateRange }),
       setCashflowGranularity: (cashflowGranularity) => set({ cashflowGranularity }),
       clearSession: () => {
         persistSelectedOrgCookie(null);
-        set({ selectedOrgId: null, user: null, orgs: [] });
+        set({ selectedOrgId: null, selectedLocationId: null, user: null, orgs: [] });
       },
     }),
     {
       name: "ai-coo-app-store",
       partialize: (s) => ({
         selectedOrgId: s.selectedOrgId,
+        selectedLocationId: s.selectedLocationId,
         shellCollapsed: s.shellCollapsed,
         globalDateRange: s.globalDateRange,
         cashflowGranularity: s.cashflowGranularity,

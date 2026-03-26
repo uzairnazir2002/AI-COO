@@ -11,7 +11,8 @@ class _FakeRepo:
     def __init__(self, rows):
         self.rows = rows
 
-    async def list_alerts(self, _org_id, _status):
+    async def list_alerts(self, _org_id, _status, assigned_to_user_id=None, location_id=None):
+        _ = (assigned_to_user_id, location_id)
         return self.rows
 
 

@@ -2,12 +2,26 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { api } from "@/lib/api/client";
+import { api, apiFetchRaw } from "@/lib/api/client";
 import { apiPaths } from "@/lib/api/endpoints";
-import { jobPageSchema, outboxPageSchema, systemStatusSchema, type JobPageResponse, type OutboxPageResponse, type SystemStatusResponse } from "@/lib/api/schemas";
+import {
+  deletionRequestListSchema,
+  deadLetterPageSchema,
+  jobPageSchema,
+  outboxPageSchema,
+  runtimeMetricsSchema,
+  runtimeSloSchema,
+  systemStatusSchema,
+  type DeadLetterPageResponse,
+  type JobPageResponse,
+  type OutboxPageResponse,
+  type RuntimeMetricsResponse,
+  type RuntimeSloResponse,
+  type SystemStatusResponse,
+} from "@/lib/api/schemas";
 import { qk } from "@/lib/query/keys";
 import { useAppStore } from "@/store/appStore";
-import type { AdminRecomputeResult, AnalyticsRecomputeResult } from "@/types/domain";
+import type { AdminRecomputeResult, AnalyticsRecomputeResult, DeletionRequestList, PiiRotationResult } from "@/types/domain";
 
 export type JobFilters = {
   status?: string;
@@ -99,6 +113,46 @@ export function useSystemStatus() {
   });
 }
 
+export function useRuntimeSlos() {
+  const orgId = useAppStore((s) => s.selectedOrgId);
+  return useQuery({
+    queryKey: ["runtime-slos", orgId || ""],
+    queryFn: () => api<RuntimeSloResponse>(`${apiPaths.adminRuntimeSlos}?org_id=${orgId}`, { schema: runtimeSloSchema }),
+    enabled: Boolean(orgId),
+    refetchInterval: 30000,
+  });
+}
+
+export function useRuntimeMetrics() {
+  const orgId = useAppStore((s) => s.selectedOrgId);
+  return useQuery({
+    queryKey: ["runtime-metrics", orgId || ""],
+    queryFn: () => api<RuntimeMetricsResponse>(`${apiPaths.adminRuntimeMetrics}?org_id=${orgId}`, { schema: runtimeMetricsSchema }),
+    enabled: Boolean(orgId),
+    refetchInterval: 15000,
+  });
+}
+
+export type DeadLetterFilters = {
+  status?: string;
+  source_type?: string;
+  page: number;
+  page_size: number;
+};
+
+export function useDeadLetter(filters: DeadLetterFilters) {
+  const orgId = useAppStore((s) => s.selectedOrgId);
+  return useQuery({
+    queryKey: ["dead-letter", orgId || "", filters],
+    queryFn: () => {
+      const qs = queryString({ org_id: orgId || "", ...filters });
+      return api<DeadLetterPageResponse>(`${apiPaths.adminDeadLetter}?${qs}`, { schema: deadLetterPageSchema });
+    },
+    enabled: Boolean(orgId),
+    refetchInterval: 15000,
+  });
+}
+
 export function useRetryOutboxEvent() {
   const orgId = useAppStore((s) => s.selectedOrgId);
   const queryClient = useQueryClient();
@@ -108,6 +162,42 @@ export function useRetryOutboxEvent() {
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["outbox"] });
       await queryClient.invalidateQueries({ queryKey: ["system-status"] });
+    },
+  });
+}
+
+export function useReplayDeadLetter() {
+  const orgId = useAppStore((s) => s.selectedOrgId);
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (eventId: string) =>
+      api<{ ok: boolean; id: string; status: string; replay_ref?: string }>(
+        `${apiPaths.adminDeadLetterReplay(eventId)}?org_id=${orgId}`,
+        { method: "POST" },
+      ),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["dead-letter"] });
+      await queryClient.invalidateQueries({ queryKey: ["outbox"] });
+      await queryClient.invalidateQueries({ queryKey: ["jobs"] });
+      await queryClient.invalidateQueries({ queryKey: ["runtime-metrics"] });
+      await queryClient.invalidateQueries({ queryKey: ["notifications"] });
+    },
+  });
+}
+
+export function useDismissDeadLetter() {
+  const orgId = useAppStore((s) => s.selectedOrgId);
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ eventId, reason }: { eventId: string; reason?: string }) =>
+      api<{ ok: boolean; id: string; status: string }>(
+        `${apiPaths.adminDeadLetterDismiss(eventId)}?org_id=${orgId}${reason ? `&reason=${encodeURIComponent(reason)}` : ""}`,
+        { method: "POST" },
+      ),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["dead-letter"] });
+      await queryClient.invalidateQueries({ queryKey: ["runtime-metrics"] });
+      await queryClient.invalidateQueries({ queryKey: ["notifications"] });
     },
   });
 }
@@ -170,5 +260,56 @@ export function useRunSchedule() {
       await queryClient.invalidateQueries({ queryKey: ["jobs"] });
       await queryClient.invalidateQueries({ queryKey: ["notifications"] });
     },
+  });
+}
+
+export type AuditExportParams = {
+  since?: string;
+  until?: string;
+};
+
+export function useRotateOrgPii() {
+  const orgId = useAppStore((s) => s.selectedOrgId);
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => api<PiiRotationResult>(`${apiPaths.adminRotatePii}?org_id=${orgId}`, { method: "POST" }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["systemStatus"] });
+      await queryClient.invalidateQueries({ queryKey: ["notifications"] });
+      await queryClient.invalidateQueries({ queryKey: ["summary"] });
+      await queryClient.invalidateQueries({ queryKey: ["settings"] });
+    },
+  });
+}
+
+export function useAuditExport() {
+  const orgId = useAppStore((s) => s.selectedOrgId);
+  return useMutation({
+    mutationFn: async (params: AuditExportParams = {}) => {
+      const qs = queryString({
+        org_id: orgId || "",
+        since: params.since || undefined,
+        until: params.until || undefined,
+      });
+      const response = await apiFetchRaw(`${apiPaths.adminAuditExport}?${qs}`);
+      const blob = await response.blob();
+      const checksum = response.headers.get("X-Audit-Checksum-SHA256");
+      const eventCount = Number(response.headers.get("X-Audit-Event-Count") || "0");
+      return { blob, checksum, eventCount };
+    },
+  });
+}
+
+export function useDeletionRequests() {
+  const orgId = useAppStore((s) => s.selectedOrgId);
+  const role = useAppStore((s) => s.orgs.find((o) => o.org_id === s.selectedOrgId)?.role);
+  return useQuery({
+    queryKey: ["deletionRequests", orgId || ""],
+    queryFn: () =>
+      api<DeletionRequestList>(`${apiPaths.adminDeletionRequests}?org_id=${orgId}`, {
+        schema: deletionRequestListSchema,
+      }),
+    enabled: Boolean(orgId && role === "OWNER"),
+    refetchInterval: 30000,
   });
 }

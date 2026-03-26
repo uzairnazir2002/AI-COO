@@ -41,8 +41,8 @@ async def test_generate_worker_runner_persists_report(monkeypatch, reports_tasks
         def __init__(self, _repo):
             self.calls = []
 
-        async def generate(self, org_uuid, week_start, created_by):
-            self.calls.append((org_uuid, week_start, created_by))
+        async def generate(self, org_uuid, week_start, created_by, *, location_id=None):
+            self.calls.append((org_uuid, week_start, created_by, location_id))
             return SimpleNamespace(id=report_id)
 
     fake_service = _FakeService(None)

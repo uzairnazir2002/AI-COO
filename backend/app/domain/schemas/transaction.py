@@ -10,6 +10,7 @@ from app.domain.schemas.common import TransactionOut
 
 class TransactionCreateIn(BaseModel):
     org_id: uuid.UUID
+    location_id: uuid.UUID | None = None
     date: date_type
     amount: Decimal
     type: str
@@ -19,6 +20,7 @@ class TransactionCreateIn(BaseModel):
 
 
 class TransactionUpdateIn(BaseModel):
+    location_id: uuid.UUID | None = None
     date: date_type | None = None
     amount: Decimal | None = None
     category: str | None = None

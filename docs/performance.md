@@ -150,7 +150,20 @@ Tracked custom gauges:
 - `runtime_queue_depth`
 - `runtime_db_active_connections`
 
-### 8) Perf gate evaluator
+### 8) Inventory churn profile (Epic E)
+Script: `scripts/loadtest/k6-inventory-churn.js`
+
+Purpose:
+- validate inventory write/forecast/alerts behavior under sustained churn.
+- gate Epic E regression risk for stockout-signal freshness.
+
+Exercised endpoints:
+- `POST /inventory/items`
+- `POST /inventory/stock-events`
+- `GET /inventory/forecast`
+- `GET /alerts`
+
+### 9) Perf gate evaluator
 Script: `scripts/loadtest/evaluate_perf_gates.py`
 
 Config:
@@ -186,6 +199,7 @@ k6 run scripts/loadtest/k6-report-burst.js -e BASE_URL=http://localhost:8000/api
 k6 run scripts/loadtest/k6-mixed-churn.js -e BASE_URL=http://localhost:8000/api/v1 -e ACCESS_TOKEN="$ACCESS_TOKEN" -e ORG_IDS_JSON="$ORG_IDS_JSON" -e FROM_DATE="$FROM_DATE" -e TO_DATE="$TO_DATE"
 k6 run scripts/loadtest/k6-read-hotpaths.js -e BASE_URL=http://localhost:8000/api/v1 -e ACCESS_TOKEN="$ACCESS_TOKEN" -e ORG_IDS_JSON="$ORG_IDS_JSON" -e FROM_DATE="$FROM_DATE" -e TO_DATE="$TO_DATE" -e RATE=13 -e RUNTIME_METRICS_ENABLED=false
 k6 run scripts/loadtest/k6-runtime-observability.js -e BASE_URL=http://localhost:8000/api/v1 -e ACCESS_TOKEN="$ACCESS_TOKEN" -e ORG_IDS_JSON="$ORG_IDS_JSON" -e RATE=2
+k6 run scripts/loadtest/k6-inventory-churn.js -e BASE_URL=http://localhost:8000/api/v1 -e ACCESS_TOKEN="$ACCESS_TOKEN" -e ORG_IDS_JSON="$ORG_IDS_JSON" -e RATE=6
 k6 run scripts/loadtest/k6-write-heavy.js -e BASE_URL=http://localhost:8000/api/v1 -e ACCESS_TOKEN="$ACCESS_TOKEN" -e ORG_IDS_JSON="$ORG_IDS_JSON" -e WEEK_START=2026-03-09
 ```
 
@@ -201,6 +215,10 @@ k6 run scripts/loadtest/k6-write-heavy.js -e BASE_URL=http://localhost:8000/api/
   - `/reports/generate` p95 under 2.0s and request failures < 3%.
 - Mixed churn target:
   - failures < 4% with API responsiveness maintained for core reads.
+- Inventory churn target:
+  - inventory create/stock event p95 under 2.2s.
+  - inventory forecast p95 under 2.4s.
+  - failures < 4%.
 
 Limits (current phase):
 - These profiles validate API/service behavior and queue pressure, not full worker throughput SLOs.
@@ -213,6 +231,7 @@ Limits (current phase):
 - Worker concurrency/prefetch are bounded (`WORKER_CONCURRENCY`, `WORKER_PREFETCH_MULTIPLIER`) to avoid exhausting Postgres `max_connections` during enqueue/recompute bursts.
 - API and worker can now use separate pool envelopes via role-aware settings (`APP_ROLE` + `API_DB_*` / `WORKER_DB_*`) so API read/write latency can be tuned independently from Celery throughput.
 - `/reports/generate` uses a read-only idempotent fast path for already-generated `(org_id, week_start)` reports, avoiding extra `job_state`/audit writes during churn.
+- Inventory velocity upsert/read paths are duplicate-tolerant under nullable location scope to prevent `MultipleResultsFound` failures during concurrent inventory forecast churn.
 
 ## CI workflow
 Workflow: `.github/workflows/perf.yml`
@@ -226,9 +245,29 @@ What it does:
    - `k6-read-hotpaths` pass 1 (`RATE=13`, `RUNTIME_METRICS_ENABLED=false`)
    - `k6-read-hotpaths` pass 2 (`RATE=13`, `RUNTIME_METRICS_ENABLED=false`)
    - `k6-runtime-observability` (`RATE=2`)
-6. evaluates guardrails from `slo_guardrails.json` via `evaluate_perf_gates.py`
+   - `k6-inventory-churn` (`RATE=6`)
+6. evaluates read/runtime guardrails from `slo_guardrails.json` via `evaluate_perf_gates.py`
 7. uploads artifacts (`perf-artifacts/*`) containing:
    - per-run k6 summary exports
    - consolidated gate report (`perf_gate_summary.json`, `perf_gate_summary.md`)
 
 For deeper tests, run local scalability profiles above with larger seeds (100k single org, 100x10k many-org).
+
+## Runtime SLO telemetry
+
+The API middleware now captures a rolling in-memory latency/error window for endpoint traffic.
+
+Owner-only endpoint:
+- `GET /api/v1/admin/runtime-slos?org_id=<uuid>`
+
+Environment tunables:
+- `RUNTIME_SLO_WINDOW_SECONDS` (default: `300`)
+- `RUNTIME_SLO_P95_MS` (default: `2000`)
+- `RUNTIME_SLO_ERROR_RATE_PCT` (default: `1.0`)
+- `RUNTIME_SLO_TOP_N` (default: `20`)
+
+Returned snapshot includes:
+- `requests` per endpoint (`METHOD /path`)
+- `p95_ms`
+- `error_rate_pct` (`5xx` responses)
+- `breach` boolean (if p95 or error-rate exceeds threshold)

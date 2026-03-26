@@ -12,6 +12,57 @@ on:
         default: "false"
 
 jobs:
+  migration-safety:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: ai_coo
+          POSTGRES_USER: ai_coo
+          POSTGRES_PASSWORD: ai_coo
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U ai_coo -d ai_coo"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    defaults:
+      run:
+        working-directory: backend
+    env:
+      SECRET_KEY: ci-migration-secret
+      DATABASE_URL: postgresql+asyncpg://ai_coo:ai_coo@localhost:5432/ai_coo
+      REDIS_URL: redis://localhost:6379/0
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install backend deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install .[dev]
+      - name: Wait for Postgres
+        run: |
+          for i in {1..40}; do
+            python - <<'PY'
+            import psycopg2
+            try:
+                psycopg2.connect(dbname="ai_coo", user="ai_coo", password="ai_coo", host="localhost", port=5432).close()
+                print("ok")
+            except Exception:
+                raise SystemExit(1)
+            PY
+            if [ "$?" -eq 0 ]; then exit 0; fi
+            sleep 2
+          done
+          exit 1
+      - name: Migration safety gate (upgrade/downgrade/re-upgrade)
+        run: |
+          python scripts/migration_safety_check.py
+
   backend:
     runs-on: ubuntu-latest
     defaults:
@@ -121,6 +172,164 @@ jobs:
         run: |
           cd frontend
           E2E_BASE_URL=http://localhost:3000 E2E_API_URL=http://localhost:8000/api/v1 E2E_AUTH_MODE=cookie npm run e2e
+      - name: Stop stack
+        if: always()
+        run: docker compose --env-file .env down -v
+
+  plaid-epic-a:
+    if: ${{ secrets.PLAID_CLIENT_ID != '' && secrets.PLAID_SECRET != '' }}
+    runs-on: ubuntu-latest
+    env:
+      PLAID_CLIENT_ID: ${{ secrets.PLAID_CLIENT_ID }}
+      PLAID_SECRET: ${{ secrets.PLAID_SECRET }}
+      PLAID_ENV: sandbox
+      PLAID_PRODUCTS: transactions
+      PLAID_COUNTRY_CODES: US
+      PLAID_WEBHOOK_SECRET: ${{ secrets.PLAID_WEBHOOK_SECRET }}
+      PLAID_TEST_INSTITUTION_ID: ins_109508
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: frontend/package-lock.json
+      - name: Prepare Plaid integration env
+        run: |
+          cp .env.example .env
+          {
+            echo "BANK_PROVIDER=plaid"
+            echo "PLAID_CLIENT_ID=${PLAID_CLIENT_ID}"
+            echo "PLAID_SECRET=${PLAID_SECRET}"
+            echo "PLAID_ENV=${PLAID_ENV}"
+            echo "PLAID_PRODUCTS=${PLAID_PRODUCTS}"
+            echo "PLAID_COUNTRY_CODES=${PLAID_COUNTRY_CODES}"
+            echo "PLAID_WEBHOOK_SECRET=${PLAID_WEBHOOK_SECRET:-plaid-ci-webhook-secret}"
+            echo "PLAID_WEBHOOK_URL=https://example.com/plaid-ci-webhook"
+            echo "AUTH_COOKIE_MODE=false"
+            echo "COOKIE_SECURE=false"
+          } >> .env
+      - name: Start stack
+        run: docker compose --env-file .env up --build -d
+      - name: Wait for health
+        run: |
+          for i in {1..50}; do
+            if curl -sf http://localhost:8000/api/v1/health; then exit 0; fi
+            sleep 3
+          done
+          exit 1
+      - name: Run Plaid live backend test (container runtime)
+        run: |
+          docker compose --env-file .env exec -T backend sh -lc \
+            "RUN_INTEGRATION_LIVE=1 PLAID_SANDBOX_E2E=1 INTEGRATION_BASE_URL=http://localhost:8000/api/v1 pytest app/tests/test_plaid_sandbox_live.py -q"
+      - name: Install frontend deps + Playwright browser
+        run: |
+          cd frontend
+          npm ci
+          npx playwright install --with-deps chromium
+      - name: Generate Plaid sandbox public token for Playwright
+        run: |
+          python -m pip install --upgrade pip httpx
+          python - <<'PY'
+          import os
+          import httpx
+
+          payload = {
+              "client_id": os.environ["PLAID_CLIENT_ID"],
+              "secret": os.environ["PLAID_SECRET"],
+              "institution_id": os.getenv("PLAID_TEST_INSTITUTION_ID", "ins_109508"),
+              "initial_products": ["transactions"],
+              "options": {"webhook": "https://example.com/plaid-ci-webhook"},
+          }
+          with httpx.Client(timeout=30.0) as client:
+              response = client.post("https://sandbox.plaid.com/sandbox/public_token/create", json=payload)
+              response.raise_for_status()
+              token = response.json().get("public_token")
+          if not token:
+              raise SystemExit("Missing public_token from Plaid sandbox response")
+          with open(os.environ["GITHUB_ENV"], "a", encoding="utf-8") as env_file:
+              env_file.write(f"E2E_PLAID_PUBLIC_TOKEN={token}\n")
+          PY
+      - name: Run Playwright Plaid E2E spec
+        run: |
+          cd frontend
+          E2E_BASE_URL=http://localhost:3000 \
+          E2E_API_URL=http://localhost:8000/api/v1 \
+          E2E_AUTH_MODE=bearer \
+          E2E_PLAID_SANDBOX=1 \
+          npx playwright test e2e/plaid-integration.spec.ts
+      - name: Upload Plaid Playwright report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: plaid-playwright-report
+          path: frontend/playwright-report
+      - name: Stop stack
+        if: always()
+        run: docker compose --env-file .env down -v
+
+  stripe-epic-b:
+    if: ${{ secrets.STRIPE_SECRET_KEY != '' && secrets.STRIPE_WEBHOOK_SECRET != '' }}
+    runs-on: ubuntu-latest
+    env:
+      STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
+      STRIPE_WEBHOOK_SECRET: ${{ secrets.STRIPE_WEBHOOK_SECRET }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: frontend/package-lock.json
+      - name: Prepare Stripe integration env
+        run: |
+          cp .env.example .env
+          {
+            echo "STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY}"
+            echo "STRIPE_WEBHOOK_SECRET=${STRIPE_WEBHOOK_SECRET}"
+            echo "AUTH_COOKIE_MODE=false"
+            echo "COOKIE_SECURE=false"
+          } >> .env
+      - name: Start stack
+        run: docker compose --env-file .env up --build -d
+      - name: Wait for health
+        run: |
+          for i in {1..50}; do
+            if curl -sf http://localhost:8000/api/v1/health; then exit 0; fi
+            sleep 3
+          done
+          exit 1
+      - name: Run Stripe live backend test (container runtime)
+        run: |
+          docker compose --env-file .env exec -T backend sh -lc \
+            "RUN_INTEGRATION_LIVE=1 STRIPE_SANDBOX_E2E=1 INTEGRATION_BASE_URL=http://localhost:8000/api/v1 pytest app/tests/test_stripe_sandbox_live.py -q"
+      - name: Install frontend deps + Playwright browser
+        run: |
+          cd frontend
+          npm ci
+          npx playwright install --with-deps chromium
+      - name: Run Playwright Stripe E2E spec
+        run: |
+          cd frontend
+          E2E_BASE_URL=http://localhost:3000 \
+          E2E_API_URL=http://localhost:8000/api/v1 \
+          E2E_AUTH_MODE=bearer \
+          E2E_STRIPE_LIVE=1 \
+          E2E_STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY} \
+          E2E_STRIPE_WEBHOOK_SECRET=${STRIPE_WEBHOOK_SECRET} \
+          npx playwright test e2e/stripe-integration.spec.ts
+      - name: Upload Stripe Playwright report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: stripe-playwright-report
+          path: frontend/playwright-report
       - name: Stop stack
         if: always()
         run: docker compose --env-file .env down -v

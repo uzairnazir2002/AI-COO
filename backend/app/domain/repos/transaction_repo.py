@@ -31,6 +31,7 @@ class TransactionRepo:
     async def list(
         self,
         org_id: uuid.UUID,
+        location_id: uuid.UUID | None,
         date_from: date | None,
         date_to: date | None,
         tx_type: str | None,
@@ -40,6 +41,8 @@ class TransactionRepo:
         page_size: int,
     ) -> tuple[list[Transaction], int]:
         filters = [Transaction.org_id == org_id]
+        if location_id:
+            filters.append(Transaction.location_id == location_id)
         if date_from:
             filters.append(Transaction.date >= date_from)
         if date_to:
@@ -75,6 +78,7 @@ class TransactionRepo:
                     Transaction.amount == r["amount"],
                     Transaction.type == r["type"],
                     Transaction.category == r["category"],
+                    Transaction.location_id == r.get("location_id"),
                     Transaction.vendor == r["vendor"],
                 )
             )
@@ -93,6 +97,7 @@ class TransactionRepo:
                 Transaction.amount,
                 Transaction.type,
                 Transaction.category,
+                Transaction.location_id,
                 Transaction.vendor,
             ).where(
                 Transaction.org_id == org_id,
@@ -101,7 +106,7 @@ class TransactionRepo:
             )
         )
         return {
-            (row.date, row.amount, row.type, row.category, row.vendor)
+            (row.date, row.amount, row.type, row.category, row.location_id, row.vendor)
             for row in rows.all()
         }
 

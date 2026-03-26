@@ -38,16 +38,24 @@ class OrgSettingsOut(BaseModel):
     starting_cash: Decimal
     runway_alert_threshold_days: int
     vendor_concentration_threshold_pct: Decimal
+    budget_variance_alert_threshold_pct: Decimal
     misc_growth_multiplier: Decimal
     anomaly_spike_multiplier: Decimal
+    owner_mfa_required: bool
+    owner_session_max_minutes: int
+    sensitive_action_reauth_minutes: int
 
 
 class OrgSettingsUpdateIn(BaseModel):
     starting_cash: Decimal | None = None
     runway_alert_threshold_days: int | None = None
     vendor_concentration_threshold_pct: Decimal | None = None
+    budget_variance_alert_threshold_pct: Decimal | None = None
     misc_growth_multiplier: Decimal | None = None
     anomaly_spike_multiplier: Decimal | None = None
+    owner_mfa_required: bool | None = None
+    owner_session_max_minutes: int | None = None
+    sensitive_action_reauth_minutes: int | None = None
 
     @field_validator("starting_cash")
     @classmethod
@@ -76,6 +84,15 @@ class OrgSettingsUpdateIn(BaseModel):
             raise ValueError("vendor_concentration_threshold_pct must be between 1 and 100")
         return value
 
+    @field_validator("budget_variance_alert_threshold_pct")
+    @classmethod
+    def validate_budget_variance_threshold(cls, value: Decimal | None) -> Decimal | None:
+        if value is None:
+            return value
+        if value < Decimal("1") or value > Decimal("1000"):
+            raise ValueError("budget_variance_alert_threshold_pct must be between 1 and 1000")
+        return value
+
     @field_validator("misc_growth_multiplier", "anomaly_spike_multiplier")
     @classmethod
     def validate_multipliers(cls, value: Decimal | None) -> Decimal | None:
@@ -83,6 +100,15 @@ class OrgSettingsUpdateIn(BaseModel):
             return value
         if value <= Decimal("1") or value > Decimal("10"):
             raise ValueError("multiplier must be > 1 and <= 10")
+        return value
+
+    @field_validator("owner_session_max_minutes", "sensitive_action_reauth_minutes")
+    @classmethod
+    def validate_security_window_minutes(cls, value: int | None) -> int | None:
+        if value is None:
+            return value
+        if value < 5 or value > 1440:
+            raise ValueError("minutes must be between 5 and 1440")
         return value
 
 
@@ -117,4 +143,8 @@ class OrgBillingUpdateIn(BaseModel):
     invoice_enabled: bool | None = None
     plan_label: str | None = None
     billing_notes: str | None = None
+
+
+class OrgDeletionRequestIn(BaseModel):
+    reason: str | None = None
 

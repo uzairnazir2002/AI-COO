@@ -13,6 +13,8 @@ Multi-tenant SaaS for SMB operations with FastAPI + Next.js + Celery.
 ## Implemented MVP capabilities
 - Multi-tenant org/user model with RBAC (`OWNER`, `EDITOR`, `VIEWER`)
 - Auth with Argon2id hashing, JWT access/refresh, refresh rotation/revocation
+- Optional TOTP MFA for account login plus single-use recovery codes and active session management (list/revoke/revoke-others)
+- Owner security policy controls (owner MFA requirement, owner session max age, sensitive-action reauth window)
 - Registration confirmation workflow (`POST /api/v1/auth/confirm`) with outbox-backed email token delivery
 - Transactions CRUD + CSV import with safe parsing, mapping validation, duplicate detection/skip
 - CSV import two-step mode (`commit=false` preview, then `commit=true` apply)
@@ -27,6 +29,7 @@ Multi-tenant SaaS for SMB operations with FastAPI + Next.js + Celery.
 - Standardized task lifecycle tracking in `job_states` (`PENDING/RUNNING/RETRYING/SUCCEEDED/FAILED`)
 - Jobs API for org-scoped task visibility and filtering (`GET /api/v1/jobs`)
 - Outbox pattern for report/invite notifications with retryable delivery (`outbox_events`)
+- Data-protection baseline: encrypted PII fields (billing/invite/session metadata), key rotation endpoint, soft-delete + purge workflow
 - Refresh token reuse detection with session family revocation + audit event
 - Owner-only admin recompute orchestration endpoint (`POST /api/v1/admin/recompute`)
 - AI summary endpoint grounded in computed metrics with schema validation + deterministic fallback
@@ -39,6 +42,10 @@ Multi-tenant SaaS for SMB operations with FastAPI + Next.js + Celery.
 - CSV import history with error-row CSV download
 - Persistent CSV import mapping profiles (personal/shared) with profile-based import execution
 - Real-time stream endpoint (`GET /api/v1/events/stream`) plus polling-safe UX fallback
+- Bank integrations foundation (Plaid/Stub provider): link token, token exchange, org-scoped connections, async sync enqueue
+- Plaid webhook ingestion with signature verification (`X-Plaid-Signature` + `PLAID_WEBHOOK_SECRET`)
+- Automatic bank sync orchestration via Celery Beat (`sync_all_active_bank_connections` every 30 minutes, pauseable with schedule controls)
+- Payment integrations foundation (Stripe): org-scoped connect endpoint, signed webhook ingestion, and reconciliation totals vs internal transactions
 
 ## Security defaults
 - Argon2id password hashing (`time_cost=3`, `memory_cost=65536`, `parallelism=2`)
@@ -97,17 +104,25 @@ See ADRs:
 - `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`, `EMAIL_DRY_RUN`
 - `NEXT_PUBLIC_API_BASE_URL`
 - `AUTH_COOKIE_MODE`, `COOKIE_SECURE`, `COOKIE_SAMESITE`, `ACCESS_COOKIE_NAME`, `REFRESH_COOKIE_NAME`
+- `ENFORCE_HTTPS` (optional strict transport enforcement for non-development environments)
+- `PII_ENCRYPTION_KEYS`, `PII_ENCRYPTION_ACTIVE_KEY_ID` (PII encryption keyring + active key selector)
+- `DELETION_GRACE_PERIOD_DAYS` (soft-delete grace period before purge)
+- `AUTH_LOCKOUT_THRESHOLD`, `AUTH_LOCKOUT_WINDOW_MINUTES`, `AUTH_LOCKOUT_DURATION_MINUTES` (login lockout controls)
 - `CSRF_COOKIE_NAME`, `CSRF_HEADER_NAME` (cookie mode mutating requests)
 - `EXPOSE_INVITE_TOKEN_IN_RESPONSE` (set `false` in production)
 - `SENTRY_DSN`, `SENTRY_TRACES_SAMPLE_RATE` (optional backend + worker tracing/error capture)
 - `NEXT_PUBLIC_AUTH_MODE` (`bearer` for local, `cookie` for production)
 - `NEXT_PUBLIC_CSRF_COOKIE_NAME`, `NEXT_PUBLIC_CSRF_HEADER_NAME` (frontend cookie-mode CSRF names)
+- `BANK_PROVIDER` (`stub` or `plaid`), `PLAID_CLIENT_ID`, `PLAID_SECRET`, `PLAID_ENV`, `PLAID_PRODUCTS`, `PLAID_COUNTRY_CODES`, `PLAID_WEBHOOK_URL`
+- `PLAID_WEBHOOK_SECRET` (required for webhook signature verification)
+- `STRIPE_SECRET_KEY`, `STRIPE_PUBLISHABLE_KEY`, `STRIPE_WEBHOOK_SECRET` (billing + payment ingestion/reconciliation)
 
 ## API contract
 Prefix: `/api/v1`
 
 Main groups:
-- `auth`: register/login/refresh/logout/me/invite-accept
+- `auth`: register/login/refresh/logout/me/invite-accept/mfa/session-management/reauth/delete-account
+  - Development helper: `GET /auth/dev/confirmation-token?email=...` (available only when `ENV=development`)
 - `organizations`: create/list/invite/members/settings
 - `organizations`: create/list/invite/members/settings/plan-usage/billing
 - `transactions`: create/list/update/delete/import-csv/import-history/import-errors/bulk-remap-category
@@ -115,11 +130,17 @@ Main groups:
 - `analytics`: summary/cashflow/recompute
 - `runway`: runway calculator
 - `forecast`: get/override
-- `alerts`: list/dismiss
+- `alerts`: list/dismiss/assign/acknowledge/history
 - `reports`: list/generate/download
 - `jobs`: list with status/task/date filters
-- `admin`: owner-only recompute orchestration
+- `admin`: owner-only recompute orchestration + audit export + org PII rotation
 - `events`: SSE stream for summary + alerts updates
+- `integrations`: bank connection lifecycle (`/integrations/banks/*`)
+  - `POST /integrations/banks/plaid/webhook` (Plaid transaction webhooks -> async sync enqueue)
+  - `GET /integrations/payments/connections?org_id=...&provider=STRIPE`
+  - `POST /integrations/payments/stripe/connect`
+  - `POST /integrations/payments/stripe/webhook`
+  - `GET /integrations/payments/reconciliation?org_id=...&date_from=...&date_to=...`
 - `ai`: executive summary
 - `health`: service checks
 
@@ -139,10 +160,15 @@ Frontend:
 
 One-command checks:
 - `make check`
+- `make migration-safety` (alembic upgrade/downgrade/re-upgrade smoke)
 - `make smoke` (requires running stack)
 - `make verify-runtime` (health + backend tests + bearer/cookie smoke + bearer/cookie E2E)
 - Cookie-mode smoke: `python scripts/smoke_mvp.py --base-url http://localhost:8000/api/v1 --auth-mode cookie`
 - Frontend only: `cd frontend && npm run check`
+- Live Plaid sandbox integration test (optional):
+  - `RUN_INTEGRATION_LIVE=1 PLAID_SANDBOX_E2E=1 PLAID_CLIENT_ID=... PLAID_SECRET=... .\\.venv\\Scripts\\python.exe -m pytest backend/app/tests/test_plaid_sandbox_live.py -q`
+- Live Stripe test-mode webhook integration test (optional):
+  - `RUN_INTEGRATION_LIVE=1 STRIPE_SANDBOX_E2E=1 STRIPE_SECRET_KEY=... STRIPE_WEBHOOK_SECRET=... .\\.venv\\Scripts\\python.exe -m pytest backend/app/tests/test_stripe_sandbox_live.py -q`
 
 ## Acceptance Evidence (March 5, 2026)
 - Backend tests:
@@ -185,6 +211,7 @@ curl -X POST http://localhost:8000/api/v1/transactions/import/csv \
 - Place backend behind an HTTPS reverse proxy (Nginx/Traefik/Caddy) and terminate TLS there.
 - Reference Nginx config: `docker/nginx/default.conf`
 - Backup/restore runbook: `docs/operations/backup_restore.md`
+- Privacy/deletion operations runbook: `docs/operations/privacy_deletion.md`
 - Performance harness docs: `docs/performance.md`
 
 ## API examples

@@ -19,6 +19,7 @@ import { useAppStore } from "@/store/appStore";
 
 export function ReportsPageClient() {
   const orgId = useAppStore((s) => s.selectedOrgId);
+  const selectedLocationId = useAppStore((s) => s.selectedLocationId);
   const reports = useReports();
   const generate = useGenerateReport();
   const toast = useToast();
@@ -137,7 +138,7 @@ export function ReportsPageClient() {
                   size="sm"
                   onClick={async () => {
                     if (!orgId) return;
-                    const dl = await fetchReportDownload(report.id, orgId);
+                    const dl = await fetchReportDownload(report.id, orgId, selectedLocationId);
                     if (dl.url) {
                       window.open(dl.url, "_blank", "noopener,noreferrer");
                       setPreviewUrl(dl.url);

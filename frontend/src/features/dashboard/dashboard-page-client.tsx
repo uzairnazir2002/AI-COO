@@ -30,6 +30,7 @@ export function DashboardPageClient() {
   const cashflowGranularity = useAppStore((s) => s.cashflowGranularity);
   const setCashflowGranularity = useAppStore((s) => s.setCashflowGranularity);
   const setGlobalDateRange = useAppStore((s) => s.setGlobalDateRange);
+  const selectedLocationId = useAppStore((s) => s.selectedLocationId);
 
   if (!data.orgId) {
     return (
@@ -75,6 +76,12 @@ export function DashboardPageClient() {
     return Math.max(acc, Math.abs(value));
   }, 0);
   const netChange = points.length > 1 ? points[points.length - 1].net - points[0].net : 0;
+  const budgetPlanned = toNumber(data.budgetVariance?.totals.planned_amount);
+  const budgetActual = toNumber(data.budgetVariance?.totals.actual_amount);
+  const budgetVarianceAmount = toNumber(data.budgetVariance?.totals.variance_amount);
+  const budgetVariancePct = budgetPlanned > 0 ? (budgetVarianceAmount / budgetPlanned) * 100 : 0;
+  const hasBudgetVariance = budgetPlanned > 0 || budgetActual > 0;
+  const benchmarkRows = data.locationBenchmark?.locations ?? [];
   const cashflowDomain = computeChartDomain(
     points.flatMap((point) => [point.revenue, point.expense, point.net]),
     500,
@@ -143,6 +150,62 @@ export function DashboardPageClient() {
           sparklineData={sparklineData}
         />
       </div>
+
+      <div className="grid gap-4 sm:grid-cols-3">
+        <KpiCard
+          label="Budget planned (month)"
+          value={formatMoney(budgetPlanned)}
+          hint={hasBudgetVariance ? "Current month expense budget total" : "No monthly budgets configured"}
+        />
+        <KpiCard
+          label="Budget actual (month)"
+          value={formatMoney(budgetActual)}
+          hint={hasBudgetVariance ? "Matched against expense transactions" : "No budget variance baseline yet"}
+        />
+        <KpiCard
+          label="Budget variance (month)"
+          value={formatMoney(budgetVarianceAmount)}
+          warning={budgetVarianceAmount > 0}
+          hint={hasBudgetVariance ? `Variance ${budgetVariancePct.toFixed(1)}%` : "Variance available once budget rows exist"}
+        />
+      </div>
+
+      <section className="rounded-2xl border border-border/70 bg-card/70 p-4">
+        <div className="flex items-center justify-between">
+          <h2 className="text-base font-semibold">Cross-location benchmark</h2>
+          <p className="text-xs text-muted-foreground">
+            {data.from} to {data.to}
+          </p>
+        </div>
+        {benchmarkRows.length === 0 ? (
+          <p className="mt-2 text-sm text-muted-foreground">No location-distributed transactions in this range.</p>
+        ) : (
+          <div className="mt-3 grid gap-2">
+            {benchmarkRows.slice(0, 6).map((row) => {
+              const isActiveScope = selectedLocationId !== null && row.location_id === selectedLocationId;
+              return (
+                <div
+                  key={`${row.location_id ?? "unassigned"}-${row.location_name}`}
+                  className={`flex items-center justify-between rounded-xl border px-3 py-2 text-sm ${isActiveScope ? "border-primary/60 bg-primary/5" : "border-border/60"}`}
+                >
+                  <div>
+                    <p className="font-medium">{row.location_name}</p>
+                    <p className="text-xs text-muted-foreground">
+                      Rev {formatCompactMoney(toNumber(row.revenue))} | Exp {formatCompactMoney(toNumber(row.expense))}
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <p className="font-medium">{formatCompactMoney(toNumber(row.net))}</p>
+                    <p className="text-xs text-muted-foreground">
+                      Margin {toNumber(row.margin_pct).toFixed(1)}%
+                    </p>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </section>
 
       <div className="grid gap-4 xl:grid-cols-2">
         <ChartCard
@@ -237,7 +300,32 @@ export function DashboardPageClient() {
               <Link href="/app/alerts">View all</Link>
             </Button>
           </div>
-          {!data.loading && data.alerts.length === 0 ? (
+          {data.budgetThresholdAlerts.length > 0 ? (
+            <div
+              data-testid="budget-threshold-alerts"
+              className="rounded-2xl border border-warning/35 bg-warning/10 p-4"
+            >
+              <div className="flex items-center gap-2 text-sm font-medium text-warning">
+                <BellRing className="h-4 w-4" />
+                Budget threshold alerts ({data.budgetThresholdAlerts.length})
+              </div>
+              <div className="mt-2 space-y-1 text-sm">
+                {data.budgetThresholdAlerts.map((item) => (
+                  <p key={item.alertId}>
+                    {item.category}: {formatMoney(item.actualAmount)} actual vs {formatMoney(item.plannedAmount)} planned
+                    {" "}({item.variancePct.toFixed(1)}% over)
+                    {item.periodMonth ? ` in ${item.periodMonth}` : ""}
+                  </p>
+                ))}
+              </div>
+              <p className="mt-2 text-xs text-muted-foreground">
+                {data.budgetThresholdPct !== null
+                  ? `Configured threshold: ${data.budgetThresholdPct.toFixed(1)}% variance over planned.`
+                  : "Threshold configured in Organization Settings."}
+              </p>
+            </div>
+          ) : null}
+          {!data.loading && data.alerts.length === 0 && data.budgetThresholdAlerts.length === 0 ? (
             <EmptyState eyebrow="All clear" title="No open alerts." description="Current monitoring did not detect active anomalies or leak signals." />
           ) : null}
           {data.alerts.map((alert) => (

@@ -2,9 +2,8 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { api } from "@/lib/api/client";
+import { api, apiFetchRaw } from "@/lib/api/client";
 import { apiPaths } from "@/lib/api/endpoints";
-import { getAccessToken } from "@/lib/auth/tokens";
 import { qk } from "@/lib/query/keys";
 import { useAppStore } from "@/store/appStore";
 import type { ImportHistoryPage, ImportMappingProfile, PaginatedTransactions, Transaction } from "@/types/domain";
@@ -15,9 +14,28 @@ export type TransactionFilters = {
   type?: string;
   category?: string;
   q?: string;
+  location_id?: string;
   page: number;
   page_size: number;
 };
+
+export type AlertRecalcMetadata = {
+  taskId: string;
+  status: string;
+  queued: boolean;
+};
+
+function readAlertRecalcMetadata(headers: Headers): AlertRecalcMetadata | null {
+  const taskId = headers.get("X-Alert-Recalc-Task-Id");
+  const status = headers.get("X-Alert-Recalc-Status");
+  const queuedHeader = headers.get("X-Alert-Recalc-Queued");
+  if (!taskId || !status || !queuedHeader) return null;
+  return {
+    taskId,
+    status,
+    queued: queuedHeader.toLowerCase() === "true",
+  };
+}
 
 function queryString(params: Record<string, string | number | undefined>) {
   const qs = new URLSearchParams();
@@ -29,10 +47,12 @@ function queryString(params: Record<string, string | number | undefined>) {
 
 export function useTransactions(filters: TransactionFilters) {
   const orgId = useAppStore((s) => s.selectedOrgId);
+  const selectedLocationId = useAppStore((s) => s.selectedLocationId);
+  const locationId = filters.location_id ?? selectedLocationId ?? undefined;
   return useQuery({
-    queryKey: qk.transactions({ ...filters, org_id: orgId || "" }),
+    queryKey: qk.transactions({ ...filters, location_id: locationId, org_id: orgId || "" }),
     queryFn: async () => {
-      const qs = queryString({ org_id: orgId || "", ...filters });
+      const qs = queryString({ org_id: orgId || "", ...filters, location_id: locationId });
       return api<PaginatedTransactions>(`${apiPaths.transactions}?${qs}`);
     },
     enabled: Boolean(orgId),
@@ -43,7 +63,11 @@ export function useCreateTransaction() {
   const orgId = useAppStore((s) => s.selectedOrgId);
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (payload: Omit<Transaction, "id">) => api<{ transaction: Transaction }>(apiPaths.transactions, { method: "POST", body: JSON.stringify(payload) }),
+    mutationFn: async (payload: Omit<Transaction, "id">) => {
+      const response = await apiFetchRaw(apiPaths.transactions, { method: "POST", body: JSON.stringify(payload) });
+      const json = (await response.json()) as { transaction: Transaction };
+      return { transaction: json.transaction, alertRecalc: readAlertRecalcMetadata(response.headers) };
+    },
     onMutate: async (payload) => {
       await qc.cancelQueries({ queryKey: ["transactions"] });
       const previous = qc.getQueriesData<PaginatedTransactions>({ queryKey: ["transactions"] });
@@ -66,6 +90,7 @@ export function useCreateTransaction() {
       qc.invalidateQueries({ queryKey: ["cashflow"] });
       qc.invalidateQueries({ queryKey: ["runway"] });
       qc.invalidateQueries({ queryKey: ["alerts"] });
+      qc.invalidateQueries({ queryKey: ["locationBenchmark"] });
     },
     meta: { orgId },
   });
@@ -75,11 +100,14 @@ export function useUpdateTransaction() {
   const orgId = useAppStore((s) => s.selectedOrgId);
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, payload }: { id: string; payload: Partial<Transaction> }) =>
-      api<{ transaction: Transaction }>(`${apiPaths.transactionById(id)}?org_id=${orgId}`, {
+    mutationFn: async ({ id, payload }: { id: string; payload: Partial<Transaction> }) => {
+      const response = await apiFetchRaw(`${apiPaths.transactionById(id)}?org_id=${orgId}`, {
         method: "PUT",
         body: JSON.stringify(payload),
-      }),
+      });
+      const json = (await response.json()) as { transaction: Transaction };
+      return { transaction: json.transaction, alertRecalc: readAlertRecalcMetadata(response.headers) };
+    },
     onMutate: async ({ id, payload }) => {
       await qc.cancelQueries({ queryKey: ["transactions"] });
       const previous = qc.getQueriesData<PaginatedTransactions>({ queryKey: ["transactions"] });
@@ -101,6 +129,7 @@ export function useUpdateTransaction() {
       qc.invalidateQueries({ queryKey: ["cashflow"] });
       qc.invalidateQueries({ queryKey: ["runway"] });
       qc.invalidateQueries({ queryKey: ["alerts"] });
+      qc.invalidateQueries({ queryKey: ["locationBenchmark"] });
     },
   });
 }
@@ -109,10 +138,13 @@ export function useDeleteTransaction() {
   const orgId = useAppStore((s) => s.selectedOrgId);
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (id: string) =>
-      api<{ ok: boolean }>(`${apiPaths.transactionById(id)}?org_id=${orgId}`, {
+    mutationFn: async (id: string) => {
+      const response = await apiFetchRaw(`${apiPaths.transactionById(id)}?org_id=${orgId}`, {
         method: "DELETE",
-      }),
+      });
+      const json = (await response.json()) as { ok: boolean };
+      return { ok: json.ok, alertRecalc: readAlertRecalcMetadata(response.headers) };
+    },
     onMutate: async (id) => {
       await qc.cancelQueries({ queryKey: ["transactions"] });
       const previous = qc.getQueriesData<PaginatedTransactions>({ queryKey: ["transactions"] });
@@ -135,6 +167,7 @@ export function useDeleteTransaction() {
       qc.invalidateQueries({ queryKey: ["cashflow"] });
       qc.invalidateQueries({ queryKey: ["runway"] });
       qc.invalidateQueries({ queryKey: ["alerts"] });
+      qc.invalidateQueries({ queryKey: ["locationBenchmark"] });
     },
   });
 }
@@ -145,14 +178,30 @@ export async function importCsv(
   mapping: Record<string, string> | undefined,
   commit: boolean,
   profileId?: string,
-): Promise<{ import_id: string; preview: { rows: number; detected_duplicates: number }; inserted_count: number }> {
+): Promise<{
+  import_id: string;
+  preview: { rows: number; detected_duplicates: number };
+  inserted_count: number;
+  mapping_profile_id?: string | null;
+  alertRecalc: AlertRecalcMetadata | null;
+}> {
   const form = new FormData();
   form.append("org_id", orgId);
   if (mapping) form.append("mapping", JSON.stringify(mapping));
   if (profileId) form.append("profile_id", profileId);
   form.append("commit", String(commit));
   form.append("file", file);
-  return api(apiPaths.importCsv, { method: "POST", body: form });
+  const response = await apiFetchRaw(apiPaths.importCsv, { method: "POST", body: form });
+  const json = (await response.json()) as {
+    import_id: string;
+    preview: { rows: number; detected_duplicates: number };
+    inserted_count: number;
+    mapping_profile_id?: string | null;
+  };
+  return {
+    ...json,
+    alertRecalc: readAlertRecalcMetadata(response.headers),
+  };
 }
 
 export function useImportProfiles() {
@@ -209,17 +258,21 @@ export function useDeleteImportProfile() {
 export function useBulkRemapCategory() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (payload: { org_id: string; from_category: string; to_category: string; from_date?: string; to_date?: string }) => {
+    mutationFn: async (payload: { org_id: string; from_category: string; to_category: string; from_date?: string; to_date?: string }) => {
       const qs = new URLSearchParams({ org_id: payload.org_id }).toString();
-      return api<{ ok: boolean; updated_count: number }>(`${apiPaths.bulkRemap}?${qs}`, {
+      const response = await apiFetchRaw(`${apiPaths.bulkRemap}?${qs}`, {
         method: "POST",
         body: JSON.stringify(payload),
       });
+      const json = (await response.json()) as { ok: boolean; updated_count: number };
+      return { ...json, alertRecalc: readAlertRecalcMetadata(response.headers) };
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["transactions"] });
       qc.invalidateQueries({ queryKey: ["summary"] });
       qc.invalidateQueries({ queryKey: ["cashflow"] });
+      qc.invalidateQueries({ queryKey: ["alerts"] });
+      qc.invalidateQueries({ queryKey: ["locationBenchmark"] });
     },
   });
 }
@@ -237,17 +290,6 @@ export function useImportHistory(page: number, pageSize: number) {
 }
 
 export async function downloadImportErrors(importId: string, orgId: string): Promise<Blob> {
-  const base = process.env.NEXT_PUBLIC_API_URL || process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000";
-  const token = getAccessToken();
-  const headers = new Headers({ "X-Request-ID": crypto.randomUUID() });
-  if (token) headers.set("Authorization", `Bearer ${token}`);
-  const res = await fetch(`${base}${apiPaths.importErrors(importId)}?org_id=${orgId}`, {
-    method: "GET",
-    headers,
-    credentials: "include",
-  });
-  if (!res.ok) {
-    throw new Error(`Failed to download errors (${res.status})`);
-  }
-  return await res.blob();
+  const response = await apiFetchRaw(`${apiPaths.importErrors(importId)}?org_id=${orgId}`);
+  return await response.blob();
 }

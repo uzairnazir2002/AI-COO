@@ -59,11 +59,13 @@ def test_alerts_list_uses_short_ttl_cache(monkeypatch):
         def __init__(self, _db, _repo):
             pass
 
-        async def list_alerts(self, _org_id, _status):
+        async def list_alerts(self, _org_id, _status, assigned_to_user_id=None, location_id=None):
+            _ = (assigned_to_user_id, location_id)
             calls["list"] += 1
             return [
                 SimpleNamespace(
                     id=uuid.uuid4(),
+                    org_id=_org_id,
                     kind="ANOMALY",
                     severity="HIGH",
                     title="Spike",
@@ -173,7 +175,8 @@ def test_analytics_summary_uses_short_ttl_cache(monkeypatch):
         def __init__(self, _repo):
             pass
 
-        async def summary(self, _org_id, _from_date, _to_date):
+        async def summary(self, _org_id, _from_date, _to_date, *, location_id=None):
+            _ = location_id
             calls["summary"] += 1
             return {
                 "cash_balance": "1000.00",

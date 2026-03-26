@@ -24,11 +24,20 @@ class _FakeRepo:
         self.db = object()
         self.saved = []
 
-    async def list_reports(self, org_id):
+    async def list_reports(self, org_id, *, location_id=None):
         return self.saved
 
-    async def get_by_week(self, org_id, week_start):
-        return next((r for r in self.saved if r.org_id == org_id and r.week_start == week_start), None)
+    async def get_by_week(self, org_id, week_start, *, location_id=None):
+        return next(
+            (
+                r
+                for r in self.saved
+                if r.org_id == org_id
+                and r.week_start == week_start
+                and r.location_id == location_id
+            ),
+            None,
+        )
 
     async def save(self, report):
         report.id = uuid4()

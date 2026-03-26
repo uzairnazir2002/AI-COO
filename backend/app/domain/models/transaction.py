@@ -16,6 +16,7 @@ class Transaction(Base, UUIDPrimaryKeyMixin, TimestampMixin):
         Index("ix_tx_org_date", "org_id", "date"),
         Index("ix_tx_org_type_date", "org_id", "type", "date"),
         Index("ix_tx_org_category_date", "org_id", "category", "date"),
+        Index("ix_tx_org_location_date", "org_id", "location_id", "date"),
     )
 
     org_id: Mapped[uuid.UUID] = mapped_column(
@@ -25,6 +26,9 @@ class Transaction(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     amount: Mapped[Decimal] = mapped_column(Numeric(14, 2), nullable=False)
     type: Mapped[str] = mapped_column(String(16), nullable=False)
     category: Mapped[str] = mapped_column(String(100), nullable=False)
+    location_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("locations.id"), nullable=True
+    )
     vendor: Mapped[str | None] = mapped_column(String(200), nullable=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_by: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)

@@ -1,10 +1,13 @@
-.PHONY: backend-test backend-lint frontend-lint frontend-build precommit smoke verify-runtime check backup restore-drill
+.PHONY: backend-test backend-lint migration-safety frontend-lint frontend-build precommit smoke verify-runtime check backup restore-drill
 
 backend-test:
 	cd backend && ..\.venv\Scripts\python.exe -m pytest app/tests -q
 
 backend-lint:
 	cd backend && ..\.venv\Scripts\python.exe -m ruff check app
+
+migration-safety:
+	cd backend && ..\.venv\Scripts\python.exe scripts/migration_safety_check.py
 
 frontend-lint:
 	cd frontend && npm run lint

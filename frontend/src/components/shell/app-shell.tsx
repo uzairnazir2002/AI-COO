@@ -9,11 +9,14 @@ import {
   Activity as ActivityIcon,
   AlertTriangle,
   BarChart3,
+  Boxes,
   ChevronsLeftRightEllipsis,
   FileText,
   Landmark,
   LineChart,
   LogOut,
+  MessageSquare,
+  PiggyBank,
   Settings2,
   Wallet,
 } from "lucide-react";
@@ -25,6 +28,7 @@ import { NotificationCenter } from "@/components/shell/notification-center";
 import { ThemeToggle } from "@/components/common/theme-toggle";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useLocations } from "@/features/locations/hooks";
 import { useOrgEventFeed } from "@/features/notifications/hooks";
 import { logout } from "@/lib/api/client";
 import { useAppStore } from "@/store/appStore";
@@ -34,7 +38,10 @@ const nav = [
   { href: "/app/dashboard", label: "Dashboard", icon: BarChart3 },
   { href: "/app/activity", label: "Activity", icon: ActivityIcon },
   { href: "/app/transactions", label: "Transactions", icon: Wallet },
+  { href: "/app/inventory", label: "Inventory", icon: Boxes },
+  { href: "/app/budgets", label: "Budgets", icon: PiggyBank },
   { href: "/app/forecast", label: "Forecast", icon: LineChart },
+  { href: "/app/assistant", label: "AI Chat", icon: MessageSquare },
   { href: "/app/alerts", label: "Alerts", icon: AlertTriangle },
   { href: "/app/reports", label: "Reports", icon: FileText },
   { href: "/app/settings", label: "Settings", icon: Settings2 },
@@ -45,13 +52,16 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const orgs = useAppStore((s) => s.orgs);
   const selectedOrgId = useAppStore((s) => s.selectedOrgId);
+  const selectedLocationId = useAppStore((s) => s.selectedLocationId);
   const setSelectedOrgId = useAppStore((s) => s.setSelectedOrgId);
+  const setSelectedLocationId = useAppStore((s) => s.setSelectedLocationId);
   const user = useAppStore((s) => s.user);
   const clearSession = useAppStore((s) => s.clearSession);
   const queryClient = useQueryClient();
   const collapsed = useAppStore((s) => s.shellCollapsed);
   const setCollapsed = useAppStore((s) => s.setShellCollapsed);
   const streamStatus = useOrgEventFeed();
+  const locationsQuery = useLocations();
 
   useEffect(() => {
     if (!selectedOrgId || typeof document === "undefined") return;
@@ -137,10 +147,39 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                   </SelectContent>
                 </Select>
               </div>
+              <div className="min-w-[200px] md:max-w-xs">
+                <Select
+                  value={selectedLocationId || "__all__"}
+                  onValueChange={(value) => {
+                    const next = value === "__all__" ? null : value;
+                    setSelectedLocationId(next);
+                    queryClient.invalidateQueries({ queryKey: ["summary"] });
+                    queryClient.invalidateQueries({ queryKey: ["cashflow"] });
+                    queryClient.invalidateQueries({ queryKey: ["runway"] });
+                    queryClient.invalidateQueries({ queryKey: ["budgetVariance"] });
+                    queryClient.invalidateQueries({ queryKey: ["reports"] });
+                    queryClient.invalidateQueries({ queryKey: ["transactions"] });
+                  }}
+                  disabled={!selectedOrgId}
+                >
+                  <SelectTrigger aria-label="Location scope switcher" className="h-11 rounded-2xl bg-card/75">
+                    <SelectValue placeholder="All locations" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__all__">All locations</SelectItem>
+                    {(locationsQuery.data || []).map((location) => (
+                      <SelectItem key={location.id} value={location.id}>
+                        {location.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
               <DateRangeControl />
               <div className="ml-auto flex flex-wrap items-center gap-2">
                 <CommandPalette
                   onAddTransaction={() => router.push("/app/transactions?action=compose")}
+                  onOpenInventory={() => router.push("/app/inventory")}
                   onImportCsv={() => router.push("/app/transactions?action=import")}
                   onGenerateReport={() => router.push("/app/reports?action=generate")}
                 />

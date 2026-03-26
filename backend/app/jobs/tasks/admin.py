@@ -7,6 +7,7 @@ from app.core.config import get_settings
 from app.db.session import SessionLocal
 from app.domain.repos.alerts_repo import AlertRepo
 from app.domain.repos.analytics_repo import AnalyticsRepo
+from app.domain.repos.audit_repo import AuditRepo
 from app.domain.repos.forecast_repo import ForecastRepo
 from app.domain.repos.report_repo import ReportRepo
 from app.domain.services.alerts_service import AlertsService
@@ -84,7 +85,7 @@ def recompute_alerts(self, org_id: str, correlation_id: str | None = None):
 async def _recompute_alerts(org_id: str) -> int:
     org_uuid = uuid.UUID(org_id)
     async with SessionLocal() as db:
-        svc = AlertsService(db, AlertRepo(db))
+        svc = AlertsService(db, AlertRepo(db), AuditRepo(db))
         created = await svc.recompute(org_uuid)
         await db.commit()
     logger.info("recompute_alerts_done", org_id=org_id, created=created)

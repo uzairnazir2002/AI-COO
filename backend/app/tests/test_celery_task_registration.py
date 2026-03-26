@@ -15,3 +15,4 @@ def test_celery_registers_alerts_forecasts_outbox_tasks(monkeypatch):
     assert "app.jobs.tasks.alerts.recalc_alerts" in tasks
     assert "app.jobs.tasks.forecasts.recalc_forecasts" in tasks
     assert "app.jobs.tasks.outbox.process_outbox" in tasks
+    assert "app.jobs.tasks.privacy.purge_deletion_requests" in tasks

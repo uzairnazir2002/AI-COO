@@ -6,6 +6,7 @@ from pydantic import BaseModel
 
 class ReportItem(BaseModel):
     id: uuid.UUID
+    location_id: uuid.UUID | None = None
     week_start: date
     week_end: date
     created_at: datetime

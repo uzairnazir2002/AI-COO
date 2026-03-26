@@ -10,12 +10,13 @@ from app.domain.models.user import User
 from app.domain.repos.job_repo import JobRepo
 from app.domain.repos.notification_repo import NotificationRepo
 from app.domain.schemas.job import JobCommandResult, JobOut, JobPageOut
+from app.domain.services.job_dispatch_service import retry_job_task
 from app.domain.services.notification_service import NotificationService
 from app.jobs.celery_app import celery_app
-from app.jobs.tasks.admin import recompute_alerts, recompute_forecasts, recompute_monthly_aggregates, verify_report_objects
-from app.jobs.tasks.reports import generate_weekly_report
 
 router = APIRouter()
+# Backward-compatible alias used by tests and internal monkeypatching.
+_retry_task = retry_job_task
 
 
 @router.get("", response_model=JobPageOut)
@@ -51,23 +52,6 @@ async def list_jobs(
         redacted.append(out)
 
     return JobPageOut(items=redacted, page=page, page_size=page_size, total=total)
-
-
-def _retry_task(job):
-    payload = job.payload or {}
-    if job.task_name == "recompute_monthly_aggregates":
-        return recompute_monthly_aggregates.apply_async(args=[payload["org_id"], job.correlation_id])
-    if job.task_name == "recompute_forecasts":
-        return recompute_forecasts.apply_async(args=[payload["org_id"], job.correlation_id])
-    if job.task_name == "recompute_alerts":
-        return recompute_alerts.apply_async(args=[payload["org_id"], job.correlation_id])
-    if job.task_name == "verify_report_objects":
-        return verify_report_objects.apply_async(args=[payload["org_id"], job.correlation_id])
-    if job.task_name == "generate_weekly_report":
-        return generate_weekly_report.apply_async(
-            args=[payload["org_id"], payload["week_start"], payload.get("created_by"), job.correlation_id]
-        )
-    return None
 
 
 @router.post("/{job_id}/cancel", response_model=JobCommandResult)

@@ -13,6 +13,8 @@ TASK_MODULES = [
     "app.jobs.tasks.emails",
     "app.jobs.tasks.forecasts",
     "app.jobs.tasks.outbox",
+    "app.jobs.tasks.banks",
+    "app.jobs.tasks.privacy",
     "app.jobs.tasks.reports",
 ]
 
@@ -30,6 +32,14 @@ celery_app.conf.update(
         "outbox-consumer": {
             "task": "app.jobs.tasks.outbox.process_outbox",
             "schedule": crontab(minute="*"),
+        },
+        "deletion-purge": {
+            "task": "app.jobs.tasks.privacy.purge_deletion_requests",
+            "schedule": crontab(minute=30, hour=2),
+        },
+        "bank-sync-active-connections": {
+            "task": "app.jobs.tasks.banks.sync_all_active_bank_connections",
+            "schedule": crontab(minute="*/30"),
         },
     },
 )

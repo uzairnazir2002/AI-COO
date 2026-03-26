@@ -4,8 +4,8 @@ import json
 import uuid
 from datetime import date
 
-from fastapi import APIRouter, Body, Depends, File, Form, HTTPException, Query, UploadFile
-from fastapi.responses import StreamingResponse
+from fastapi import APIRouter, Body, Depends, File, Form, Header, HTTPException, Query, Request, Response, UploadFile
+from fastapi.responses import JSONResponse, StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user, get_org_context, require_roles
@@ -14,6 +14,10 @@ from app.domain.models.user import User
 from app.domain.repos.audit_repo import AuditRepo
 from app.domain.repos.import_repo import ImportRepo
 from app.domain.repos.import_profile_repo import ImportProfileRepo
+from app.domain.repos.idempotency_repo import IdempotencyRepo
+from app.domain.repos.job_repo import JobRepo
+from app.domain.repos.location_repo import LocationRepo
+from app.domain.repos.notification_repo import NotificationRepo
 from app.domain.repos.plan_repo import PlanRepo
 from app.domain.repos.transaction_repo import TransactionRepo
 from app.domain.schemas.common import TransactionOut
@@ -30,6 +34,8 @@ from app.domain.schemas.transaction import (
     TransactionUpdateIn,
 )
 from app.domain.services.import_profile_service import ImportProfileService
+from app.domain.services.idempotency_service import IdempotencyService
+from app.domain.services.alerts_refresh_service import AlertRefreshService
 from app.domain.services.read_cache_service import (
     analytics_summary_cache_prefix,
     cache_delete_prefix,
@@ -39,9 +45,12 @@ from app.domain.services.read_cache_service import (
     transactions_cache_prefix,
 )
 from app.domain.services.errors import ForbiddenError, NotFoundError
+from app.domain.services.location_service import LocationService
+from app.domain.services.notification_service import NotificationService
 from app.domain.services.transaction_service import TransactionService
 from app.domain.services.usage_service import UsageService
 from app.core.config import get_settings
+from app.utils.idempotency_request import bytes_sha256, request_hash
 
 router = APIRouter()
 
@@ -51,30 +60,121 @@ def _assert_mutation_role(role: str) -> None:
         raise HTTPException(status_code=403, detail="Forbidden")
 
 
+def _apply_alert_recalc_headers(response: Response, *, task_id: str, status: str, enqueued: bool) -> None:
+    response.headers["X-Alert-Recalc-Task-Id"] = task_id
+    response.headers["X-Alert-Recalc-Status"] = status
+    response.headers["X-Alert-Recalc-Queued"] = "true" if enqueued else "false"
+
+
+async def _notify_alert_recalc(
+    *,
+    db: AsyncSession,
+    org_id: uuid.UUID,
+    source: str,
+    task_id: str,
+    status: str,
+    enqueued: bool,
+) -> None:
+    title = "Alert refresh queued" if enqueued else "Alert refresh already pending"
+    message = (
+        f"{source} enqueued alert refresh job {task_id} ({status})."
+        if enqueued
+        else f"{source} reused pending alert refresh job {task_id} ({status})."
+    )
+    await NotificationService(NotificationRepo(db)).create_org_notification(
+        org_id=org_id,
+        category="OPS",
+        title=title,
+        message=message,
+        link="/app/activity",
+        metadata_json={
+            "event": "alert.recalc.enqueue",
+            "source": source,
+            "task_id": task_id,
+            "status": status,
+            "enqueued": enqueued,
+        },
+    )
+
+
 @router.post("", response_model=dict)
 async def create_tx(
+    request: Request,
+    response: Response,
     body: TransactionCreateIn,
+    idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     ctx = await get_org_context(org_id=body.org_id, user=user, db=db)
     _assert_mutation_role(ctx.role)
+    idem_service = IdempotencyService(IdempotencyRepo(db))
+    idem_hash = request_hash({"body": body.model_dump(mode="json")})
+    replay = await idem_service.get_replay(
+        org_id=body.org_id,
+        user_id=user.id,
+        endpoint="POST /api/v1/transactions",
+        idempotency_key=idempotency_key,
+        request_hash=idem_hash,
+    )
+    if replay:
+        return JSONResponse(status_code=replay.status_code, content=replay.response_json)
     svc = TransactionService(
         TransactionRepo(db),
         AuditRepo(db),
         usage_service=UsageService(PlanRepo(db)),
         import_repo=ImportRepo(db),
+        location_repo=LocationRepo(db),
     )
     tx = await svc.create(user.id, body)
+    response_body = {"transaction": TransactionOut.model_validate(tx).model_dump(mode="json")}
+    await idem_service.store_response(
+        org_id=body.org_id,
+        user_id=user.id,
+        endpoint="POST /api/v1/transactions",
+        idempotency_key=idempotency_key,
+        request_hash=idem_hash,
+        status_code=200,
+        response_json=response_body,
+    )
+    refresh = await AlertRefreshService(JobRepo(db)).enqueue_recalc(
+        org_id=body.org_id,
+        correlation_id=str(user.id),
+        request_id=getattr(request.state, "request_id", None),
+        reason="transaction.create",
+    )
+    await AuditRepo(db).log(
+        user.id,
+        body.org_id,
+        "alert.recalc.enqueue",
+        "job_state",
+        refresh.task_id,
+        {"source": "transaction.create", "status": refresh.status, "enqueued": refresh.enqueued},
+    )
+    await _notify_alert_recalc(
+        db=db,
+        org_id=body.org_id,
+        source="transaction.create",
+        task_id=refresh.task_id,
+        status=refresh.status,
+        enqueued=refresh.enqueued,
+    )
+    _apply_alert_recalc_headers(
+        response,
+        task_id=refresh.task_id,
+        status=refresh.status,
+        enqueued=refresh.enqueued,
+    )
     await db.commit()
     await cache_delete_prefix(transactions_cache_prefix(body.org_id))
     await cache_delete_prefix(analytics_summary_cache_prefix(body.org_id))
-    return {"transaction": TransactionOut.model_validate(tx)}
+    return response_body
 
 
 @router.get("", response_model=TransactionPageOut)
 async def list_tx(
     org_id: uuid.UUID = Query(...),
+    location_id: uuid.UUID | None = Query(default=None),
     from_date: str | None = Query(None, alias="from"),
     to_date: str | None = Query(None, alias="to"),
     type: str | None = None,
@@ -86,11 +186,22 @@ async def list_tx(
     db: AsyncSession = Depends(get_db),
 ):
     await get_org_context(org_id=org_id, user=user, db=db)
+    try:
+        await LocationService(LocationRepo(db)).ensure_org_location(
+            org_id=org_id,
+            location_id=location_id,
+            require_active=False,
+        )
+    except NotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
     parsed_from = date.fromisoformat(from_date) if from_date else None
     parsed_to = date.fromisoformat(to_date) if to_date else None
     settings = get_settings()
     cache_key = transactions_cache_key(
         org_id=org_id,
+        location_id=location_id,
         from_date=parsed_from,
         to_date=parsed_to,
         tx_type=type,
@@ -102,9 +213,16 @@ async def list_tx(
     cached = await cache_get_json(cache_key)
     if isinstance(cached, dict):
         return TransactionPageOut.model_validate(cached)
-    svc = TransactionService(TransactionRepo(db), AuditRepo(db), usage_service=UsageService(PlanRepo(db)), import_repo=ImportRepo(db))
+    svc = TransactionService(
+        TransactionRepo(db),
+        AuditRepo(db),
+        usage_service=UsageService(PlanRepo(db)),
+        import_repo=ImportRepo(db),
+        location_repo=LocationRepo(db),
+    )
     items, total = await svc.list(
         org_id,
+        location_id,
         parsed_from,
         parsed_to,
         type,
@@ -125,6 +243,8 @@ async def list_tx(
 
 @router.put("/{tx_id}", response_model=dict)
 async def update_tx(
+    request: Request,
+    response: Response,
     tx_id: uuid.UUID,
     body: TransactionUpdateIn,
     org_id: uuid.UUID = Query(...),
@@ -132,8 +252,42 @@ async def update_tx(
     _: object = Depends(require_roles("OWNER", "EDITOR")),
     db: AsyncSession = Depends(get_db),
 ):
-    svc = TransactionService(TransactionRepo(db), AuditRepo(db), usage_service=UsageService(PlanRepo(db)), import_repo=ImportRepo(db))
+    svc = TransactionService(
+        TransactionRepo(db),
+        AuditRepo(db),
+        usage_service=UsageService(PlanRepo(db)),
+        import_repo=ImportRepo(db),
+        location_repo=LocationRepo(db),
+    )
     tx = await svc.update(user.id, org_id, tx_id, body)
+    refresh = await AlertRefreshService(JobRepo(db)).enqueue_recalc(
+        org_id=org_id,
+        correlation_id=str(user.id),
+        request_id=getattr(request.state, "request_id", None),
+        reason="transaction.update",
+    )
+    await AuditRepo(db).log(
+        user.id,
+        org_id,
+        "alert.recalc.enqueue",
+        "job_state",
+        refresh.task_id,
+        {"source": "transaction.update", "status": refresh.status, "enqueued": refresh.enqueued},
+    )
+    await _notify_alert_recalc(
+        db=db,
+        org_id=org_id,
+        source="transaction.update",
+        task_id=refresh.task_id,
+        status=refresh.status,
+        enqueued=refresh.enqueued,
+    )
+    _apply_alert_recalc_headers(
+        response,
+        task_id=refresh.task_id,
+        status=refresh.status,
+        enqueued=refresh.enqueued,
+    )
     await db.commit()
     await cache_delete_prefix(transactions_cache_prefix(org_id))
     await cache_delete_prefix(analytics_summary_cache_prefix(org_id))
@@ -142,14 +296,50 @@ async def update_tx(
 
 @router.delete("/{tx_id}")
 async def delete_tx(
+    request: Request,
+    response: Response,
     tx_id: uuid.UUID,
     org_id: uuid.UUID = Query(...),
     user: User = Depends(get_current_user),
     _: object = Depends(require_roles("OWNER", "EDITOR")),
     db: AsyncSession = Depends(get_db),
 ):
-    svc = TransactionService(TransactionRepo(db), AuditRepo(db), usage_service=UsageService(PlanRepo(db)), import_repo=ImportRepo(db))
+    svc = TransactionService(
+        TransactionRepo(db),
+        AuditRepo(db),
+        usage_service=UsageService(PlanRepo(db)),
+        import_repo=ImportRepo(db),
+        location_repo=LocationRepo(db),
+    )
     await svc.delete(user.id, org_id, tx_id)
+    refresh = await AlertRefreshService(JobRepo(db)).enqueue_recalc(
+        org_id=org_id,
+        correlation_id=str(user.id),
+        request_id=getattr(request.state, "request_id", None),
+        reason="transaction.delete",
+    )
+    await AuditRepo(db).log(
+        user.id,
+        org_id,
+        "alert.recalc.enqueue",
+        "job_state",
+        refresh.task_id,
+        {"source": "transaction.delete", "status": refresh.status, "enqueued": refresh.enqueued},
+    )
+    await _notify_alert_recalc(
+        db=db,
+        org_id=org_id,
+        source="transaction.delete",
+        task_id=refresh.task_id,
+        status=refresh.status,
+        enqueued=refresh.enqueued,
+    )
+    _apply_alert_recalc_headers(
+        response,
+        task_id=refresh.task_id,
+        status=refresh.status,
+        enqueued=refresh.enqueued,
+    )
     await db.commit()
     await cache_delete_prefix(transactions_cache_prefix(org_id))
     await cache_delete_prefix(analytics_summary_cache_prefix(org_id))
@@ -158,11 +348,14 @@ async def delete_tx(
 
 @router.post("/import/csv", response_model=CSVImportOut)
 async def import_csv(
+    request: Request,
+    response: Response,
     org_id: uuid.UUID = Form(...),
     mapping: str | None = Form(None),
     profile_id: uuid.UUID | None = Form(None),
     commit: bool = Form(True),
     file: UploadFile = File(...),
+    idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -191,11 +384,32 @@ async def import_csv(
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
     content = await file.read()
+    idem_service = IdempotencyService(IdempotencyRepo(db))
+    idem_hash = request_hash(
+        {
+            "org_id": org_id,
+            "mapping": resolved_mapping,
+            "profile_id": resolved_profile_id,
+            "commit": commit,
+            "file_name": file.filename or "",
+            "file_hash": bytes_sha256(content),
+        }
+    )
+    replay = await idem_service.get_replay(
+        org_id=org_id,
+        user_id=user.id,
+        endpoint="POST /api/v1/transactions/import/csv",
+        idempotency_key=idempotency_key,
+        request_hash=idem_hash,
+    )
+    if replay:
+        return JSONResponse(status_code=replay.status_code, content=replay.response_json)
     svc = TransactionService(
         TransactionRepo(db),
         AuditRepo(db),
         usage_service=UsageService(PlanRepo(db)),
         import_repo=ImportRepo(db),
+        location_repo=LocationRepo(db),
     )
     try:
         if commit:
@@ -219,13 +433,60 @@ async def import_csv(
             inserted = 0
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
+    response_body = CSVImportOut(
+        import_id=import_id,
+        preview=preview,
+        inserted_count=inserted,
+        mapping_profile_id=resolved_profile_id,
+    ).model_dump(mode="json")
+    await idem_service.store_response(
+        org_id=org_id,
+        user_id=user.id,
+        endpoint="POST /api/v1/transactions/import/csv",
+        idempotency_key=idempotency_key,
+        request_hash=idem_hash,
+        status_code=200,
+        response_json=response_body,
+    )
     if commit:
-        await db.commit()
+        refresh = await AlertRefreshService(JobRepo(db)).enqueue_recalc(
+            org_id=org_id,
+            correlation_id=str(user.id),
+            request_id=getattr(request.state, "request_id", None),
+            reason="transaction.import_csv.commit",
+        )
+        await AuditRepo(db).log(
+            user.id,
+            org_id,
+            "alert.recalc.enqueue",
+            "job_state",
+            refresh.task_id,
+            {
+                "source": "transaction.import_csv",
+                "status": refresh.status,
+                "enqueued": refresh.enqueued,
+                "inserted_count": inserted,
+            },
+        )
+        await _notify_alert_recalc(
+            db=db,
+            org_id=org_id,
+            source="transaction.import_csv",
+            task_id=refresh.task_id,
+            status=refresh.status,
+            enqueued=refresh.enqueued,
+        )
+        _apply_alert_recalc_headers(
+            response,
+            task_id=refresh.task_id,
+            status=refresh.status,
+            enqueued=refresh.enqueued,
+        )
+    await db.commit()
+    if commit:
         await cache_delete_prefix(transactions_cache_prefix(org_id))
         await cache_delete_prefix(analytics_summary_cache_prefix(org_id))
-    else:
-        await db.commit()
-    return CSVImportOut(import_id=import_id, preview=preview, inserted_count=inserted, mapping_profile_id=resolved_profile_id)
+    return response_body
 
 
 @router.get("/imports", response_model=ImportHistoryPageOut)
@@ -292,13 +553,21 @@ async def download_import_errors(
 
 @router.post("/bulk/remap-category")
 async def bulk_remap_category(
+    request: Request,
+    response: Response,
     body: BulkCategoryRemapIn,
     user: User = Depends(get_current_user),
     _: object = Depends(require_roles("OWNER", "EDITOR")),
     db: AsyncSession = Depends(get_db),
 ):
     await get_org_context(org_id=body.org_id, user=user, db=db)
-    svc = TransactionService(TransactionRepo(db), AuditRepo(db), usage_service=UsageService(PlanRepo(db)), import_repo=ImportRepo(db))
+    svc = TransactionService(
+        TransactionRepo(db),
+        AuditRepo(db),
+        usage_service=UsageService(PlanRepo(db)),
+        import_repo=ImportRepo(db),
+        location_repo=LocationRepo(db),
+    )
     updated_count = await svc.bulk_remap_category(
         user_id=user.id,
         org_id=body.org_id,
@@ -307,6 +576,40 @@ async def bulk_remap_category(
         from_date=body.from_date,
         to_date=body.to_date,
     )
+    if updated_count > 0:
+        refresh = await AlertRefreshService(JobRepo(db)).enqueue_recalc(
+            org_id=body.org_id,
+            correlation_id=str(user.id),
+            request_id=getattr(request.state, "request_id", None),
+            reason="transaction.bulk_remap_category",
+        )
+        await AuditRepo(db).log(
+            user.id,
+            body.org_id,
+            "alert.recalc.enqueue",
+            "job_state",
+            refresh.task_id,
+            {
+                "source": "transaction.bulk_remap_category",
+                "status": refresh.status,
+                "enqueued": refresh.enqueued,
+                "updated_count": updated_count,
+            },
+        )
+        await _notify_alert_recalc(
+            db=db,
+            org_id=body.org_id,
+            source="transaction.bulk_remap_category",
+            task_id=refresh.task_id,
+            status=refresh.status,
+            enqueued=refresh.enqueued,
+        )
+        _apply_alert_recalc_headers(
+            response,
+            task_id=refresh.task_id,
+            status=refresh.status,
+            enqueued=refresh.enqueued,
+        )
     await db.commit()
     await cache_delete_prefix(transactions_cache_prefix(body.org_id))
     await cache_delete_prefix(analytics_summary_cache_prefix(body.org_id))

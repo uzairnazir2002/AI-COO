@@ -28,8 +28,11 @@ def tracking_module(monkeypatch):
 
 def test_run_tracked_task_success(monkeypatch, tracking_module):
     calls: list[str] = []
+    captured: dict[str, str | None] = {}
 
-    async def fake_mark_running(*args, **kwargs):
+    async def fake_mark_running(*, task_id, request_id, **_kwargs):
+        captured["task_id"] = task_id
+        captured["request_id"] = request_id
         calls.append("running")
         return "task-1"
 
@@ -56,6 +59,7 @@ def test_run_tracked_task_success(monkeypatch, tracking_module):
 
     assert result == 9
     assert calls == ["running", "succeeded:task-1:9"]
+    assert captured == {"task_id": "task-1", "request_id": "req-1"}
 
 
 def test_run_tracked_task_retrying(monkeypatch, tracking_module):

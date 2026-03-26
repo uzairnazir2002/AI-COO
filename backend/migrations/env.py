@@ -1,7 +1,8 @@
 ﻿from logging.config import fileConfig
 
 from alembic import context
-from sqlalchemy import engine_from_config, pool
+from sqlalchemy import engine_from_config, pool, text
+from sqlalchemy.engine import Connection
 
 from app.core.config import get_settings
 from app.db.base import Base
@@ -15,6 +16,27 @@ if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
 target_metadata = Base.metadata
+ALEMBIC_VERSION_LEN = 128
+
+
+def ensure_alembic_version_capacity(connection: Connection) -> None:
+    """Ensure alembic_version can store longer revision IDs used in this repo."""
+    connection.execute(
+        text(
+            f"""
+            CREATE TABLE IF NOT EXISTS alembic_version (
+                version_num VARCHAR({ALEMBIC_VERSION_LEN}) NOT NULL,
+                CONSTRAINT alembic_version_pkc PRIMARY KEY (version_num)
+            )
+            """
+        )
+    )
+    if connection.dialect.name == "postgresql":
+        connection.execute(
+            text(
+                f"ALTER TABLE alembic_version ALTER COLUMN version_num TYPE VARCHAR({ALEMBIC_VERSION_LEN})"
+            )
+        )
 
 
 def run_migrations_offline() -> None:
@@ -31,6 +53,13 @@ def run_migrations_online() -> None:
         poolclass=pool.NullPool,
     )
     with connectable.connect() as connection:
+        # ensure_alembic_version_capacity issues DDL and starts an implicit
+        # transaction on SQLAlchemy 2.x connections. Commit it before Alembic
+        # starts its own migration transaction so revisions are not rolled back
+        # when the connection context exits.
+        ensure_alembic_version_capacity(connection)
+        if connection.in_transaction():
+            connection.commit()
         context.configure(connection=connection, target_metadata=target_metadata, compare_type=True)
         with context.begin_transaction():
             context.run_migrations()

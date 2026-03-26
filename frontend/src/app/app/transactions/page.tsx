@@ -27,6 +27,7 @@ import { formatDate, formatMoney, startOfMonthISO, todayISO } from "@/lib/utils/
 import { useAppStore } from "@/store/appStore";
 import type { Transaction } from "@/types/domain";
 import {
+  type AlertRecalcMetadata,
   useCreateImportProfile,
   useDeleteImportProfile,
   downloadImportErrors,
@@ -43,7 +44,7 @@ import {
 
 const helper = createColumnHelper<Transaction>();
 
-type CsvField = "date" | "amount" | "type" | "category" | "vendor" | "notes";
+type CsvField = "date" | "amount" | "type" | "category" | "vendor" | "notes" | "location";
 type CsvMapping = Record<CsvField, string>;
 type CsvRawRow = Record<string, string>;
 
@@ -54,6 +55,7 @@ const csvFields: Array<{ key: CsvField; label: string; required: boolean }> = [
   { key: "category", label: "Category", required: true },
   { key: "vendor", label: "Vendor", required: false },
   { key: "notes", label: "Notes", required: false },
+  { key: "location", label: "Location", required: false },
 ];
 
 const defaultCsvMaxBytes = 5 * 1024 * 1024;
@@ -88,6 +90,7 @@ function autoDetectMapping(headers: string[]): CsvMapping {
     category: pick("category", "group", "expensecategory"),
     vendor: pick("vendor", "merchant", "payee", "supplier"),
     notes: pick("notes", "note", "memo", "description"),
+    location: pick("location", "branch", "store", "site", "office", "locationcode"),
   };
 }
 
@@ -99,6 +102,7 @@ function mappingToApiPayload(mapping: CsvMapping): Record<string, string> {
     category: mapping.category,
     vendor: mapping.vendor || "",
     notes: mapping.notes || "",
+    location: mapping.location || "",
   };
 }
 
@@ -106,6 +110,7 @@ export default function TransactionsPage() {
   const router = useRouter();
   const role = useAppStore((s) => s.orgs.find((o) => o.org_id === s.selectedOrgId)?.role);
   const orgId = useAppStore((s) => s.selectedOrgId);
+  const selectedLocationId = useAppStore((s) => s.selectedLocationId);
   const editable = canEdit(role);
   const toast = useToast();
 
@@ -120,7 +125,15 @@ export default function TransactionsPage() {
   const [csvHeaders, setCsvHeaders] = useState<string[]>([]);
   const [csvRows, setCsvRows] = useState<CsvRawRow[]>([]);
   const [csvPreview, setCsvPreview] = useState<{ rows: number; detected_duplicates: number } | null>(null);
-  const [mapping, setMapping] = useState<CsvMapping>({ date: "", amount: "", type: "", category: "", vendor: "", notes: "" });
+  const [mapping, setMapping] = useState<CsvMapping>({
+    date: "",
+    amount: "",
+    type: "",
+    category: "",
+    vendor: "",
+    notes: "",
+    location: "",
+  });
   const [selectedProfileId, setSelectedProfileId] = useState<string>("");
   const [profileName, setProfileName] = useState("");
   const [profileShared, setProfileShared] = useState(false);
@@ -153,6 +166,7 @@ export default function TransactionsPage() {
         category: mapping.category ? row[mapping.category] ?? "" : "",
         vendor: mapping.vendor ? row[mapping.vendor] ?? "" : "",
         notes: mapping.notes ? row[mapping.notes] ?? "" : "",
+        location: mapping.location ? row[mapping.location] ?? "" : "",
       })),
     [csvRows, mapping],
   );
@@ -162,7 +176,7 @@ export default function TransactionsPage() {
     const seen = new Set<string>();
     let dupes = 0;
     for (const row of csvRows) {
-      const key = `${row[mapping.date] || ""}|${row[mapping.amount] || ""}|${row[mapping.type] || ""}|${row[mapping.category] || ""}|${row[mapping.vendor] || ""}`;
+      const key = `${row[mapping.date] || ""}|${row[mapping.amount] || ""}|${row[mapping.type] || ""}|${row[mapping.category] || ""}|${row[mapping.location] || ""}|${row[mapping.vendor] || ""}`;
       if (seen.has(key)) dupes += 1;
       seen.add(key);
     }
@@ -183,16 +197,18 @@ export default function TransactionsPage() {
 
   const handleApiError = useCallback((error: unknown, fallbackTitle: string) => {
     if (error instanceof ApiError) {
-      if (error.status === 401) {
-        toast.toast({ title: "Session expired", description: "Please login again." });
-        router.push("/auth/login");
-        return;
-      }
       toast.toast({ title: fallbackTitle, description: error.message || `Request failed (${error.status})`, variant: "danger" });
       return;
     }
     toast.toast({ title: fallbackTitle, description: "Unexpected error. Please retry.", variant: "danger" });
-  }, [router, toast]);
+  }, [toast]);
+
+  const describeAlertRefresh = useCallback((meta?: AlertRecalcMetadata | null) => {
+    if (!meta) return "Alert refresh queued.";
+    return meta.queued
+      ? `Alert refresh queued (job ${meta.taskId}).`
+      : `Alert refresh already pending (job ${meta.taskId}).`;
+  }, []);
 
   async function handleCsvFile(file: File | null) {
     setCsvFile(file);
@@ -200,7 +216,7 @@ export default function TransactionsPage() {
     if (!file) {
       setCsvHeaders([]);
       setCsvRows([]);
-      setMapping({ date: "", amount: "", type: "", category: "", vendor: "", notes: "" });
+      setMapping({ date: "", amount: "", type: "", category: "", vendor: "", notes: "", location: "" });
       return;
     }
     if (file.size > csvMaxBytes) {
@@ -208,7 +224,7 @@ export default function TransactionsPage() {
       setCsvFile(null);
       setCsvHeaders([]);
       setCsvRows([]);
-      setMapping({ date: "", amount: "", type: "", category: "", vendor: "", notes: "" });
+      setMapping({ date: "", amount: "", type: "", category: "", vendor: "", notes: "", location: "" });
       return;
     }
     const text = await file.text();
@@ -270,8 +286,8 @@ export default function TransactionsPage() {
                 variant="destructive"
                 onClick={async () => {
                   try {
-                    await deleteTx.mutateAsync(row.original.id);
-                    toast.toast({ title: "Deleted" });
+                    const result = await deleteTx.mutateAsync(row.original.id);
+                    toast.toast({ title: "Deleted", description: describeAlertRefresh(result.alertRecalc) });
                   } catch (error) {
                     handleApiError(error, "Delete failed");
                   }
@@ -284,7 +300,7 @@ export default function TransactionsPage() {
         ),
       }),
     ],
-    [data, deleteTx, editable, handleApiError, selectedIds, toast],
+    [data, deleteTx, describeAlertRefresh, editable, handleApiError, selectedIds, toast],
   );
   const table = useReactTable({ data, columns, getCoreRowModel: getCoreRowModel() });
   const parentRef = useRef<HTMLDivElement | null>(null);
@@ -477,7 +493,11 @@ export default function TransactionsPage() {
                                 try {
                                   const out = await importCsv(orgId, csvFile, selectedProfileId ? undefined : mappingToApiPayload(mapping), true, selectedProfileId || undefined);
                                   setCsvPreview(out.preview);
-                                  toast.toast({ title: "CSV imported", description: `Inserted ${out.inserted_count}` });
+                                  const refreshText = describeAlertRefresh(out.alertRecalc);
+                                  toast.toast({
+                                    title: "CSV imported",
+                                    description: refreshText ? `Inserted ${out.inserted_count}. ${refreshText}` : `Inserted ${out.inserted_count}`,
+                                  });
                                   void query.refetch();
                                   void importHistory.refetch();
                                   setImportOpen(false);
@@ -536,8 +556,9 @@ export default function TransactionsPage() {
                     onSubmit={async (e) => {
                       e.preventDefault();
                       try {
-                        await createTx.mutateAsync({
+                        const result = await createTx.mutateAsync({
                           org_id: orgId,
+                          location_id: selectedLocationId || null,
                           date: newTx.date,
                           amount: newTx.amount,
                           type: newTx.type as "REVENUE" | "EXPENSE",
@@ -546,7 +567,7 @@ export default function TransactionsPage() {
                           notes: newTx.notes || null,
                         });
                         setNewTx({ date: todayISO(), amount: "", type: "EXPENSE", category: "Misc", vendor: "", notes: "" });
-                        toast.toast({ title: "Transaction added" });
+                        toast.toast({ title: "Transaction added", description: describeAlertRefresh(result.alertRecalc) });
                         setComposeOpen(false);
                       } catch (error) {
                         handleApiError(error, "Create transaction failed");
@@ -608,9 +629,10 @@ export default function TransactionsPage() {
                 disabled={selectedIds.size === 0 || deleteTx.isPending}
                 onClick={async () => {
                   try {
-                    await Promise.all(Array.from(selectedIds).map((id) => deleteTx.mutateAsync(id)));
+                    const results = await Promise.all(Array.from(selectedIds).map((id) => deleteTx.mutateAsync(id)));
                     setSelectedIds(new Set());
-                    toast.toast({ title: "Selected transactions deleted" });
+                    const firstMeta = results.find((item) => item.alertRecalc)?.alertRecalc;
+                    toast.toast({ title: "Selected transactions deleted", description: describeAlertRefresh(firstMeta) });
                   } catch (error) {
                     handleApiError(error, "Bulk delete failed");
                   }
@@ -622,10 +644,28 @@ export default function TransactionsPage() {
             </div>
 
             <div className="grid gap-2 md:grid-cols-5">
-              <Input placeholder="From category" data-testid="bulk-remap-from-category" value={bulkRemapState.from_category} onChange={(e) => setBulkRemapState({ ...bulkRemapState, from_category: e.target.value })} />
-              <Input placeholder="To category" data-testid="bulk-remap-to-category" value={bulkRemapState.to_category} onChange={(e) => setBulkRemapState({ ...bulkRemapState, to_category: e.target.value })} />
-              <Input type="date" value={bulkRemapState.from_date} onChange={(e) => setBulkRemapState({ ...bulkRemapState, from_date: e.target.value })} />
-              <Input type="date" value={bulkRemapState.to_date} onChange={(e) => setBulkRemapState({ ...bulkRemapState, to_date: e.target.value })} />
+              <Input
+                placeholder="From category"
+                data-testid="bulk-remap-from-category"
+                value={bulkRemapState.from_category}
+                onChange={(e) => setBulkRemapState((prev) => ({ ...prev, from_category: e.target.value }))}
+              />
+              <Input
+                placeholder="To category"
+                data-testid="bulk-remap-to-category"
+                value={bulkRemapState.to_category}
+                onChange={(e) => setBulkRemapState((prev) => ({ ...prev, to_category: e.target.value }))}
+              />
+              <Input
+                type="date"
+                value={bulkRemapState.from_date}
+                onChange={(e) => setBulkRemapState((prev) => ({ ...prev, from_date: e.target.value }))}
+              />
+              <Input
+                type="date"
+                value={bulkRemapState.to_date}
+                onChange={(e) => setBulkRemapState((prev) => ({ ...prev, to_date: e.target.value }))}
+              />
               <Button
                 data-testid="bulk-remap-submit"
                 disabled={!bulkRemapState.from_category || !bulkRemapState.to_category || bulkRemap.isPending}
@@ -638,7 +678,11 @@ export default function TransactionsPage() {
                       from_date: bulkRemapState.from_date || undefined,
                       to_date: bulkRemapState.to_date || undefined,
                     });
-                    toast.toast({ title: "Bulk remap applied", description: `Updated ${result.updated_count} rows` });
+                    const refreshText = describeAlertRefresh(result.alertRecalc);
+                    toast.toast({
+                      title: "Bulk remap applied",
+                      description: refreshText ? `Updated ${result.updated_count} rows. ${refreshText}` : `Updated ${result.updated_count} rows`,
+                    });
                   } catch (error) {
                     handleApiError(error, "Bulk remap failed");
                   }
@@ -836,7 +880,7 @@ export default function TransactionsPage() {
                 e.preventDefault();
                 const fd = new FormData(e.currentTarget);
                 try {
-                  await updateTx.mutateAsync({
+                  const result = await updateTx.mutateAsync({
                     id: editingRow.id,
                     payload: {
                       date: String(fd.get("date")),
@@ -846,7 +890,7 @@ export default function TransactionsPage() {
                       notes: String(fd.get("notes") || ""),
                     },
                   });
-                  toast.toast({ title: "Updated" });
+                  toast.toast({ title: "Updated", description: describeAlertRefresh(result.alertRecalc) });
                   setEditingRow(null);
                 } catch (error) {
                   handleApiError(error, "Update failed");

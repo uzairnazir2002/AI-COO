@@ -127,6 +127,39 @@ class _FakeUsageService:
         pass
 
 
+class _FakeIdempotencyService:
+    def __init__(self, _repo):
+        pass
+
+    async def get_replay(self, **_kwargs):
+        return None
+
+    async def store_response(self, **_kwargs):
+        return None
+
+
+_ALERT_REFRESH_CALLS: list[dict] = []
+_NOTIFICATION_CALLS: list[dict] = []
+
+
+class _FakeAlertRefreshService:
+    def __init__(self, _job_repo):
+        pass
+
+    async def enqueue_recalc(self, **kwargs):
+        _ALERT_REFRESH_CALLS.append(kwargs)
+        return SimpleNamespace(task_id="recalc-alerts-job", status="PENDING", enqueued=True)
+
+
+class _FakeNotificationService:
+    def __init__(self, _repo):
+        pass
+
+    async def create_org_notification(self, **kwargs):
+        _NOTIFICATION_CALLS.append(kwargs)
+        return None
+
+
 def _app(monkeypatch, module, role="OWNER"):
     app = FastAPI()
     app.include_router(module.router, prefix="/api/v1/transactions")
@@ -156,6 +189,12 @@ def _app(monkeypatch, module, role="OWNER"):
     monkeypatch.setattr(module, "ImportRepo", _FakeImportRepo)
     monkeypatch.setattr(module, "PlanRepo", _FakePlanRepo)
     monkeypatch.setattr(module, "UsageService", _FakeUsageService)
+    monkeypatch.setattr(module, "IdempotencyService", _FakeIdempotencyService)
+    monkeypatch.setattr(module, "IdempotencyRepo", lambda _db: object())
+    monkeypatch.setattr(module, "JobRepo", lambda _db: object())
+    monkeypatch.setattr(module, "AlertRefreshService", _FakeAlertRefreshService)
+    monkeypatch.setattr(module, "NotificationRepo", lambda _db: object())
+    monkeypatch.setattr(module, "NotificationService", _FakeNotificationService)
     return app, user
 
 
@@ -164,6 +203,8 @@ _PROFILE_STORE = _ProfileStore()
 
 def test_import_profile_crud_and_list(monkeypatch, transactions_module):
     _PROFILE_STORE.rows.clear()
+    _ALERT_REFRESH_CALLS.clear()
+    _NOTIFICATION_CALLS.clear()
     app, user = _app(monkeypatch, transactions_module)
     client = TestClient(app)
     org_id = str(uuid.uuid4())
@@ -200,6 +241,8 @@ def test_import_profile_crud_and_list(monkeypatch, transactions_module):
 
 def test_import_profile_mutation_forbidden_for_viewer(monkeypatch, transactions_module):
     _PROFILE_STORE.rows.clear()
+    _ALERT_REFRESH_CALLS.clear()
+    _NOTIFICATION_CALLS.clear()
     app, _user = _app(monkeypatch, transactions_module, role="VIEWER")
     client = TestClient(app)
     org_id = str(uuid.uuid4())
@@ -213,6 +256,8 @@ def test_import_profile_mutation_forbidden_for_viewer(monkeypatch, transactions_
 
 def test_import_csv_uses_saved_profile_mapping(monkeypatch, transactions_module):
     _PROFILE_STORE.rows.clear()
+    _ALERT_REFRESH_CALLS.clear()
+    _NOTIFICATION_CALLS.clear()
     app, user = _app(monkeypatch, transactions_module)
     client = TestClient(app)
     org_id = uuid.uuid4()
@@ -231,7 +276,8 @@ def test_import_csv_uses_saved_profile_mapping(monkeypatch, transactions_module)
     fake_tx_service = _FakeTransactionService()
     monkeypatch.setattr(transactions_module, "TransactionService", lambda *args, **kwargs: fake_tx_service)
 
-    csv_content = "date,amount,type,category,vendor,notes\n2026-03-10,100.00,EXPENSE,Ops,Acme,ok\n"
+    profile.column_map["location"] = "location"
+    csv_content = "date,amount,type,category,vendor,notes,location\n2026-03-10,100.00,EXPENSE,Ops,Acme,ok,Karachi HQ\n"
     files = {"file": ("demo.csv", io.BytesIO(csv_content.encode("utf-8")), "text/csv")}
     data = {
         "org_id": str(org_id),
@@ -241,15 +287,24 @@ def test_import_csv_uses_saved_profile_mapping(monkeypatch, transactions_module)
 
     res = client.post("/api/v1/transactions/import/csv", data=data, files=files)
     assert res.status_code == 200, res.text
+    assert res.headers["X-Alert-Recalc-Task-Id"] == "recalc-alerts-job"
+    assert res.headers["X-Alert-Recalc-Queued"] == "true"
     body = res.json()
     assert body["mapping_profile_id"] == str(profile.id)
     assert len(fake_tx_service.calls) == 1
     assert fake_tx_service.calls[0]["mapping_profile_id"] == profile.id
     assert fake_tx_service.calls[0]["mapping"]["date"] == "date"
+    assert fake_tx_service.calls[0]["mapping"]["location"] == "location"
+    assert len(_ALERT_REFRESH_CALLS) == 1
+    assert _ALERT_REFRESH_CALLS[0]["reason"] == "transaction.import_csv.commit"
+    assert len(_NOTIFICATION_CALLS) == 1
+    assert _NOTIFICATION_CALLS[0]["metadata_json"]["source"] == "transaction.import_csv"
 
 
 def test_import_csv_profile_tenant_isolation(monkeypatch, transactions_module):
     _PROFILE_STORE.rows.clear()
+    _ALERT_REFRESH_CALLS.clear()
+    _NOTIFICATION_CALLS.clear()
     app, user = _app(monkeypatch, transactions_module)
     client = TestClient(app)
     org_id = uuid.uuid4()
@@ -279,3 +334,31 @@ def test_import_csv_profile_tenant_isolation(monkeypatch, transactions_module):
 
     res = client.post("/api/v1/transactions/import/csv", data=data, files=files)
     assert res.status_code == 404
+    assert _ALERT_REFRESH_CALLS == []
+    assert _NOTIFICATION_CALLS == []
+
+
+def test_import_csv_preview_does_not_enqueue_alert_recalc(monkeypatch, transactions_module):
+    _PROFILE_STORE.rows.clear()
+    _ALERT_REFRESH_CALLS.clear()
+    _NOTIFICATION_CALLS.clear()
+    app, _user = _app(monkeypatch, transactions_module)
+    client = TestClient(app)
+    org_id = uuid.uuid4()
+
+    fake_tx_service = _FakeTransactionService()
+    monkeypatch.setattr(transactions_module, "TransactionService", lambda *args, **kwargs: fake_tx_service)
+
+    csv_content = "date,amount,type,category\\n2026-03-10,100.00,EXPENSE,Ops\\n"
+    files = {"file": ("demo.csv", io.BytesIO(csv_content.encode("utf-8")), "text/csv")}
+    data = {
+        "org_id": str(org_id),
+        "mapping": json.dumps({"date": "date", "amount": "amount", "type": "type", "category": "category"}),
+        "commit": "false",
+    }
+
+    res = client.post("/api/v1/transactions/import/csv", data=data, files=files)
+    assert res.status_code == 200, res.text
+    assert _ALERT_REFRESH_CALLS == []
+    assert _NOTIFICATION_CALLS == []
+    assert "X-Alert-Recalc-Task-Id" not in res.headers

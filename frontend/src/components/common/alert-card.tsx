@@ -14,11 +14,13 @@ function severityVariant(severity: Alert["severity"]) {
 export function AlertCard({
   alert,
   maxImpact = 100,
+  assigneeLabel,
   onDismiss,
   onOpen,
 }: {
   alert: Alert;
   maxImpact?: number;
+  assigneeLabel?: string | null;
   onDismiss?: (id: string) => void;
   onOpen?: (id: string) => void;
 }) {
@@ -35,6 +37,7 @@ export function AlertCard({
           <div className="flex items-center gap-2">
             <Badge variant={severityVariant(alert.severity)}>{alert.severity}</Badge>
             <Badge variant="secondary">{alert.kind}</Badge>
+            {assigneeLabel ? <Badge variant="outline">Assigned: {assigneeLabel}</Badge> : null}
           </div>
           <h4 className="font-medium">{alert.title}</h4>
           <p className="text-sm text-muted-foreground">{alert.description}</p>

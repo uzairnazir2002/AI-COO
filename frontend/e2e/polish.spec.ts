@@ -8,6 +8,13 @@ async function chooseSelectOptionByTestId(page: Page, testId: string, option: st
   await page.getByRole("option", { name: option }).click();
 }
 
+async function clickCsvAction(page: Page, testId: string) {
+  const button = page.getByTestId(testId);
+  await button.scrollIntoViewIfNeeded();
+  await expect(button).toBeEnabled();
+  await button.evaluate((el) => (el as HTMLButtonElement).click());
+}
+
 test("transactions csv mapping required-field guard disables import actions", async ({ page, authenticatedPage }) => {
   await authenticatedPage;
   await page.goto("/app/transactions");
@@ -38,6 +45,7 @@ test("transactions bulk remap success path updates category and shows toast", as
   await addDialog.locator('input[placeholder="Category"]').fill(fromCategory);
   await addDialog.getByRole("button", { name: /^Add$/ }).click();
   await expect(page.getByText("Transaction added")).toBeVisible();
+  await expect(addDialog).toBeHidden({ timeout: 10000 });
 
   await page.getByRole("button", { name: "Add transaction" }).first().click();
   addDialog = page.getByRole("dialog");
@@ -45,13 +53,22 @@ test("transactions bulk remap success path updates category and shows toast", as
   await addDialog.locator('input[placeholder="Category"]').fill(fromCategory);
   await addDialog.getByRole("button", { name: /^Add$/ }).click();
   await expect(page.getByText("Transaction added").first()).toBeVisible();
+  await expect(addDialog).toBeHidden({ timeout: 10000 });
 
-  await page.getByTestId("bulk-remap-from-category").fill(fromCategory);
-  await page.getByTestId("bulk-remap-to-category").fill(toCategory);
+  const fromInput = page.getByTestId("bulk-remap-from-category");
+  const toInput = page.getByTestId("bulk-remap-to-category");
+  const submit = page.getByTestId("bulk-remap-submit");
+
+  await fromInput.fill(fromCategory);
+  await toInput.fill(toCategory);
+  await expect(fromInput).toHaveValue(fromCategory);
+  await expect(toInput).toHaveValue(toCategory);
+  await expect(submit).toBeEnabled({ timeout: 15000 });
+
   const remapResponsePromise = page.waitForResponse(
     (res) => res.url().includes("/api/v1/transactions/bulk/remap-category") && res.request().method() === "POST",
   );
-  await page.getByTestId("bulk-remap-submit").click();
+  await submit.click();
   const remapResponse = await remapResponsePromise;
   const remapBody = await remapResponse.text();
   expect(remapResponse.status(), remapBody).toBe(200);
@@ -67,7 +84,7 @@ test("forecast inline override supports dirty state, save and reset", async ({ p
   await page.goto("/app/transactions");
   await page.getByRole("button", { name: "Import CSV" }).click();
   await page.getByTestId("csv-file-input").setInputFiles(csvPath);
-  await page.getByTestId("csv-confirm-button").click();
+  await clickCsvAction(page, "csv-confirm-button");
   await expect(page.getByText(/CSV imported/)).toBeVisible();
 
   await page.goto("/app/forecast");

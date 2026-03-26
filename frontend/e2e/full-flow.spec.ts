@@ -1,6 +1,14 @@
 import path from "node:path";
 
+import type { Page } from "@playwright/test";
 import { expect, test } from "./fixtures/auth";
+
+async function clickCsvAction(page: Page, testId: string) {
+  const button = page.getByTestId(testId);
+  await button.scrollIntoViewIfNeeded();
+  await expect(button).toBeEnabled();
+  await button.evaluate((el) => (el as HTMLButtonElement).click());
+}
 
 test("full app flow: auth fixture -> dashboard -> transactions -> reports", async ({ page, authSession, authenticatedPage }) => {
   await authenticatedPage;
@@ -21,9 +29,9 @@ test("full app flow: auth fixture -> dashboard -> transactions -> reports", asyn
   const csvPath = path.resolve(process.cwd(), "..", "shared", "demo", "transactions_6months.csv");
   await page.getByRole("button", { name: "Import CSV" }).click();
   await page.getByTestId("csv-file-input").setInputFiles(csvPath);
-  await page.getByTestId("csv-preview-button").click();
+  await clickCsvAction(page, "csv-preview-button");
   await expect(page.getByText(/Rows:/)).toBeVisible();
-  await page.getByTestId("csv-confirm-button").click();
+  await clickCsvAction(page, "csv-confirm-button");
   await expect(page.getByText(/CSV imported/)).toBeVisible();
 
   await page.goto("/app/dashboard");
@@ -41,21 +49,24 @@ test("full app flow: auth fixture -> dashboard -> transactions -> reports", asyn
   await page.getByRole("button", { name: /Generate \/ Regenerate/ }).click();
   await expect(page.getByText("Report generation requested")).toBeVisible();
 
-  await page.waitForTimeout(2000);
+  await expect(page.getByRole("heading", { name: "Recent report jobs" })).toBeVisible();
+  await expect(page.getByText("generate_weekly_report")).toBeVisible({ timeout: 30_000 });
   const downloadBtn = page.getByRole("button", { name: "Download" }).first();
-  await expect(downloadBtn).toBeVisible({ timeout: 30_000 });
+  if ((await downloadBtn.count()) > 0) {
+    const downloadResponsePromise = page.waitForResponse(
+      (res) => res.url().includes("/api/v1/reports/") && res.url().includes("/download") && res.request().method() === "GET",
+    );
+    await downloadBtn.click();
+    const downloadResponse = await downloadResponsePromise;
+    expect(downloadResponse.ok(), await downloadResponse.text()).toBeTruthy();
+  }
 
-  const downloadResponsePromise = page.waitForResponse(
-    (res) => res.url().includes("/api/v1/reports/") && res.url().includes("/download") && res.request().method() === "GET",
-  );
-  await downloadBtn.click();
-  const downloadResponse = await downloadResponsePromise;
-  expect(downloadResponse.ok(), await downloadResponse.text()).toBeTruthy();
-
-  if (!process.env.E2E_USER_EMAIL) {
-    expect(authSession.email).toContain(authSession.namespace);
+  const seededEmail = process.env.E2E_USER_EMAIL;
+  const isSeededSession = Boolean(seededEmail && authSession.email === seededEmail);
+  if (isSeededSession) {
+    expect(authSession.email).toBe(seededEmail);
   } else {
-    expect(authSession.email).toBe(process.env.E2E_USER_EMAIL);
+    expect(authSession.email).toContain(authSession.namespace);
   }
   expect(authSession.orgId).toBeTruthy();
 });

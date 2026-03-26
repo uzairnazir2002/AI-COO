@@ -3,6 +3,7 @@ import secrets
 import uuid
 from datetime import timedelta
 
+from app.core.pii_crypto import pii_decrypt, pii_encrypt
 from app.domain.models.organization_billing import OrganizationBilling
 from app.domain.repos.audit_repo import AuditRepo
 from app.domain.repos.auth_repo import AuthRepo
@@ -119,8 +120,12 @@ class OrgService:
             "starting_cash",
             "runway_alert_threshold_days",
             "vendor_concentration_threshold_pct",
+            "budget_variance_alert_threshold_pct",
             "misc_growth_multiplier",
             "anomaly_spike_multiplier",
+            "owner_mfa_required",
+            "owner_session_max_minutes",
+            "sensitive_action_reauth_minutes",
         ):
             value = getattr(body, field)
             if value is not None:
@@ -150,6 +155,7 @@ class OrgService:
                 billing_notes=None,
             )
             await self.org_repo.save_billing(billing)
+        billing.billing_email = pii_decrypt(billing.billing_email)
         return billing
 
     async def update_billing(
@@ -164,7 +170,7 @@ class OrgService:
         billing = await self.get_billing(org_id)
         changed = {}
         if billing_email is not None:
-            billing.billing_email = billing_email
+            billing.billing_email = pii_encrypt(str(billing_email))
             changed["billing_email"] = billing_email
         if invoice_enabled is not None:
             billing.invoice_enabled = invoice_enabled
@@ -186,6 +192,7 @@ class OrgService:
                 link="/app/settings",
                 metadata_json=changed,
             )
+        billing.billing_email = pii_decrypt(billing.billing_email)
         return billing
 
 

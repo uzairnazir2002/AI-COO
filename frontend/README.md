@@ -35,6 +35,7 @@ Next.js App Router + TypeScript frontend for AI COO.
 - `NEXT_PUBLIC_SSE_RECONNECT_DELAY_MS` default `5000`
 - `NEXT_PUBLIC_SSE_FAILURE_THRESHOLD` default `3`
 - `NEXT_PUBLIC_SSE_FALLBACK_POLL_INTERVAL_MS` default `15000`
+- `NEXT_PUBLIC_PLAID_LINK_SCRIPT_URL` optional override (default Plaid CDN script)
 
 ## Auth mode notes
 - `bearer`
@@ -94,9 +95,12 @@ npm run e2e:visual:update
 - Default E2E env:
   - `E2E_BASE_URL=http://localhost:3000`
   - `E2E_API_URL=http://localhost:8000/api/v1`
-  - `E2E_AUTH_MODE=bearer|cookie`
-  - `E2E_CSRF_COOKIE_NAME`
-  - `E2E_CSRF_HEADER_NAME`
+- `E2E_AUTH_MODE=bearer|cookie`
+- `E2E_CSRF_COOKIE_NAME`
+- `E2E_CSRF_HEADER_NAME`
+- Optional Plaid sandbox E2E:
+  - `E2E_PLAID_SANDBOX=1`
+  - `E2E_PLAID_PUBLIC_TOKEN=<sandbox public_token>`
 - Seeded confirmed user standard:
   - Prefer a long-lived confirmed test account when the backend requires `/api/v1/auth/confirm` after registration.
   - Set `E2E_USER_EMAIL` and `E2E_USER_PASSWORD` together.
@@ -113,6 +117,7 @@ npm run e2e:visual:update
 
 ## Graceful UI fallbacks
 - Reports generation shows a frontend "generating" state because the current endpoint does not expose detailed job progress there.
+- Plaid connection UI supports link-token generation and public-token exchange; full Plaid Link popup wiring can be layered on top of this backend contract.
 - Forecast empty states explain when insufficient historical data prevents useful output.
 - Settings and billing panels remain read-only when backend capability or role access is unavailable.
 - Notification stream auto-falls back to polling after sustained SSE failures and resumes live mode when stream connectivity returns.

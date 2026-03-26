@@ -1,0 +1,46 @@
+{
+  "guardrails": {
+    "read_hotpaths": {
+      "rate": 13,
+      "failure_rate_max": 0.02,
+      "p95_ms": {
+        "summary": 2200,
+        "cashflow": 2200,
+        "transactions": 2200,
+        "alerts": 2000
+      }
+    },
+    "runtime_observability": {
+      "rate": 2,
+      "failure_rate_max": 0.02,
+      "p95_ms": {
+        "runtime_metrics": 1200
+      }
+    }
+  },
+  "read_pass_1": {
+    "summary_p95_ms": 89.25296999999992,
+    "cashflow_p95_ms": 84.59503999999995,
+    "transactions_p95_ms": 83.19665999999998,
+    "alerts_p95_ms": 82.72860499999982,
+    "failure_rate": 0.0,
+    "dropped_iterations": 0.0,
+    "breach": false
+  },
+  "read_pass_2": {
+    "summary_p95_ms": 70.0838,
+    "cashflow_p95_ms": 70.54495,
+    "transactions_p95_ms": 68.5491,
+    "alerts_p95_ms": 64.5085,
+    "failure_rate": 0.0,
+    "dropped_iterations": 0.0,
+    "breach": false
+  },
+  "runtime_observability": {
+    "runtime_metrics_p95_ms": 56.55610499999998,
+    "failure_rate": 0.0,
+    "dropped_iterations": 0.0,
+    "breach": false
+  },
+  "gate_result": "PASS"
+}

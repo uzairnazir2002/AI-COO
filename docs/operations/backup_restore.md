@@ -1,5 +1,10 @@
 # Backup and Restore (Postgres + MinIO)
 
+## Targets
+- RPO target: 24 hours (or better if you increase backup frequency)
+- RTO target: 2 hours for full service restoration in the same region
+- Validation target: one successful restore drill per week
+
 ## Postgres backup
 Create a compressed dump from running compose stack:
 

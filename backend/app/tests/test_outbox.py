@@ -36,7 +36,7 @@ class _FakeReportRepo:
         self._report = report
         self.db = _FakeDB(recipients)
 
-    async def get_by_week(self, _org_id, _week_start):
+    async def get_by_week(self, _org_id, _week_start, *, location_id=None):
         return self._report
 
     async def save(self, report):

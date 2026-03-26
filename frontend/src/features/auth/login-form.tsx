@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowRight, CheckCircle2, ShieldCheck, Sparkles } from "lucide-react";
@@ -11,22 +11,47 @@ import { useLogin } from "@/features/auth/hooks";
 import { bootstrapSession } from "@/lib/api/client";
 import { useAppStore } from "@/store/appStore";
 
-export function LoginForm() {
+export function LoginForm({ returnTo }: { returnTo?: string | null }) {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [mfaCode, setMfaCode] = useState("");
+  const [recoveryCode, setRecoveryCode] = useState("");
   const [error, setError] = useState("");
   const setSession = useAppStore((s) => s.setSession);
   const login = useLogin();
+  const safeReturnTo = useMemo(() => {
+    const fromQuery = returnTo ?? (typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("return_to") : null);
+    const fromStorage = typeof window !== "undefined" ? window.sessionStorage.getItem("ai_coo_return_to") : null;
+    const candidate = fromQuery || fromStorage;
+    return candidate && candidate.startsWith("/") && !candidate.startsWith("//") ? candidate : null;
+  }, [returnTo]);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError("");
     try {
-      await login.mutateAsync({ email, password });
+      await login.mutateAsync({
+        email,
+        password,
+        mfa_code: mfaCode || undefined,
+        mfa_recovery_code: recoveryCode || undefined,
+      });
       const me = await bootstrapSession();
       setSession(me.user, me.orgs);
-      router.replace(me.orgs.length ? "/app/dashboard" : "/app/orgs");
+      const runtimeReturnTo =
+        typeof window !== "undefined"
+          ? (() => {
+              const query = new URLSearchParams(window.location.search).get("return_to");
+              const stored = window.sessionStorage.getItem("ai_coo_return_to");
+              const candidate = query || stored;
+              return candidate && candidate.startsWith("/") && !candidate.startsWith("//") ? candidate : null;
+            })()
+          : null;
+      if ((runtimeReturnTo || safeReturnTo) && typeof window !== "undefined") {
+        window.sessionStorage.removeItem("ai_coo_return_to");
+      }
+      router.replace(runtimeReturnTo || safeReturnTo || (me.orgs.length ? "/app/dashboard" : "/app/orgs"));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Login failed");
     }
@@ -73,6 +98,19 @@ export function LoginForm() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
+            />
+            <Input
+              aria-label="MFA Code"
+              placeholder="MFA code (if enabled)"
+              value={mfaCode}
+              onChange={(e) => setMfaCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+              inputMode="numeric"
+            />
+            <Input
+              aria-label="MFA Recovery Code"
+              placeholder="Recovery code (fallback)"
+              value={recoveryCode}
+              onChange={(e) => setRecoveryCode(e.target.value.toUpperCase())}
             />
             {error ? <p className="text-sm text-danger">{error}</p> : null}
             <Button className="w-full" disabled={login.isPending} type="submit">

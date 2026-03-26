@@ -1,12 +1,47 @@
 
-> ai-coo-frontend@0.1.0 start
-> next start --port 3001
+> ai-coo-frontend@0.1.0 dev
+> next dev --port 3001
 
    ▲ Next.js 15.5.12
    - Local:        http://localhost:3001
-   - Network:      http://192.168.1.19:3001
+   - Network:      http://172.20.40.93:3001
+   - Experiments (use with caution):
+     · optimizePackageImports
 
  ✓ Starting...
- ✓ Ready in 701ms
-
-C:\Project\AI COO\ai-coo\frontend>
+ ✓ Ready in 15.4s
+ ○ Compiling /app/inventory ...
+ ✓ Compiled /app/inventory in 39.3s (2056 modules)
+ GET /app/inventory 200 in 6906ms
+ GET /app/inventory 200 in 660ms
+ ○ Compiling /auth/login ...
+ ✓ Compiled /auth/login in 4.2s (2054 modules)
+ GET /auth/login 200 in 6279ms
+ ○ Compiling /app/dashboard ...
+ ✓ Compiled /app/dashboard in 28.3s (3172 modules)
+ GET /app/dashboard 200 in 32526ms
+ GET /app/inventory 200 in 1085ms
+ GET /auth/login 200 in 389ms
+ GET /app/dashboard 200 in 862ms
+ GET /app/inventory 200 in 543ms
+ GET /auth/login 200 in 367ms
+ GET /app/dashboard 200 in 870ms
+ GET /app/inventory 200 in 545ms
+ ○ Compiling /app/activity ...
+ ✓ Compiled /app/activity in 6.7s (3203 modules)
+ GET /app/inventory 200 in 2699ms
+ GET /app/activity 200 in 10808ms
+ ✓ Compiled in 4.9s (1496 modules)
+ GET /auth/login 200 in 338ms
+ GET /app/dashboard 200 in 928ms
+ GET /app/inventory 200 in 399ms
+ GET /app/activity 200 in 438ms
+ ○ Compiling /app/alerts ...
+ ✓ Compiled /app/alerts in 4.6s (3216 modules)
+ GET /app/alerts 200 in 7558ms
+ GET /auth/login 200 in 332ms
+ GET /app/dashboard 200 in 1448ms
+ GET /app/inventory 200 in 1121ms
+ GET /app/activity 200 in 593ms
+ GET /app/alerts 200 in 673ms
+[?25h

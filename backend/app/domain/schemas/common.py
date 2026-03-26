@@ -12,6 +12,7 @@ class ORMModel(BaseModel):
 class TransactionOut(ORMModel):
     id: uuid.UUID
     org_id: uuid.UUID
+    location_id: uuid.UUID | None = None
     date: date
     amount: Decimal
     type: str

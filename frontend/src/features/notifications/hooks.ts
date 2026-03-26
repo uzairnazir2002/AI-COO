@@ -5,6 +5,7 @@ import { useQueryClient } from "@tanstack/react-query";
 
 import { useToastStore } from "@/components/common/use-toast";
 import { apiPaths } from "@/lib/api/endpoints";
+import { emitApiClientEvent } from "@/lib/api/events";
 import { getAccessToken } from "@/lib/auth/tokens";
 import { useAppStore } from "@/store/appStore";
 import type { StreamUpdate } from "@/types/domain";
@@ -47,6 +48,7 @@ export function useOrgEventFeed() {
     let fallbackArmTimer: ReturnType<typeof setTimeout> | null = null;
     let controller: AbortController | null = null;
     let consecutiveFailures = 0;
+    let authExpiredEmitted = false;
 
     const invalidateAffectedQueries = () => {
       queryClientRef.current.invalidateQueries({ queryKey: ["summary", orgId] });
@@ -165,6 +167,16 @@ export function useOrgEventFeed() {
         );
 
         if (!response.ok || !response.body) {
+          if (response.status === 401 && !authExpiredEmitted) {
+            authExpiredEmitted = true;
+            emitApiClientEvent({
+              kind: "auth_expired",
+              path: apiPaths.eventsStream,
+              status: 401,
+              message: "Session expired. Please sign in again.",
+            });
+            return;
+          }
           throw new Error(`Stream failed (${response.status})`);
         }
 

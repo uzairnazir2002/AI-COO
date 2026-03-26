@@ -22,7 +22,7 @@ export function useLogin() {
   const mode = process.env.NEXT_PUBLIC_AUTH_MODE || "bearer";
   const cookie = mode === "cookie";
   return useMutation({
-    mutationFn: async (payload: { email: string; password: string }) =>
+    mutationFn: async (payload: { email: string; password: string; mfa_code?: string; mfa_recovery_code?: string }) =>
       api<TokenResponse>(apiPaths.login, {
         method: "POST",
         body: JSON.stringify(payload),

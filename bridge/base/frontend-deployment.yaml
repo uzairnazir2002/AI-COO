@@ -1,0 +1,139 @@
+#! frontend-deployment.yaml
+# Generated code, do not edit
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+    name: frontend
+    namespace: ai-coo
+    labels:
+        com.docker.compose.project: ai-coo
+        com.docker.compose.service: frontend
+spec:
+    replicas: 1
+    selector:
+        matchLabels:
+            com.docker.compose.project: ai-coo
+            com.docker.compose.service: frontend
+    strategy:
+        type: Recreate
+    template:
+        metadata:
+            labels:
+                com.docker.compose.project: ai-coo
+                com.docker.compose.service: frontend
+                com.docker.compose.network.default: "true"
+        spec:
+            containers:
+                - name: frontend
+                  image: ai-coo-frontend
+                  imagePullPolicy: IfNotPresent
+                  env:
+                    - name: ACCESS_COOKIE_NAME
+                      value: "ai_coo_access_token"
+                    - name: ACCESS_TOKEN_EXPIRE_MINUTES
+                      value: "15"
+                    - name: AI_PROVIDER
+                      value: "stub"
+                    - name: ALERTS_CACHE_TTL_SECONDS
+                      value: "5"
+                    - name: ANALYTICS_SUMMARY_CACHE_TTL_SECONDS
+                      value: "5"
+                    - name: API_DB_MAX_OVERFLOW
+                      value: "4"
+                    - name: API_DB_POOL_RECYCLE_SECONDS
+                      value: "1800"
+                    - name: API_DB_POOL_SIZE
+                      value: "12"
+                    - name: API_DB_POOL_TIMEOUT_SECONDS
+                      value: "30"
+                    - name: APP_NAME
+                      value: "AI COO"
+                    - name: AUTH_COOKIE_MODE
+                      value: "false"
+                    - name: COOKIE_SAMESITE
+                      value: "lax"
+                    - name: COOKIE_SECURE
+                      value: "false"
+                    - name: CORS_ORIGINS
+                      value: "http://localhost:3000,http://localhost:3001"
+                    - name: CSV_MAX_BYTES
+                      value: "5242880"
+                    - name: DATABASE_URL
+                      value: "postgresql+asyncpg://ai_coo:ai_coo@postgres:5432/ai_coo"
+                    - name: DB_MAX_OVERFLOW
+                      value: "0"
+                    - name: DB_POOL_RECYCLE_SECONDS
+                      value: "1800"
+                    - name: DB_POOL_SIZE
+                      value: "5"
+                    - name: DB_POOL_TIMEOUT_SECONDS
+                      value: "30"
+                    - name: EMAIL_DRY_RUN
+                      value: "true"
+                    - name: ENV
+                      value: "development"
+                    - name: ENV_FILE
+                      value: ".env"
+                    - name: JWT_ALGORITHM
+                      value: "HS256"
+                    - name: MINIO_ACCESS_KEY
+                      value: "minioadmin"
+                    - name: MINIO_BUCKET
+                      value: "reports"
+                    - name: MINIO_ENDPOINT
+                      value: "minio:9000"
+                    - name: MINIO_PUBLIC_BASE_URL
+                      value: "http://localhost:9000"
+                    - name: MINIO_SECRET_KEY
+                      value: "minioadmin"
+                    - name: MINIO_SECURE
+                      value: "false"
+                    - name: NEXT_INTERNAL_API_URL
+                      value: "http://backend:8000"
+                    - name: NEXT_PUBLIC_API_BASE_URL
+                      value: "http://localhost:8000"
+                    - name: NEXT_PUBLIC_AUTH_MODE
+                      value: "bearer"
+                    - name: NEXT_PUBLIC_MINIO_PUBLIC_BASE_URL
+                      value: "http://localhost:9000"
+                    - name: POSTGRES_DB
+                      value: "ai_coo"
+                    - name: POSTGRES_PASSWORD
+                      value: "ai_coo"
+                    - name: POSTGRES_USER
+                      value: "ai_coo"
+                    - name: RATE_LIMIT_PER_MINUTE
+                      value: "20"
+                    - name: REDIS_URL
+                      value: "redis://redis:6379/0"
+                    - name: REFRESH_COOKIE_NAME
+                      value: "ai_coo_refresh_token"
+                    - name: REFRESH_TOKEN_EXPIRE_DAYS
+                      value: "14"
+                    - name: SECRET_KEY
+                      value: "rAhqC7zsSGj0up1dMRaVklUP4tEio9TXc58IQFgYLbBxfH3OeyZKnm2wNDW6Jv"
+                    - name: SMTP_HOST
+                      value: "mailhog"
+                    - name: SMTP_PASSWORD
+                      value: ""
+                    - name: SMTP_PORT
+                      value: "1025"
+                    - name: SMTP_USER
+                      value: ""
+                    - name: TRANSACTIONS_CACHE_TTL_SECONDS
+                      value: "5"
+                    - name: WORKER_CONCURRENCY
+                      value: "3"
+                    - name: WORKER_DB_MAX_OVERFLOW
+                      value: "0"
+                    - name: WORKER_DB_POOL_RECYCLE_SECONDS
+                      value: "1800"
+                    - name: WORKER_DB_POOL_SIZE
+                      value: "4"
+                    - name: WORKER_DB_POOL_TIMEOUT_SECONDS
+                      value: "30"
+                    - name: WORKER_PREFETCH_MULTIPLIER
+                      value: "1"
+                  ports:
+                    - name: frontend-3000
+                      containerPort: 3000

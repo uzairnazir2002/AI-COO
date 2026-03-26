@@ -28,6 +28,19 @@ class _FakeAuditRepo:
         self.actions.append(action)
 
 
+class _FakeIdempotencyService:
+    replay = None
+
+    def __init__(self, _repo):
+        pass
+
+    async def get_replay(self, **_kwargs):
+        return type(self).replay
+
+    async def store_response(self, **_kwargs):
+        return None
+
+
 @pytest.fixture
 def analytics_module(monkeypatch):
     monkeypatch.setenv("SECRET_KEY", "test")
@@ -64,6 +77,7 @@ def _app_with_overrides(analytics_module, org_id: uuid.UUID, user_id: uuid.UUID)
 
 
 def test_analytics_recompute_enqueues_single_job(monkeypatch, analytics_module):
+    _FakeIdempotencyService.replay = None
     org_id = uuid.uuid4()
     user_id = uuid.uuid4()
     fake_job_repo = _FakeJobRepo(object())
@@ -71,6 +85,8 @@ def test_analytics_recompute_enqueues_single_job(monkeypatch, analytics_module):
 
     monkeypatch.setattr(analytics_module, "JobRepo", lambda _db: fake_job_repo)
     monkeypatch.setattr(analytics_module, "AuditRepo", lambda _db: fake_audit_repo)
+    monkeypatch.setattr(analytics_module, "IdempotencyService", _FakeIdempotencyService)
+    monkeypatch.setattr(analytics_module, "IdempotencyRepo", lambda _db: object())
     monkeypatch.setattr(
         analytics_module,
         "recompute_org_analytics",
@@ -90,6 +106,7 @@ def test_analytics_recompute_enqueues_single_job(monkeypatch, analytics_module):
 
 
 def test_analytics_recompute_reuses_active_job(monkeypatch, analytics_module):
+    _FakeIdempotencyService.replay = None
     org_id = uuid.uuid4()
     user_id = uuid.uuid4()
     fake_job_repo = _FakeJobRepo(object())
@@ -101,6 +118,8 @@ def test_analytics_recompute_reuses_active_job(monkeypatch, analytics_module):
 
     monkeypatch.setattr(analytics_module, "JobRepo", lambda _db: fake_job_repo)
     monkeypatch.setattr(analytics_module, "AuditRepo", lambda _db: _FakeAuditRepo(object()))
+    monkeypatch.setattr(analytics_module, "IdempotencyService", _FakeIdempotencyService)
+    monkeypatch.setattr(analytics_module, "IdempotencyRepo", lambda _db: object())
     monkeypatch.setattr(
         analytics_module,
         "recompute_org_analytics",
@@ -116,3 +135,33 @@ def test_analytics_recompute_reuses_active_job(monkeypatch, analytics_module):
     assert body["job_id"] == "analytics-job-running"
     assert body["status"] == "RUNNING"
     assert body["result"] == {"alerts_created": 1, "forecast_rows": 6}
+
+
+def test_analytics_recompute_replays_idempotent_response(monkeypatch, analytics_module):
+    org_id = uuid.uuid4()
+    user_id = uuid.uuid4()
+    _FakeIdempotencyService.replay = SimpleNamespace(
+        status_code=200,
+        response_json={
+            "ok": True,
+            "job_id": "analytics-job-existing",
+            "status": "RUNNING",
+            "result": {"alerts_created": 2},
+        },
+    )
+    monkeypatch.setattr(analytics_module, "IdempotencyService", _FakeIdempotencyService)
+    monkeypatch.setattr(analytics_module, "IdempotencyRepo", lambda _db: object())
+    monkeypatch.setattr(
+        analytics_module,
+        "recompute_org_analytics",
+        SimpleNamespace(apply_async=lambda args, headers=None: (_ for _ in ()).throw(AssertionError("apply_async should not run on replay"))),
+    )
+
+    app = _app_with_overrides(analytics_module, org_id, user_id)
+    client = TestClient(app)
+    res = client.post(
+        f"/api/v1/analytics/recompute?org_id={org_id}",
+        headers={"Idempotency-Key": "idem-an-1"},
+    )
+    assert res.status_code == 200
+    assert res.json()["job_id"] == "analytics-job-existing"

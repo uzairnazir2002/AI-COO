@@ -1,0 +1,18 @@
+#! minio-miniodata-persistentVolumeClaim.yaml
+# Generated code, do not edit
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+    name: minio-miniodata
+    namespace: ai-coo
+    labels:
+        com.docker.compose.service: minio
+        com.docker.compose.volume: miniodata
+spec:
+    accessModes:
+        # TODO would need to check which services use this volume
+        - ReadWriteOnce
+    volumeMode: Filesystem
+    resources:
+        requests:
+            storage: 100Mi

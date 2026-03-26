@@ -12,10 +12,10 @@ class M:
 
 
 class Repo:
-    async def monthly_lookback(self, org_id, months):
+    async def monthly_lookback(self, org_id, months, **_kwargs):
         return [M("1000", "1600"), M("1000", "2000"), M("1200", "1500")]
 
-    async def cash_balance(self, org_id):
+    async def cash_balance(self, org_id, **_kwargs):
         return Decimal("6000")
 
 

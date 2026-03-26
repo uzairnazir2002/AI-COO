@@ -8,17 +8,30 @@ from datetime import date
 from app.infra.cache import redis_client
 
 
-def alerts_cache_key(org_id: uuid.UUID, status: str | None) -> str:
+def alerts_cache_key(
+    org_id: uuid.UUID,
+    status: str | None,
+    assignee_user_id: uuid.UUID | None = None,
+    location_id: uuid.UUID | None = None,
+) -> str:
     normalized = (status or "all").strip().lower()
-    return f"cache:v1:alerts:{org_id}:{normalized}"
+    assignee = str(assignee_user_id) if assignee_user_id else "any"
+    location = str(location_id) if location_id else "all"
+    return f"cache:v1:alerts:{org_id}:{normalized}:{assignee}:{location}"
 
 
 def alerts_cache_prefix(org_id: uuid.UUID) -> str:
     return f"cache:v1:alerts:{org_id}:"
 
 
-def analytics_summary_cache_key(org_id: uuid.UUID, from_date: date, to_date: date) -> str:
-    return f"cache:v1:analytics:summary:{org_id}:{from_date.isoformat()}:{to_date.isoformat()}"
+def analytics_summary_cache_key(
+    org_id: uuid.UUID,
+    from_date: date,
+    to_date: date,
+    location_id: uuid.UUID | None = None,
+) -> str:
+    location = str(location_id) if location_id else "all"
+    return f"cache:v1:analytics:summary:{org_id}:{location}:{from_date.isoformat()}:{to_date.isoformat()}"
 
 
 def analytics_summary_cache_prefix(org_id: uuid.UUID) -> str:
@@ -34,11 +47,13 @@ def transactions_cache_key(
     q: str | None,
     page: int,
     page_size: int,
+    location_id: uuid.UUID | None = None,
 ) -> str:
     payload = {
         "org_id": str(org_id),
         "from": from_date.isoformat() if from_date else None,
         "to": to_date.isoformat() if to_date else None,
+        "location_id": str(location_id) if location_id else None,
         "type": tx_type,
         "category": category,
         "q": q,
