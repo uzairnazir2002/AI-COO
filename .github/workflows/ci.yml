@@ -371,7 +371,7 @@ jobs:
         run: docker compose --env-file .env down -v
 
   plaid-epic-a:
-    if: ${{ (vars.CI_E2E_PLAID_LANE == '1' || (github.event_name == 'workflow_dispatch' && github.event.inputs.run_plaid_lane == 'true')) && secrets.PLAID_CLIENT_ID != '' && secrets.PLAID_SECRET != '' }}
+    if: ${{ vars.CI_E2E_PLAID_LANE == '1' || (github.event_name == 'workflow_dispatch' && github.event.inputs.run_plaid_lane == 'true') }}
     runs-on: ubuntu-latest
     env:
       PLAID_CLIENT_ID: ${{ secrets.PLAID_CLIENT_ID }}
@@ -386,6 +386,10 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+      - name: Validate Plaid secrets
+        run: |
+          test -n "${PLAID_CLIENT_ID}" || { echo "::error::Missing PLAID_CLIENT_ID secret"; exit 1; }
+          test -n "${PLAID_SECRET}" || { echo "::error::Missing PLAID_SECRET secret"; exit 1; }
       - uses: actions/setup-node@v4
         with:
           node-version: "20"
@@ -466,7 +470,7 @@ jobs:
         run: docker compose --env-file .env down -v
 
   ai-live-mode:
-    if: ${{ (vars.CI_AI_LIVE_MODE_LANE == '1' || (github.event_name == 'workflow_dispatch' && github.event.inputs.run_ai_live_lane == 'true')) && secrets.AI_OPENAI_API_KEY != '' }}
+    if: ${{ vars.CI_AI_LIVE_MODE_LANE == '1' || (github.event_name == 'workflow_dispatch' && github.event.inputs.run_ai_live_lane == 'true') }}
     runs-on: ubuntu-latest
     env:
       AI_OPENAI_API_KEY: ${{ secrets.AI_OPENAI_API_KEY }}
@@ -476,6 +480,9 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+      - name: Validate OpenAI secret
+        run: |
+          test -n "${AI_OPENAI_API_KEY}" || { echo "::error::Missing AI_OPENAI_API_KEY secret"; exit 1; }
       - name: Prepare AI live-mode env
         run: |
           cp .env.example .env
