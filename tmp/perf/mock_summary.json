@@ -1,0 +1,11 @@
+﻿{
+  "metrics": {
+    "http_req_duration{endpoint:summary}": {"values": {"p(95)": 1000}},
+    "http_req_duration{endpoint:cashflow}": {"values": {"p(95)": 1100}},
+    "http_req_duration{endpoint:transactions}": {"values": {"p(95)": 900}},
+    "http_req_duration{endpoint:alerts}": {"values": {"p(95)": 800}},
+    "http_req_duration{endpoint:runtime_metrics}": {"values": {"p(95)": 700}},
+    "http_req_failed": {"values": {"rate": 0.0}},
+    "dropped_iterations": {"values": {"count": 1}}
+  }
+}

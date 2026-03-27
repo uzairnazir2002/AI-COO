@@ -1,4 +1,5 @@
-﻿from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta, timezone
+import secrets
 from typing import Any
 
 from argon2 import PasswordHasher
@@ -28,6 +29,8 @@ def create_token(subject: str, token_type: str, expires_delta: timedelta, extra:
         "type": token_type,
         "iat": int(now.timestamp()),
         "exp": int((now + expires_delta).timestamp()),
+        # Ensure tokens minted within the same second are still unique.
+        "jti": secrets.token_urlsafe(12),
     }
     if extra:
         payload.update(extra)
@@ -50,3 +53,4 @@ def access_ttl() -> timedelta:
 def refresh_ttl() -> timedelta:
     s = get_settings()
     return timedelta(days=s.refresh_token_expire_days)
+

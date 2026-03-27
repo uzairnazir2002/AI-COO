@@ -3,48 +3,72 @@
 @tailwind utilities;
 
 :root {
-  --background: 215 36% 97%;
-  --foreground: 220 35% 13%;
+  --background: 210 33% 98%;
+  --foreground: 220 31% 10%;
   --card: 0 0% 100%;
-  --card-foreground: 220 35% 13%;
-  --primary: 219 73% 45%;
+  --card-foreground: 220 31% 10%;
+  --primary: 213 79% 45%;
   --primary-foreground: 210 40% 98%;
-  --muted: 220 20% 94%;
-  --muted-foreground: 220 15% 40%;
-  --border: 220 18% 86%;
-  --ring: 221 83% 53%;
-  --success: 160 84% 30%;
-  --warning: 33 90% 45%;
-  --danger: 0 74% 45%;
-  --radius: 0.85rem;
+  --secondary: 195 65% 40%;
+  --secondary-foreground: 210 40% 98%;
+  --muted: 214 32% 94%;
+  --muted-foreground: 218 15% 38%;
+  --border: 215 26% 86%;
+  --ring: 213 79% 45%;
+  --success: 162 78% 32%;
+  --warning: 34 92% 48%;
+  --danger: 3 77% 53%;
+  --accent: 196 100% 44%;
+  --surface: 210 28% 99%;
+  --surface-2: 214 30% 96%;
+  --radius: 1.1rem;
 }
 
 .dark {
-  --background: 222 30% 10%;
+  --background: 222 33% 8%;
   --foreground: 210 40% 96%;
-  --card: 223 27% 14%;
+  --card: 222 28% 12%;
   --card-foreground: 210 40% 96%;
-  --primary: 213 89% 63%;
+  --primary: 206 89% 63%;
   --primary-foreground: 222 30% 10%;
-  --muted: 223 20% 19%;
-  --muted-foreground: 215 20% 70%;
-  --border: 224 20% 24%;
-  --ring: 213 89% 63%;
+  --secondary: 190 71% 44%;
+  --secondary-foreground: 210 40% 96%;
+  --muted: 223 19% 17%;
+  --muted-foreground: 215 18% 72%;
+  --border: 223 20% 22%;
+  --ring: 206 89% 63%;
   --success: 160 72% 45%;
   --warning: 38 93% 58%;
   --danger: 0 80% 60%;
+  --accent: 190 91% 48%;
+  --surface: 222 33% 9%;
+  --surface-2: 223 23% 13%;
 }
 
 * {
   @apply border-border;
 }
 
+html {
+  scroll-behavior: smooth;
+}
+
 body {
   @apply bg-background text-foreground antialiased;
+  font-family: var(--font-body), sans-serif;
   background-image:
-    radial-gradient(circle at 95% 2%, hsl(var(--primary) / 0.11), transparent 28%),
-    radial-gradient(circle at 5% 4%, hsl(160 84% 30% / 0.09), transparent 24%);
+    radial-gradient(circle at 0% 0%, hsl(var(--accent) / 0.12), transparent 24%),
+    radial-gradient(circle at 100% 0%, hsl(var(--primary) / 0.12), transparent 28%),
+    linear-gradient(180deg, hsl(var(--surface)) 0%, hsl(var(--background)) 36%, hsl(var(--surface-2)) 100%);
   min-height: 100vh;
+}
+
+h1,
+h2,
+h3,
+h4 {
+  font-family: var(--font-display), sans-serif;
+  letter-spacing: -0.03em;
 }
 
 input,
@@ -56,4 +80,61 @@ textarea {
 
 :focus-visible {
   @apply ring-2 ring-ring ring-offset-2 ring-offset-background;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: hsl(var(--border));
+  border-radius: 999px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+@layer utilities {
+  .bg-grid {
+    background-image:
+      linear-gradient(hsl(var(--border) / 0.45) 1px, transparent 1px),
+      linear-gradient(90deg, hsl(var(--border) / 0.45) 1px, transparent 1px);
+    background-size: 32px 32px;
+  }
+
+  .glass-panel {
+    @apply border border-white/10 bg-card/75 backdrop-blur-xl;
+    box-shadow:
+      0 24px 60px -34px hsl(var(--foreground) / 0.45),
+      inset 0 1px 0 hsl(0 0% 100% / 0.08);
+  }
+
+  .page-container {
+    @apply mx-auto w-full max-w-[1600px] px-4 py-4 md:px-6 md:py-6;
+  }
+
+  .text-balance {
+    text-wrap: balance;
+  }
+
+  .panel-edge {
+    position: relative;
+  }
+
+  .panel-edge::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    padding: 1px;
+    background: linear-gradient(135deg, hsl(var(--primary) / 0.3), transparent 35%, hsl(var(--accent) / 0.18));
+    -webkit-mask:
+      linear-gradient(#fff 0 0) content-box,
+      linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    pointer-events: none;
+  }
 }

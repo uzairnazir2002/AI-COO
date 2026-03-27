@@ -1,0 +1,19 @@
+{
+  "read_hotpaths": {
+    "rate": 13,
+    "failure_rate_max": 0.02,
+    "p95_ms": {
+      "summary": 2200,
+      "cashflow": 2200,
+      "transactions": 2200,
+      "alerts": 2000
+    }
+  },
+  "runtime_observability": {
+    "rate": 2,
+    "failure_rate_max": 0.02,
+    "p95_ms": {
+      "runtime_metrics": 1200
+    }
+  }
+}

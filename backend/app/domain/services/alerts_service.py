@@ -1,28 +1,65 @@
 from collections import defaultdict
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 from statistics import median, pstdev
+import uuid
 
-from sqlalchemy import func, select
+from sqlalchemy import and_, case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.domain.models.alert import Alert
+from app.domain.models.location import Location
 from app.domain.models.monthly_aggregate import MonthlyAggregate
 from app.domain.models.organization_setting import OrganizationSetting
 from app.domain.models.transaction import Transaction
 from app.domain.repos.alerts_repo import AlertRepo
+from app.domain.repos.audit_repo import AuditRepo
+from app.domain.repos.budget_repo import BudgetRepo
+from app.domain.repos.inventory_repo import InventoryRepo
+from app.domain.repos.location_repo import LocationRepo
+from app.domain.services.budget_service import BudgetService
+from app.domain.services.inventory_service import InventoryService
 
 
 class AlertsService:
-    def __init__(self, db: AsyncSession, repo: AlertRepo):
+    def __init__(self, db: AsyncSession, repo: AlertRepo, audit_repo: AuditRepo | None = None):
         self.db = db
         self.repo = repo
+        self.audit_repo = audit_repo
 
-    async def list_alerts(self, org_id, status):
-        return await self.repo.list_alerts(org_id, status)
+    async def list_alerts(self, org_id, status, assigned_to_user_id=None, location_id=None):
+        rows = await self.repo.list_alerts(
+            org_id,
+            status,
+            assigned_to_user_id=assigned_to_user_id,
+            location_id=location_id,
+        )
+        return sorted(rows, key=self._alert_rank_key, reverse=True)
+
+    @staticmethod
+    def _alert_rank_key(alert: Alert):
+        severity_weight = {"HIGH": 3, "MEDIUM": 2, "LOW": 1}.get(str(alert.severity).upper(), 0)
+        meta = alert.meta or {}
+        impact_raw = meta.get("impact") or meta.get("variance_pct") or meta.get("share_pct") or "0"
+        try:
+            impact_val = abs(Decimal(str(impact_raw)))
+        except Exception:
+            impact_val = Decimal("0")
+        return (severity_weight, impact_val, alert.created_at.timestamp())
 
     async def dismiss(self, alert):
         alert.status = "DISMISSED"
+        await self.repo.save(alert)
+
+    async def assign(self, *, alert: Alert, assignee_user_id: uuid.UUID | None, actor_user_id: uuid.UUID):
+        alert.assigned_to_user_id = assignee_user_id
+        alert.assigned_by_user_id = actor_user_id
+        alert.assigned_at = datetime.now(timezone.utc)
+        alert.acknowledged_at = None
+        await self.repo.save(alert)
+
+    async def acknowledge(self, *, alert: Alert):
+        alert.acknowledged_at = datetime.now(timezone.utc)
         await self.repo.save(alert)
 
     async def detect_and_create(self, org_id):
@@ -31,19 +68,42 @@ class AlertsService:
         vendor_threshold = Decimal(
             str(getattr(settings, "vendor_concentration_threshold_pct", Decimal("50.00")))
         )
+        budget_threshold = Decimal(
+            str(getattr(settings, "budget_variance_alert_threshold_pct", Decimal("10.00")))
+        )
         misc_growth_mult = Decimal(str(getattr(settings, "misc_growth_multiplier", Decimal("1.4"))))
+        contexts = await self._detection_contexts(org_id)
         created = 0
-        created += await self._detect_anomaly(org_id, anomaly_mult)
-        created += await self._detect_vendor_concentration(org_id, vendor_threshold)
-        created += await self._detect_misc_growth(org_id, misc_growth_mult)
-        created += await self._detect_margin_decline(org_id)
-        created += await self._detect_subscription_creep(org_id)
+        for location in contexts:
+            created += await self._detect_anomaly(org_id, anomaly_mult, location=location)
+            created += await self._detect_vendor_concentration(org_id, vendor_threshold, location=location)
+            created += await self._detect_budget_threshold(org_id, budget_threshold, location=location)
+            created += await self._detect_misc_growth(org_id, misc_growth_mult, location=location)
+            created += await self._detect_margin_decline(org_id, location=location)
+            created += await self._detect_subscription_creep(org_id, location=location)
+            created += await self._detect_inventory_stockout_risk(org_id, location=location)
         return created
 
-    async def _create_if_new(self, alert: Alert) -> int:
+    async def _detection_contexts(self, org_id: uuid.UUID) -> list[Location | None]:
+        active_locations = await LocationRepo(self.db).list_by_org(org_id=org_id, include_inactive=False)
+        return [None, *active_locations]
+
+    async def _create_if_new(
+        self,
+        alert: Alert,
+        *,
+        audit_action: str | None = None,
+        audit_metadata: dict | None = None,
+    ) -> int:
+        location_filter = (
+            Alert.location_id == alert.location_id
+            if alert.location_id is not None
+            else Alert.location_id.is_(None)
+        )
         existing = await self.db.execute(
             select(Alert).where(
                 Alert.org_id == alert.org_id,
+                location_filter,
                 Alert.kind == alert.kind,
                 Alert.title == alert.title,
                 Alert.status == "OPEN",
@@ -52,15 +112,211 @@ class AlertsService:
         if existing.scalar_one_or_none():
             return 0
         await self.repo.save(alert)
+        if self.audit_repo and audit_action:
+            await self.audit_repo.log(
+                actor_user_id=None,
+                org_id=alert.org_id,
+                action=audit_action,
+                entity_type="alert",
+                entity_id=str(alert.id),
+                metadata_json=audit_metadata or (alert.meta or {}),
+            )
         return 1
 
-    async def _detect_anomaly(self, org_id, spike_multiplier: Decimal):
+    @staticmethod
+    def _location_filters(location: Location | None) -> list:
+        if location is None:
+            return []
+        return [Transaction.location_id == location.id]
+
+    @staticmethod
+    def _location_suffix(location: Location | None) -> str:
+        if location is None:
+            return ""
+        return f" at {location.name}"
+
+    @staticmethod
+    def _location_meta(location: Location | None) -> dict[str, str]:
+        if location is None:
+            return {}
+        return {"location_id": str(location.id), "location_name": location.name}
+
+    async def _detect_budget_threshold(self, org_id, threshold_pct: Decimal, *, location: Location | None):
+        if threshold_pct <= 0:
+            return 0
+        period_month = date.today().replace(day=1)
+        variance = await BudgetService(BudgetRepo(self.db)).budget_variance(
+            org_id=org_id,
+            period_month=period_month,
+            budget_type="EXPENSE",
+            location_id=location.id if location else None,
+        )
+        created = 0
+        period_label = period_month.strftime("%Y-%m")
+        suffix = self._location_suffix(location)
+        for line in variance.get("lines", []):
+            planned = Decimal(str(getattr(line, "planned_amount", "0")))
+            variance_pct_raw = getattr(line, "variance_pct", None)
+            if planned <= 0 or variance_pct_raw is None:
+                continue
+            variance_pct = Decimal(str(variance_pct_raw))
+            variance_amount = Decimal(str(getattr(line, "variance_amount", "0")))
+            if variance_pct < threshold_pct or variance_amount <= 0:
+                continue
+
+            actual = Decimal(str(getattr(line, "actual_amount", "0")))
+            category = str(getattr(line, "category", "Uncategorized"))
+            variance_pct_q = variance_pct.quantize(Decimal("0.01"))
+            variance_amount_q = variance_amount.quantize(Decimal("0.01"))
+            severity = "HIGH" if variance_pct >= threshold_pct * Decimal("2") else "MEDIUM"
+            created += await self._create_if_new(
+                Alert(
+                    org_id=org_id,
+                    location_id=location.id if location else None,
+                    kind="PROFIT_LEAK",
+                    severity=severity,
+                    title=f"Budget threshold exceeded in {category}{suffix} ({period_label})",
+                    description=f"{category} is {variance_pct_q}% over budget for {period_label}{suffix}.",
+                    meta={
+                        "subkind": "BUDGET_THRESHOLD",
+                        "category": category,
+                        "period_month": period_label,
+                        "planned_amount": str(planned.quantize(Decimal("0.01"))),
+                        "actual_amount": str(actual.quantize(Decimal("0.01"))),
+                        "variance_amount": str(variance_amount_q),
+                        "variance_pct": str(variance_pct_q),
+                        "threshold_pct": str(threshold_pct.quantize(Decimal("0.01"))),
+                        "impact": str(variance_amount_q),
+                        **self._location_meta(location),
+                    },
+                ),
+                audit_action="alert.detect.budget_threshold",
+                audit_metadata={
+                    "category": category,
+                    "period_month": period_label,
+                    "variance_pct": str(variance_pct_q),
+                    "threshold_pct": str(threshold_pct.quantize(Decimal("0.01"))),
+                    "severity": severity,
+                    **self._location_meta(location),
+                },
+            )
+        return created
+
+    async def _detect_inventory_stockout_risk(self, org_id, *, location: Location | None):
+        forecast = await InventoryService(InventoryRepo(self.db)).forecast(
+            org_id=org_id,
+            lookback_days=30,
+            horizon_days=30,
+            location_id=location.id if location else None,
+        )
+        rows = forecast.get("items", [])
+        if not rows:
+            return 0
+        suffix = self._location_suffix(location)
+        created = 0
+        for row in rows:
+            if isinstance(row, dict):
+                item_id_raw = row.get("item_id")
+                sku = str(row.get("sku") or "UNKNOWN")
+                item_name = str(row.get("name") or sku)
+                location_id_raw = row.get("location_id")
+                risk_level = str(row.get("risk_level") or "").upper()
+                days_of_cover_raw = row.get("days_of_cover")
+                projected_stockout_date_raw = row.get("projected_stockout_date")
+                on_hand_qty_raw = row.get("on_hand_qty")
+                reorder_point_raw = row.get("reorder_point")
+                units_per_day_raw = row.get("units_per_day")
+                cogs_exposure_raw = row.get("cogs_exposure_30d")
+            else:
+                item_id_raw = getattr(row, "item_id", None)
+                sku = str(getattr(row, "sku", "UNKNOWN"))
+                item_name = str(getattr(row, "name", sku))
+                location_id_raw = getattr(row, "location_id", None)
+                risk_level = str(getattr(row, "risk_level", "")).upper()
+                days_of_cover_raw = getattr(row, "days_of_cover", None)
+                projected_stockout_date_raw = getattr(row, "projected_stockout_date", None)
+                on_hand_qty_raw = getattr(row, "on_hand_qty", None)
+                reorder_point_raw = getattr(row, "reorder_point", None)
+                units_per_day_raw = getattr(row, "units_per_day", None)
+                cogs_exposure_raw = getattr(row, "cogs_exposure_30d", None)
+
+            if risk_level != "HIGH":
+                continue
+            if item_id_raw is None:
+                continue
+            item_id = uuid.UUID(str(item_id_raw))
+            row_location_id = uuid.UUID(str(location_id_raw)) if location_id_raw else None
+            if location is None and row_location_id is not None:
+                continue
+            if location is not None and row_location_id != location.id:
+                continue
+
+            try:
+                on_hand_qty = Decimal(str(on_hand_qty_raw or "0")).quantize(Decimal("0.001"))
+                reorder_point = Decimal(str(reorder_point_raw or "0")).quantize(Decimal("0.001"))
+                units_per_day = Decimal(str(units_per_day_raw or "0")).quantize(Decimal("0.0001"))
+                cogs_exposure = Decimal(str(cogs_exposure_raw or "0")).quantize(Decimal("0.01"))
+                days_of_cover = (
+                    Decimal(str(days_of_cover_raw)).quantize(Decimal("0.1"))
+                    if days_of_cover_raw is not None
+                    else None
+                )
+            except Exception:
+                continue
+
+            projected_stockout_date = str(projected_stockout_date_raw) if projected_stockout_date_raw else None
+            cover_text = (
+                f"{days_of_cover} days"
+                if days_of_cover is not None
+                else "no stable velocity baseline"
+            )
+            created += await self._create_if_new(
+                Alert(
+                    org_id=org_id,
+                    location_id=row_location_id,
+                    kind="ANOMALY",
+                    severity="HIGH",
+                    title=f"Inventory stockout risk: {sku}{suffix}",
+                    description=f"{item_name} has high stockout risk ({cover_text}){suffix}.",
+                    meta={
+                        "subkind": "INVENTORY_STOCKOUT",
+                        "item_id": str(item_id),
+                        "sku": sku,
+                        "name": item_name,
+                        "on_hand_qty": str(on_hand_qty),
+                        "reorder_point": str(reorder_point),
+                        "units_per_day": str(units_per_day),
+                        "days_of_cover": str(days_of_cover) if days_of_cover is not None else None,
+                        "projected_stockout_date": projected_stockout_date,
+                        "cogs_exposure_30d": str(cogs_exposure),
+                        "impact": str(cogs_exposure),
+                        **self._location_meta(location if location else None),
+                    },
+                ),
+                audit_action="alert.detect.inventory_stockout",
+                audit_metadata={
+                    "item_id": str(item_id),
+                    "sku": sku,
+                    "days_of_cover": str(days_of_cover) if days_of_cover is not None else None,
+                    "projected_stockout_date": projected_stockout_date,
+                    **self._location_meta(location if location else None),
+                },
+            )
+        return created
+
+    async def _detect_anomaly(self, org_id, spike_multiplier: Decimal, *, location: Location | None):
         created = 0
         since = date.today() - timedelta(days=180)
         month_expr = func.date_trunc("month", Transaction.date)
+        filters = [
+            Transaction.org_id == org_id,
+            Transaction.type == "EXPENSE",
+            Transaction.date >= since,
+            *self._location_filters(location),
+        ]
         q = await self.db.execute(
             select(Transaction.category, month_expr, func.sum(Transaction.amount))
-            .where(Transaction.org_id == org_id, Transaction.type == "EXPENSE", Transaction.date >= since)
+            .where(and_(*filters))
             .group_by(Transaction.category, month_expr)
             .order_by(Transaction.category, month_expr)
         )
@@ -98,18 +354,21 @@ class AlertsService:
 
             if is_spike and baseline > 0:
                 variance = ((latest - baseline) / baseline * Decimal("100")).quantize(Decimal("0.01"))
+                suffix = self._location_suffix(location)
                 created += await self._create_if_new(
                     Alert(
                         org_id=org_id,
+                        location_id=location.id if location else None,
                         kind="ANOMALY",
                         severity="HIGH",
-                        title=f"Expense spike in {cat}",
-                        description=f"Spend increased by {variance}% (method: {detection_method})",
+                        title=f"Expense spike in {cat}{suffix}",
+                        description=f"Spend increased by {variance}%{suffix} (method: {detection_method})",
                         meta={
                             "variance_pct": str(variance),
                             "impact": str((latest - baseline).quantize(Decimal("0.01"))),
                             "method": detection_method,
                             "score": str(score.quantize(Decimal("0.01"))),
+                            **self._location_meta(location),
                         },
                     ),
                 )
@@ -144,11 +403,18 @@ class AlertsService:
             return Decimal("0")
         return Decimal(str(score))
 
-    async def _detect_vendor_concentration(self, org_id, threshold_pct: Decimal):
+    async def _detect_vendor_concentration(self, org_id, threshold_pct: Decimal, *, location: Location | None):
         since = date.today() - timedelta(days=30)
+        filters = [
+            Transaction.org_id == org_id,
+            Transaction.type == "EXPENSE",
+            Transaction.date >= since,
+            Transaction.vendor.is_not(None),
+            *self._location_filters(location),
+        ]
         q = await self.db.execute(
             select(Transaction.vendor, func.sum(Transaction.amount))
-            .where(Transaction.org_id == org_id, Transaction.type == "EXPENSE", Transaction.date >= since, Transaction.vendor.is_not(None))
+            .where(and_(*filters))
             .group_by(Transaction.vendor)
             .order_by(func.sum(Transaction.amount).desc())
         )
@@ -159,23 +425,35 @@ class AlertsService:
         top_vendor, top_amt = rows[0]
         share = (Decimal(top_amt) / total * Decimal("100")) if total > 0 else Decimal("0")
         if share >= threshold_pct:
+            suffix = self._location_suffix(location)
             return await self._create_if_new(
                 Alert(
                     org_id=org_id,
+                    location_id=location.id if location else None,
                     kind="PROFIT_LEAK",
                     severity="MEDIUM",
-                    title="Vendor concentration risk",
-                    description=f"Top vendor {top_vendor} accounts for {share.quantize(Decimal('0.01'))}% of spend.",
-                    meta={"vendor": top_vendor, "share_pct": str(share.quantize(Decimal('0.01')))},
+                    title=f"Vendor concentration risk{suffix}",
+                    description=f"Top vendor {top_vendor} accounts for {share.quantize(Decimal('0.01'))}% of spend{suffix}.",
+                    meta={
+                        "vendor": top_vendor,
+                        "share_pct": str(share.quantize(Decimal("0.01"))),
+                        **self._location_meta(location),
+                    },
                 ),
             )
         return 0
 
-    async def _detect_misc_growth(self, org_id, growth_multiplier: Decimal):
+    async def _detect_misc_growth(self, org_id, growth_multiplier: Decimal, *, location: Location | None):
         month_expr = func.date_trunc("month", Transaction.date)
+        filters = [
+            Transaction.org_id == org_id,
+            Transaction.type == "EXPENSE",
+            Transaction.category.ilike("misc%"),
+            *self._location_filters(location),
+        ]
         q = await self.db.execute(
             select(month_expr, func.sum(Transaction.amount))
-            .where(Transaction.org_id == org_id, Transaction.type == "EXPENSE", Transaction.category.ilike("misc%"))
+            .where(and_(*filters))
             .group_by(month_expr)
             .order_by(month_expr)
         )
@@ -185,52 +463,100 @@ class AlertsService:
         baseline = sum(vals[:-1]) / Decimal(str(len(vals) - 1))
         latest = vals[-1]
         if baseline > 0 and latest > baseline * growth_multiplier:
+            suffix = self._location_suffix(location)
             return await self._create_if_new(
                 Alert(
                     org_id=org_id,
+                    location_id=location.id if location else None,
                     kind="PROFIT_LEAK",
                     severity="MEDIUM",
-                    title="Misc category growth",
-                    description="Misc expenses are growing faster than baseline.",
-                    meta={"baseline": str(baseline), "latest": str(latest)},
+                    title=f"Misc category growth{suffix}",
+                    description=f"Misc expenses are growing faster than baseline{suffix}.",
+                    meta={
+                        "baseline": str(baseline),
+                        "latest": str(latest),
+                        **self._location_meta(location),
+                    },
                 ),
             )
         return 0
 
-    async def _detect_margin_decline(self, org_id):
-        q = await self.db.execute(
-            select(MonthlyAggregate)
-            .where(MonthlyAggregate.org_id == org_id)
-            .order_by(MonthlyAggregate.year_month.desc())
-            .limit(2)
-        )
-        rows = list(q.scalars().all())
-        if len(rows) < 2:
-            return 0
-        latest, prev = rows[0], rows[1]
-        if latest.net_total < prev.net_total:
+    async def _detect_margin_decline(self, org_id, *, location: Location | None):
+        if location is None:
+            q = await self.db.execute(
+                select(MonthlyAggregate)
+                .where(MonthlyAggregate.org_id == org_id)
+                .order_by(MonthlyAggregate.year_month.desc())
+                .limit(2)
+            )
+            rows = list(q.scalars().all())
+            if len(rows) < 2:
+                return 0
+            latest, prev = rows[0], rows[1]
+            latest_net = Decimal(str(latest.net_total))
+            prev_net = Decimal(str(prev.net_total))
+        else:
+            month_expr = func.date_trunc("month", Transaction.date).label("month_start")
+            q = await self.db.execute(
+                select(
+                    month_expr,
+                    func.coalesce(
+                        func.sum(
+                            case(
+                                (Transaction.type == "REVENUE", Transaction.amount),
+                                else_=-Transaction.amount,
+                            )
+                        ),
+                        0,
+                    ).label("net_total"),
+                )
+                .where(
+                    and_(
+                        Transaction.org_id == org_id,
+                        Transaction.location_id == location.id,
+                    )
+                )
+                .group_by(month_expr)
+                .order_by(month_expr.desc())
+                .limit(2)
+            )
+            rows = q.all()
+            if len(rows) < 2:
+                return 0
+            latest_net = Decimal(str(rows[0].net_total or 0))
+            prev_net = Decimal(str(rows[1].net_total or 0))
+
+        if latest_net < prev_net:
+            suffix = self._location_suffix(location)
             return await self._create_if_new(
                 Alert(
                     org_id=org_id,
+                    location_id=location.id if location else None,
                     kind="PROFIT_LEAK",
                     severity="HIGH",
-                    title="Margin decline detected",
-                    description="Net profit trend is declining month-over-month.",
-                    meta={"previous_net": str(prev.net_total), "latest_net": str(latest.net_total)},
+                    title=f"Margin decline detected{suffix}",
+                    description=f"Net profit trend is declining month-over-month{suffix}.",
+                    meta={
+                        "previous_net": str(prev_net),
+                        "latest_net": str(latest_net),
+                        **self._location_meta(location),
+                    },
                 ),
             )
         return 0
 
-    async def _detect_subscription_creep(self, org_id):
+    async def _detect_subscription_creep(self, org_id, *, location: Location | None):
         month_expr = func.date_trunc("month", Transaction.date)
+        filters = [
+            Transaction.org_id == org_id,
+            Transaction.type == "EXPENSE",
+            Transaction.vendor.is_not(None),
+            Transaction.category.ilike("%subscription%"),
+            *self._location_filters(location),
+        ]
         q = await self.db.execute(
             select(Transaction.vendor, month_expr, func.sum(Transaction.amount))
-            .where(
-                Transaction.org_id == org_id,
-                Transaction.type == "EXPENSE",
-                Transaction.vendor.is_not(None),
-                Transaction.category.ilike("%subscription%"),
-            )
+            .where(and_(*filters))
             .group_by(Transaction.vendor, month_expr)
             .order_by(Transaction.vendor, month_expr)
         )
@@ -240,14 +566,26 @@ class AlertsService:
 
         for vendor, vals in by_vendor.items():
             if len(vals) >= 3 and vals[-1] > vals[-2] > vals[-3]:
+                suffix = self._location_suffix(location)
                 return await self._create_if_new(
                     Alert(
                         org_id=org_id,
+                        location_id=location.id if location else None,
                         kind="PROFIT_LEAK",
                         severity="MEDIUM",
-                        title="Subscription creep",
-                        description=f"Recurring spend with {vendor} is increasing for 3+ months.",
-                        meta={"vendor": vendor, "series": [str(v) for v in vals[-3:]]},
+                        title=f"Subscription creep{suffix}",
+                        description=f"Recurring spend with {vendor} is increasing for 3+ months{suffix}.",
+                        meta={
+                            "vendor": vendor,
+                            "series": [str(v) for v in vals[-3:]],
+                            **self._location_meta(location),
+                        },
                     ),
                 )
         return 0
+
+
+    async def recompute(self, org_id):
+        await self.repo.clear_open(org_id)
+        return await self.detect_and_create(org_id)
+

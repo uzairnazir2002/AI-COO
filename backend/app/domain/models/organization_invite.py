@@ -17,7 +17,7 @@ class OrganizationInvite(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     )
 
     org_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=False)
-    email: Mapped[str] = mapped_column(String(255), nullable=False)
+    email: Mapped[str] = mapped_column(String(1024), nullable=False)
     role: Mapped[str] = mapped_column(String(16), nullable=False)
     invited_by: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
     token_hash: Mapped[str] = mapped_column(String(255), nullable=False)

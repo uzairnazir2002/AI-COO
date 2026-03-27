@@ -1,0 +1,16 @@
+﻿date,amount,type,category,vendor,notes
+2026-01-02,12500.00,REVENUE,Sales,Stripe,January subscription receipts
+2026-01-03,420.50,EXPENSE,Software,Notion,Team workspace plan
+2026-01-05,1800.00,EXPENSE,Payroll,Remote Payroll,Contractor payout week 1
+2026-01-07,350.00,EXPENSE,Marketing,Meta Ads,Lead campaign set A
+2026-01-09,9800.00,REVENUE,Sales,Upwork,Project milestone payment
+2026-01-10,210.75,EXPENSE,Operations,Amazon,Office supplies restock
+2026-01-12,95.00,EXPENSE,Subscriptions,Figma,Design tool monthly renewal
+2026-01-15,6400.00,REVENUE,Consulting,Direct Client,Advisory retainer
+2026-01-18,520.00,EXPENSE,Travel,Uber,Client meeting transport
+2026-01-20,2750.00,EXPENSE,Payroll,Remote Payroll,Contractor payout week 2
+2026-01-23,11400.00,REVENUE,Sales,Stripe,Quarterly annual-plan upsells
+2026-01-25,460.00,EXPENSE,Utilities,K-Electric,Office electricity bill
+2026-01-27,320.00,EXPENSE,Internet,PTCL,Business internet monthly
+2026-01-29,1300.00,EXPENSE,Legal,Lexis Consultants,Contract review
+2026-01-31,8700.00,REVENUE,Sales,Wise,International invoice settlement

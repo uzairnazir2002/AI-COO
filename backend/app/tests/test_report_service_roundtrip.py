@@ -24,11 +24,20 @@ class _FakeRepo:
         self.db = object()
         self.saved = []
 
-    async def list_reports(self, org_id):
+    async def list_reports(self, org_id, *, location_id=None):
         return self.saved
 
-    async def get_by_week(self, org_id, week_start):
-        return next((r for r in self.saved if r.org_id == org_id and r.week_start == week_start), None)
+    async def get_by_week(self, org_id, week_start, *, location_id=None):
+        return next(
+            (
+                r
+                for r in self.saved
+                if r.org_id == org_id
+                and r.week_start == week_start
+                and r.location_id == location_id
+            ),
+            None,
+        )
 
     async def save(self, report):
         report.id = uuid4()
@@ -47,6 +56,7 @@ async def test_report_generate_and_download_roundtrip(monkeypatch):
 
     class _Cfg:
         minio_bucket = "reports"
+        minio_public_base_url = ""
 
     monkeypatch.setattr("app.domain.services.report_service.get_settings", lambda: _Cfg())
 
@@ -79,3 +89,23 @@ async def test_report_generate_and_download_roundtrip(monkeypatch):
     assert len(fake_s3.objects) == 1
     stored_pdf = next(iter(fake_s3.objects.values()))
     assert stored_pdf.startswith(b"%PDF")
+
+
+@pytest.mark.asyncio
+async def test_report_download_url_uses_public_minio_base(monkeypatch):
+    fake_s3 = _FakeS3()
+    repo = _FakeRepo()
+    svc = ReportService(repo)
+
+    monkeypatch.setattr("app.domain.services.report_service.s3_client", lambda: fake_s3)
+
+    class _Cfg:
+        minio_bucket = "reports"
+        minio_public_base_url = "http://localhost:9000"
+
+    monkeypatch.setattr("app.domain.services.report_service.get_settings", lambda: _Cfg())
+
+    report = SimpleNamespace(file_key="reports/org/2026-03-06.pdf")
+    url = await svc.download_url(report)
+    assert url.startswith("http://localhost:9000/reports/reports/org/2026-03-06.pdf")
+    assert "exp=3600" in url

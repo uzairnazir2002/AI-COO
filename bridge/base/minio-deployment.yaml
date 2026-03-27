@@ -1,0 +1,51 @@
+#! minio-deployment.yaml
+# Generated code, do not edit
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+    name: minio
+    namespace: ai-coo
+    labels:
+        com.docker.compose.project: ai-coo
+        com.docker.compose.service: minio
+spec:
+    replicas: 1
+    selector:
+        matchLabels:
+            com.docker.compose.project: ai-coo
+            com.docker.compose.service: minio
+    strategy:
+        type: Recreate
+    template:
+        metadata:
+            labels:
+                com.docker.compose.project: ai-coo
+                com.docker.compose.service: minio
+                com.docker.compose.network.default: "true"
+        spec:
+            containers:
+                - name: minio
+                  image: minio/minio:latest
+                  imagePullPolicy: IfNotPresent
+                  args:
+                    - server
+                    - /data
+                    - --console-address
+                    - :9001
+                  env:
+                    - name: MINIO_ROOT_PASSWORD
+                      value: "minioadmin"
+                    - name: MINIO_ROOT_USER
+                      value: "minioadmin"
+                  ports:
+                    - name: minio-9000
+                      containerPort: 9000
+                    - name: minio-9001
+                      containerPort: 9001
+                  volumeMounts:
+                    - name: data
+                      mountPath: /data
+            volumes:
+                - name: data
+                  persistentVolumeClaim:
+                    claimName: minio-miniodata

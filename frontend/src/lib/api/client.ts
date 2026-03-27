@@ -3,6 +3,7 @@
 import { z } from "zod";
 
 import { apiPaths } from "@/lib/api/endpoints";
+import { emitApiClientEvent } from "@/lib/api/events";
 import { meSchema, tokenSchema, type MeResponse, type TokenResponse } from "@/lib/api/schemas";
 import { clearTokens, getAccessToken, getRefreshToken, setTokens } from "@/lib/auth/tokens";
 
@@ -28,6 +29,19 @@ export class ApiError extends Error {
 }
 
 let refreshPromise: Promise<string | null> | null = null;
+let lastAuthExpiredEventAt = 0;
+
+function emitAuthExpired(path: string, message: string, status = 401) {
+  const now = Date.now();
+  if (now - lastAuthExpiredEventAt < 2000) return;
+  lastAuthExpiredEventAt = now;
+  emitApiClientEvent({
+    kind: "auth_expired",
+    path,
+    status,
+    message,
+  });
+}
 
 function readCookie(name: string): string | null {
   if (typeof document === "undefined") return null;
@@ -47,8 +61,8 @@ function withCsrf(headers: Headers, method: string | undefined) {
 async function parseError(res: Response): Promise<ApiError> {
   const raw = await res.text();
   try {
-    const parsed = JSON.parse(raw) as { detail?: string };
-    return new ApiError(parsed.detail || raw || res.statusText, res.status, parsed);
+    const parsed = JSON.parse(raw) as { detail?: string; message?: string };
+    return new ApiError(parsed.message || parsed.detail || raw || res.statusText, res.status, parsed);
   } catch {
     return new ApiError(raw || res.statusText, res.status);
   }
@@ -58,6 +72,11 @@ async function refreshToken(): Promise<string | null> {
   if (refreshPromise) return refreshPromise;
 
   refreshPromise = (async () => {
+    if (!cookieMode && !getRefreshToken()) {
+      clearTokens();
+      return null;
+    }
+
     const body = cookieMode
       ? {}
       : (() => {
@@ -96,7 +115,11 @@ async function refreshToken(): Promise<string | null> {
   }
 }
 
-export async function api<T>(path: string, options?: ApiOptions): Promise<T> {
+type ApiRawOptions = RequestInit & {
+  skipAuth?: boolean;
+};
+
+export async function apiFetchRaw(path: string, options?: ApiRawOptions): Promise<Response> {
   const headers = new Headers(options?.headers ?? {});
   const method = options?.method || "GET";
 
@@ -112,19 +135,31 @@ export async function api<T>(path: string, options?: ApiOptions): Promise<T> {
   headers.set("X-Request-ID", crypto.randomUUID());
   withCsrf(headers, method);
 
-  const run = () =>
-    fetch(`${baseUrl}${path}`, {
-      ...options,
-      method,
-      headers,
-      credentials: "include",
-      cache: "no-store",
-    });
+  const run = async () => {
+    try {
+      return await fetch(`${baseUrl}${path}`, {
+        ...options,
+        method,
+        headers,
+        credentials: "include",
+        cache: "no-store",
+      });
+    } catch (err) {
+      emitApiClientEvent({
+        kind: "network_error",
+        path,
+        status: 0,
+        message: "Network request failed. Check API availability or CORS configuration.",
+      });
+      throw new ApiError(err instanceof Error ? err.message : "Network request failed", 0);
+    }
+  };
 
   let res = await run();
   if (res.status === 401 && !options?.skipAuth) {
     const refreshed = await refreshToken();
     if (!refreshed) {
+      emitAuthExpired(path, "Session expired. Please sign in again.");
       throw await parseError(res);
     }
     if (!cookieMode && refreshed !== "cookie-auth") {
@@ -135,8 +170,17 @@ export async function api<T>(path: string, options?: ApiOptions): Promise<T> {
   }
 
   if (!res.ok) {
+    if (res.status === 401 && !options?.skipAuth) {
+      emitAuthExpired(path, "Session expired. Please sign in again.");
+    }
     throw await parseError(res);
   }
+
+  return res;
+}
+
+export async function api<T>(path: string, options?: ApiOptions): Promise<T> {
+  const res = await apiFetchRaw(path, options);
 
   if (res.status === 204) {
     return undefined as T;
@@ -155,9 +199,12 @@ export async function bootstrapSession(): Promise<MeResponse> {
 
 export async function logout(refreshTokenValue?: string) {
   const body = cookieMode ? {} : { refresh_token: refreshTokenValue ?? getRefreshToken() };
-  await api<{ ok: boolean }>(apiPaths.logout, {
-    method: "POST",
-    body: JSON.stringify(body),
-  });
-  clearTokens();
+  try {
+    await api<{ ok: boolean }>(apiPaths.logout, {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  } finally {
+    clearTokens();
+  }
 }

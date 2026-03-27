@@ -20,9 +20,15 @@ class OrganizationSetting(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     vendor_concentration_threshold_pct: Mapped[Decimal] = mapped_column(
         Numeric(5, 2), default=Decimal("50.00"), nullable=False
     )
+    budget_variance_alert_threshold_pct: Mapped[Decimal] = mapped_column(
+        Numeric(6, 2), default=Decimal("10.00"), nullable=False
+    )
     misc_growth_multiplier: Mapped[Decimal] = mapped_column(
         Numeric(5, 2), default=Decimal("1.40"), nullable=False
     )
     anomaly_spike_multiplier: Mapped[Decimal] = mapped_column(
         Numeric(5, 2), default=Decimal("1.50"), nullable=False
     )
+    owner_mfa_required: Mapped[bool] = mapped_column(default=False, nullable=False)
+    owner_session_max_minutes: Mapped[int] = mapped_column(Integer, default=120, nullable=False)
+    sensitive_action_reauth_minutes: Mapped[int] = mapped_column(Integer, default=30, nullable=False)

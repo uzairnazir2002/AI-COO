@@ -32,6 +32,8 @@ services:
       context: ./backend
     env_file:
       - ${ENV_FILE:-.env}
+    environment:
+      APP_ROLE: api
     depends_on:
       - postgres
       - redis
@@ -46,11 +48,13 @@ services:
       dockerfile: ./worker/Dockerfile
     env_file:
       - ${ENV_FILE:-.env}
+    environment:
+      APP_ROLE: worker
     depends_on:
       - postgres
       - redis
       - minio
-    command: celery -A app.jobs.celery_app.celery_app worker --loglevel=INFO
+    command: celery -A app.jobs.celery_app.celery_app worker --loglevel=INFO --concurrency=${WORKER_CONCURRENCY:-3} --prefetch-multiplier=${WORKER_PREFETCH_MULTIPLIER:-1}
 
   beat:
     build:
@@ -58,6 +62,8 @@ services:
       dockerfile: ./worker/Dockerfile
     env_file:
       - ${ENV_FILE:-.env}
+    environment:
+      APP_ROLE: beat
     depends_on:
       - postgres
       - redis

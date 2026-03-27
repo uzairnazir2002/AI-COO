@@ -7,10 +7,18 @@ from app.domain.services.analytics_service import AnalyticsService
 
 
 class Repo:
-    async def month_totals(self, org_id, month):
-        return Decimal("1000"), Decimal("1200")
+    async def summary_snapshot(self, org_id, month_start, **_kwargs):
+        _ = (org_id, month_start)
+        return {
+            "starting_cash": Decimal("5200"),
+            "revenue_total": Decimal("1000"),
+            "expense_total": Decimal("1200"),
+            "revenue_mtd": Decimal("1000"),
+            "expense_mtd": Decimal("1200"),
+            "alerts_open": 3,
+        }
 
-    async def cash_balance(self, org_id):
+    async def cash_balance(self, org_id, **_kwargs):
         return Decimal("5000")
 
     async def alerts_open_count(self, org_id):

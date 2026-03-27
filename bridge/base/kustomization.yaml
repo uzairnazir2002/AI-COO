@@ -1,0 +1,26 @@
+#! kustomization.yaml
+# Generated code, do not edit
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+    - 0-ai-coo-namespace.yaml
+    - backend-deployment.yaml
+    - backend-expose.yaml
+    - backend-service.yaml
+    - beat-deployment.yaml
+    - default-network-policy.yaml
+    - frontend-deployment.yaml
+    - frontend-expose.yaml
+    - frontend-service.yaml
+    - minio-deployment.yaml
+    - minio-expose.yaml
+    - minio-miniodata-persistentVolumeClaim.yaml
+    - minio-service.yaml
+    - postgres-deployment.yaml
+    - postgres-expose.yaml
+    - postgres-pgdata-persistentVolumeClaim.yaml
+    - postgres-service.yaml
+    - redis-deployment.yaml
+    - redis-expose.yaml
+    - redis-service.yaml
+    - worker-deployment.yaml

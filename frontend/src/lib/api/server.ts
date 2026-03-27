@@ -1,6 +1,10 @@
 import { cookies } from "next/headers";
 
-const baseUrl = process.env.NEXT_PUBLIC_API_URL || process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000";
+const baseUrl =
+  process.env.NEXT_INTERNAL_API_URL ||
+  process.env.NEXT_PUBLIC_API_URL ||
+  process.env.NEXT_PUBLIC_API_BASE_URL ||
+  "http://localhost:8000";
 const selectedOrgCookie = "ai_coo_selected_org";
 
 export async function getServerSelectedOrgId() {

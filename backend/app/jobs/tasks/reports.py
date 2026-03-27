@@ -1,4 +1,3 @@
-import asyncio
 import uuid
 from datetime import date, timedelta
 
@@ -7,27 +6,41 @@ from celery import shared_task
 from sqlalchemy import select
 
 from app.db.session import SessionLocal
-from app.domain.models.job_state import JobState
-from app.domain.models.membership import Membership
 from app.domain.models.organization import Organization
-from app.domain.models.user import User
 from app.domain.repos.report_repo import ReportRepo
+from app.domain.repos.schedule_repo import ScheduleRepo
 from app.domain.services.report_service import ReportService
-from app.jobs.tasks.emails import send_email_task
-from app.utils.time import utc_now
+from app.jobs.async_runtime import run_async
+from app.jobs.task_tracking import run_tracked_task
 
 logger = structlog.get_logger(__name__)
 
 
-@shared_task(bind=True, autoretry_for=(Exception,), retry_backoff=True, retry_kwargs={"max_retries": 5})
+@shared_task(bind=True)
 def generate_weekly_report(
     self,
     org_id: str,
     week_start: str,
     created_by: str | None = None,
     correlation_id: str | None = None,
+    location_id: str | None = None,
 ):
-    return asyncio.run(_generate(org_id, week_start, created_by, correlation_id))
+    return run_tracked_task(
+        self,
+        org_id=org_id,
+        task_name="generate_weekly_report",
+        dedupe_key=f"report:{org_id}:{location_id or 'global'}:{week_start}",
+        payload={
+            "org_id": org_id,
+            "location_id": location_id,
+            "week_start": week_start,
+            "created_by": created_by,
+        },
+        correlation_id=correlation_id,
+        max_retries=5,
+        runner=lambda: _generate(org_id, week_start, created_by, correlation_id, location_id),
+        result_payload_builder=lambda report_id: {"report_id": report_id},
+    )
 
 
 async def _generate(
@@ -35,53 +48,22 @@ async def _generate(
     week_start: str,
     created_by: str | None = None,
     correlation_id: str | None = None,
+    location_id: str | None = None,
 ):
-    dedupe = f"report:{org_id}:{week_start}"
     org_uuid = uuid.UUID(org_id)
     async with SessionLocal() as db:
-        state = await db.scalar(select(JobState).where(JobState.dedupe_key == dedupe))
-        if not state:
-            state = JobState(
-                job_name="generate_weekly_report",
-                dedupe_key=dedupe,
-                status="RUNNING",
-                payload={"org_id": org_id, "week_start": week_start, "correlation_id": correlation_id},
-            )
-            db.add(state)
-        else:
-            state.status = "RUNNING"
-            state.updated_at = utc_now()
-
         svc = ReportService(ReportRepo(db))
         report = await svc.generate(
             org_uuid,
             date.fromisoformat(week_start),
             uuid.UUID(created_by) if created_by else None,
+            location_id=uuid.UUID(location_id) if location_id else None,
         )
-        report_url = await svc.download_url(report)
-        recipients = await db.execute(
-            select(User.email)
-            .join(Membership, Membership.user_id == User.id)
-            .where(
-                Membership.org_id == org_uuid,
-                Membership.role.in_(["OWNER", "EDITOR"]),
-                User.is_active.is_(True),
-            )
-        )
-        for email in recipients.scalars().all():
-            send_email_task.delay(
-                email,
-                f"AI COO weekly report ({week_start})",
-                f"Your weekly report is ready: {report_url}",
-                correlation_id,
-            )
-        state.status = "DONE"
-        state.result = {"report_id": str(report.id)}
-        state.updated_at = utc_now()
         await db.commit()
     logger.info(
         "weekly_report_generated",
         org_id=org_id,
+        location_id=location_id,
         week_start=week_start,
         correlation_id=correlation_id,
         report_id=str(report.id),
@@ -91,16 +73,19 @@ async def _generate(
 
 @shared_task(bind=True)
 def generate_all_org_reports(self):
-    return asyncio.run(_for_all())
+    return run_async(_for_all())
 
 
 async def _for_all():
     today = date.today()
     week_start = today - timedelta(days=today.weekday() + 7)
     async with SessionLocal() as db:
+        control = await ScheduleRepo(db).get("weekly-reports")
+        if control and control.paused:
+            return 0
         rows = await db.execute(select(Organization.id))
         org_ids = [str(r[0]) for r in rows.all()]
     for oid in org_ids:
-        generate_weekly_report.delay(oid, week_start.isoformat(), None, None)
+        generate_weekly_report.delay(oid, week_start.isoformat(), None, None, None)
     logger.info("weekly_report_fanout", org_count=len(org_ids), week_start=week_start.isoformat())
     return len(org_ids)

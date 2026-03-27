@@ -1,0 +1,470 @@
+
+> ai-coo-frontend@0.1.0 dev
+> next dev --port 3001
+
+   ▲ Next.js 15.5.12
+   - Local:        http://localhost:3001
+   - Network:      http://192.168.1.19:3001
+   - Experiments (use with caution):
+     · optimizePackageImports
+
+ ✓ Starting...
+ ✓ Ready in 17.5s
+ ○ Compiling /app/dashboard ...
+ ✓ Compiled /app/dashboard in 32s (3108 modules)
+ GET /app/dashboard 200 in 34672ms
+ ○ Compiling /app/transactions ...
+ ✓ Compiled /app/transactions in 4.5s (3127 modules)
+ GET /app/transactions 200 in 5897ms
+ GET /app/dashboard 200 in 429ms
+ GET /app/transactions 200 in 207ms
+ GET /app/dashboard 200 in 527ms
+ GET /app/transactions 200 in 390ms
+ ○ Compiling /app/reports ...
+ ✓ Compiled /app/reports in 6.4s (3129 modules)
+ GET /app/reports 200 in 8470ms
+ GET /app/dashboard 200 in 1019ms
+ GET /app/transactions 200 in 407ms
+ GET /app/reports 200 in 718ms
+ GET /app/dashboard 200 in 230ms
+ GET /app/transactions 200 in 237ms
+ GET /app/reports 200 in 267ms
+ GET /app/dashboard 200 in 420ms
+ GET /app/transactions 200 in 422ms
+ GET /app/dashboard 200 in 326ms
+ GET /app/transactions 200 in 299ms
+ GET /app/dashboard 200 in 335ms
+ GET /app/transactions 200 in 261ms
+ ○ Compiling /app/forecast ...
+ ✓ Compiled /app/forecast in 4.7s (3160 modules)
+ GET /app/forecast 200 in 7254ms
+ GET /app/dashboard 200 in 577ms
+ GET /app/transactions 200 in 286ms
+ GET /app/dashboard 200 in 578ms
+ GET /app/transactions 200 in 326ms
+ GET /app/dashboard 200 in 421ms
+ GET /app/transactions 200 in 362ms
+ GET /app/reports 200 in 807ms
+ GET /app/dashboard 200 in 842ms
+ GET /app/transactions 200 in 445ms
+ GET /app/dashboard 200 in 447ms
+ GET /app/transactions 200 in 446ms
+ GET /app/forecast 200 in 354ms
+ GET /app/dashboard 200 in 423ms
+ GET /app/transactions 200 in 139ms
+ ○ Compiling / ...
+ ✓ Compiled / in 5.1s (3170 modules)
+ GET / 307 in 6895ms
+ ○ Compiling /auth/login ...
+ ✓ Compiled /auth/login in 8.7s (3186 modules)
+ GET /auth/login 200 in 9625ms
+ GET /app/dashboard 200 in 379ms
+ GET /app/dashboard 200 in 579ms
+ GET /app/transactions 200 in 653ms
+ GET /app/transactions 200 in 1089ms
+ GET /app/reports 200 in 1457ms
+ GET /app/dashboard 200 in 3347ms
+ GET /app/transactions 200 in 649ms
+ GET /app/dashboard 200 in 804ms
+ GET /app/transactions 200 in 693ms
+ GET /app/forecast 200 in 908ms
+ GET /app/dashboard 200 in 524ms
+ GET /app/transactions 200 in 330ms
+ ○ Compiling /auth/register ...
+ ✓ Compiled /auth/register in 8.6s (3190 modules)
+ GET /auth/register 200 in 9333ms
+ GET /auth/register 200 in 122ms
+ GET /auth/register 200 in 106ms
+ GET /auth/login 200 in 189ms
+ GET /auth/login 200 in 1208ms
+ ⨯ Error: Cannot find module './599.js'
+Require stack:
+- C:\Project\AI COO\ai-coo\frontend\.next\server\webpack-runtime.js
+- C:\Project\AI COO\ai-coo\frontend\.next\server\app\auth\register\page.js
+- C:\Project\AI COO\ai-coo\frontend\node_modules\next\dist\server\require.js
+- C:\Project\AI COO\ai-coo\frontend\node_modules\next\dist\server\load-components.js
+- C:\Project\AI COO\ai-coo\frontend\node_modules\next\dist\build\utils.js
+- C:\Project\AI COO\ai-coo\frontend\node_modules\next\dist\build\swc\options.js
+- C:\Project\AI COO\ai-coo\frontend\node_modules\next\dist\build\swc\index.js
+- C:\Project\AI COO\ai-coo\frontend\node_modules\next\dist\build\analysis\parse-module.js
+- C:\Project\AI COO\ai-coo\frontend\node_modules\next\dist\build\analysis\get-page-static-info.js
+- C:\Project\AI COO\ai-coo\frontend\node_modules\next\dist\server\lib\router-utils\setup-dev-bundler.js
+- C:\Project\AI COO\ai-coo\frontend\node_modules\next\dist\server\lib\router-server.js
+- C:\Project\AI COO\ai-coo\frontend\node_modules\next\dist\server\lib\start-server.js
+    at <unknown> (C:\Project\AI COO\ai-coo\frontend\.next\server\app\app\dashboard\page.js:2:15224)
+    at Object.<anonymous> (C:\Project\AI COO\ai-coo\frontend\.next\server\app\app\dashboard\page.js:2:15293) {
+  code: 'MODULE_NOT_FOUND',
+  requireStack: [Array],
+  page: '/app/dashboard'
+}
+ ○ Compiling /_error ...
+ ⨯ Error: Cannot find module './599.js'
+Require stack:
+- C:\Project\AI COO\ai-coo\frontend\.next\server\webpack-runtime.js
+- C:\Project\AI COO\ai-coo\frontend\.next\server\app\auth\register\page.js
+- C:\Project\AI COO\ai-coo\frontend\node_modules\next\dist\server\require.js
+- C:\Project\AI COO\ai-coo\frontend\node_modules\next\dist\server\load-components.js
+- C:\Project\AI COO\ai-coo\frontend\node_modules\next\dist\build\utils.js
+- C:\Project\AI COO\ai-coo\frontend\node_modules\next\dist\build\swc\options.js
+- C:\Project\AI COO\ai-coo\frontend\node_modules\next\dist\build\swc\index.js
+- C:\Project\AI COO\ai-coo\frontend\node_modules\next\dist\build\analysis\parse-module.js
+- C:\Project\AI COO\ai-coo\frontend\node_modules\next\dist\build\analysis\get-page-static-info.js
+- C:\Project\AI COO\ai-coo\frontend\node_modules\next\dist\server\lib\router-utils\setup-dev-bundler.js
+- C:\Project\AI COO\ai-coo\frontend\node_modules\next\dist\server\lib\router-server.js
+- C:\Project\AI COO\ai-coo\frontend\node_modules\next\dist\server\lib\start-server.js
+    at <unknown> (C:\Project\AI COO\ai-coo\frontend\.next\server\app\app\dashboard\page.js:2:15224)
+    at Object.<anonymous> (C:\Project\AI COO\ai-coo\frontend\.next\server\app\app\dashboard\page.js:2:15293) {
+  code: 'MODULE_NOT_FOUND',
+  requireStack: [Array],
+  page: '/app/dashboard'
+}
+ ✓ Compiled /_error in 5.6s (3535 modules)
+ GET /auth/login 200 in 3929ms
+ GET /app/dashboard 500 in 8954ms
+ GET /app/dashboard 500 in 7614ms
+ GET /auth/login 200 in 1382ms
+ GET /auth/login 200 in 88ms
+ GET /app/transactions 200 in 2268ms
+ GET /app/transactions 200 in 2265ms
+ GET /app/dashboard 200 in 377ms
+ GET /app/transactions 200 in 371ms
+ GET /app/dashboard 200 in 339ms
+ GET /app/transactions 200 in 300ms
+ GET /app/dashboard 200 in 335ms
+ GET /app/transactions 200 in 359ms
+ GET /app/dashboard 200 in 453ms
+ GET /app/transactions 200 in 376ms
+ GET /app/dashboard 200 in 617ms
+ GET /app/transactions 200 in 965ms
+ GET /app/dashboard 200 in 403ms
+ GET /app/transactions 200 in 471ms
+ GET /app/dashboard 200 in 364ms
+ GET /app/transactions 200 in 302ms
+ GET /app/dashboard 200 in 1173ms
+ GET /app/transactions 200 in 412ms
+ GET /app/dashboard 200 in 384ms
+ GET /app/transactions 200 in 373ms
+ GET /app/dashboard 200 in 360ms
+ GET /app/transactions 200 in 390ms
+ GET /app/dashboard 200 in 466ms
+ GET /app/transactions 200 in 1432ms
+ GET /app/dashboard 200 in 370ms
+ GET /app/transactions 200 in 842ms
+ GET /app/dashboard 200 in 500ms
+ GET /app/transactions 200 in 901ms
+ GET /app/dashboard 200 in 398ms
+ GET /app/transactions 200 in 620ms
+ GET /auth/login 200 in 1199ms
+ GET /auth/login 200 in 778ms
+ GET /app/dashboard 200 in 430ms
+ GET /app/transactions 200 in 764ms
+ GET /app/dashboard 200 in 566ms
+ GET /app/transactions 200 in 350ms
+ GET /app/dashboard 200 in 431ms
+ GET /app/transactions 200 in 609ms
+ GET /app/dashboard 200 in 459ms
+ GET /app/transactions 200 in 410ms
+ GET /app/dashboard 200 in 1072ms
+ GET /app/transactions 200 in 865ms
+ GET /app/dashboard 200 in 1513ms
+ GET /app/transactions 200 in 1672ms
+ GET /app/dashboard 200 in 604ms
+ GET /app/transactions 200 in 632ms
+ GET /app/dashboard 200 in 569ms
+ GET /app/transactions 200 in 1940ms
+ ○ Compiling / ...
+ ✓ Compiled / in 3.1s (1784 modules)
+ GET / 307 in 4856ms
+ GET /auth/login 200 in 800ms
+ GET / 307 in 695ms
+ GET /auth/login 200 in 834ms
+ GET /auth/login 200 in 794ms
+ ✓ Compiled in 10.3s (3420 modules)
+ ✓ Compiled in 6s (3420 modules)
+ ✓ Compiled in 1142ms (1646 modules)
+ ✓ Compiled in 805ms (1646 modules)
+ ✓ Compiled in 539ms (1646 modules)
+ ✓ Compiled in 4s (1646 modules)
+ ✓ Compiled in 4.1s (1649 modules)
+ ✓ Compiled in 838ms (1649 modules)
+ ✓ Compiled in 3.6s (3423 modules)
+ ✓ Compiled in 2.1s (3423 modules)
+ ⨯ ./src/features/dashboard/dashboard-page-client.tsx
+Error: 
+
+Caused by:
+    0: Failed to read source code from C:\Project\AI COO\ai-coo\frontend\src\features\dashboard\dashboard-page-client.tsx
+    1: The system cannot find the file specified. (os error 2)
+
+Import trace for requested module:
+./src/features/dashboard/dashboard-page-client.tsx
+ ✓ Compiled in 5.3s (1648 modules)
+ ✓ Compiled in 4.4s (3439 modules)
+ ✓ Compiled in 1547ms (3439 modules)
+ ✓ Compiled in 3.7s (3411 modules)
+ ✓ Compiled in 4.8s (3397 modules)
+ ✓ Compiled in 972ms (1649 modules)
+ ✓ Compiled in 1067ms (1649 modules)
+ ✓ Compiled in 2.6s (3411 modules)
+ ✓ Compiled in 1860ms (3397 modules)
+ ✓ Compiled in 5.2s (3411 modules)
+ ✓ Compiled in 5.3s (3411 modules)
+ ✓ Compiled in 2.2s (1649 modules)
+ GET /auth/login 200 in 468ms
+ GET /auth/register 200 in 41ms
+ GET /auth/register 200 in 56ms
+ GET /auth/login 200 in 36ms
+ GET /auth/register 200 in 54ms
+ GET /auth/login 200 in 132ms
+ ✓ Compiled in 1811ms (1649 modules)
+ ✓ Compiled in 6.1s (3411 modules)
+ ✓ Compiled in 1778ms (1649 modules)
+ ✓ Compiled in 7.9s (3411 modules)
+ ✓ Compiled in 2.1s (3417 modules)
+ ✓ Compiled in 3.1s (3417 modules)
+ ✓ Compiled in 2.2s (1652 modules)
+ ✓ Compiled in 1376ms (1652 modules)
+ ✓ Compiled in 1278ms (1654 modules)
+ ✓ Compiled in 690ms (1654 modules)
+ ✓ Compiled in 7s (3421 modules)
+ ✓ Compiled in 1272ms (1654 modules)
+ ✓ Compiled in 2.8s (3421 modules)
+ ✓ Compiled in 2.2s (1654 modules)
+ ✓ Compiled in 2.8s (3421 modules)
+ ✓ Compiled in 623ms (1654 modules)
+ ✓ Compiled in 6.4s (3429 modules)
+ ✓ Compiled in 2.3s (3429 modules)
+ ✓ Compiled in 658ms (1658 modules)
+ ✓ Compiled in 1271ms (1658 modules)
+ ✓ Compiled in 1429ms (1659 modules)
+ ✓ Compiled in 477ms (1659 modules)
+ ✓ Compiled in 4.9s (3430 modules)
+ ✓ Compiled in 567ms (1658 modules)
+ ✓ Compiled in 7.4s (3429 modules)
+ ✓ Compiled in 2.9s (3423 modules)
+ ✓ Compiled in 5.7s (3423 modules)
+ ✓ Compiled in 3.3s (3423 modules)
+ ✓ Compiled in 676ms (1655 modules)
+ ✓ Compiled in 6.6s (3429 modules)
+ ✓ Compiled in 6.4s (3433 modules)
+ ✓ Compiled in 9.4s (3433 modules)
+ ✓ Compiled in 771ms (1660 modules)
+ ✓ Compiled in 41.9s (3433 modules)
+ ✓ Compiled in 10.4s (3433 modules)
+ ✓ Compiled in 24.2s (3433 modules)
+ ✓ Compiled in 12.8s (3433 modules)
+ ✓ Compiled in 2.3s (3433 modules)
+ ✓ Compiled in 30.9s (3433 modules)
+ ✓ Compiled in 1094ms (1660 modules)
+ ✓ Compiled in 1116ms (1660 modules)
+ ○ Compiling / ...
+ ✓ Compiled / in 10.7s (1783 modules)
+ ⨯ Error: ENOENT: no such file or directory, open 'C:\Project\AI COO\ai-coo\frontend\.next\server\vendor-chunks\framer-motion.js'
+    at <unknown> (C:\Project\AI COO\ai-coo\frontend\.next\server\app\page.js:377:47)
+    at Object.<anonymous> (C:\Project\AI COO\ai-coo\frontend\.next\server\app\page.js:380:3) {
+  errno: -4058,
+  code: 'ENOENT',
+  syscall: 'open',
+  path: 'C:\\Project\\AI COO\\ai-coo\\frontend\\.next\\server\\vendor-chunks\\framer-motion.js',
+  page: '/'
+}
+ ○ Compiling /_error ...
+ ✓ Compiled /_error in 7.9s (3539 modules)
+ ⨯ Error: Cannot find module './611.js'
+Require stack:
+- C:\Project\AI COO\ai-coo\frontend\.next\server\webpack-runtime.js
+- C:\Project\AI COO\ai-coo\frontend\.next\server\pages\_document.js
+- C:\Project\AI COO\ai-coo\frontend\node_modules\next\dist\server\require.js
+- C:\Project\AI COO\ai-coo\frontend\node_modules\next\dist\server\load-components.js
+- C:\Project\AI COO\ai-coo\frontend\node_modules\next\dist\build\utils.js
+- C:\Project\AI COO\ai-coo\frontend\node_modules\next\dist\build\swc\options.js
+- C:\Project\AI COO\ai-coo\frontend\node_modules\next\dist\build\swc\index.js
+- C:\Project\AI COO\ai-coo\frontend\node_modules\next\dist\build\analysis\parse-module.js
+- C:\Project\AI COO\ai-coo\frontend\node_modules\next\dist\build\analysis\get-page-static-info.js
+- C:\Project\AI COO\ai-coo\frontend\node_modules\next\dist\server\lib\router-utils\setup-dev-bundler.js
+- C:\Project\AI COO\ai-coo\frontend\node_modules\next\dist\server\lib\router-server.js
+- C:\Project\AI COO\ai-coo\frontend\node_modules\next\dist\server\lib\start-server.js
+    at <unknown> (C:\Project\AI COO\ai-coo\frontend\.next\server\pages\_document.js:1:325)
+    at Object.<anonymous> (C:\Project\AI COO\ai-coo\frontend\.next\server\pages\_document.js:1:371) {
+  code: 'MODULE_NOT_FOUND',
+  requireStack: [Array]
+}
+ ○ Compiling /auth/confirm ...
+ ✓ Compiled /auth/confirm in 5.1s (3537 modules)
+ ⨯ Error: ENOENT: no such file or directory, open 'C:\Project\AI COO\ai-coo\frontend\.next\server\vendor-chunks\framer-motion.js'
+    at <unknown> (C:\Project\AI COO\ai-coo\frontend\.next\server\app\auth\confirm\page.js:476:47)
+    at Object.<anonymous> (C:\Project\AI COO\ai-coo\frontend\.next\server\app\auth\confirm\page.js:479:3) {
+  errno: -4058,
+  code: 'ENOENT',
+  syscall: 'open',
+  path: 'C:\\Project\\AI COO\\ai-coo\\frontend\\.next\\server\\vendor-chunks\\framer-motion.js',
+  page: '/auth/confirm'
+}
+ ⨯ Error: Cannot find module './611.js'
+Require stack:
+- C:\Project\AI COO\ai-coo\frontend\.next\server\webpack-runtime.js
+- C:\Project\AI COO\ai-coo\frontend\.next\server\app\auth\confirm\page.js
+- C:\Project\AI COO\ai-coo\frontend\node_modules\next\dist\server\require.js
+- C:\Project\AI COO\ai-coo\frontend\node_modules\next\dist\server\load-components.js
+- C:\Project\AI COO\ai-coo\frontend\node_modules\next\dist\build\utils.js
+- C:\Project\AI COO\ai-coo\frontend\node_modules\next\dist\build\swc\options.js
+- C:\Project\AI COO\ai-coo\frontend\node_modules\next\dist\build\swc\index.js
+- C:\Project\AI COO\ai-coo\frontend\node_modules\next\dist\build\analysis\parse-module.js
+- C:\Project\AI COO\ai-coo\frontend\node_modules\next\dist\build\analysis\get-page-static-info.js
+- C:\Project\AI COO\ai-coo\frontend\node_modules\next\dist\server\lib\router-utils\setup-dev-bundler.js
+- C:\Project\AI COO\ai-coo\frontend\node_modules\next\dist\server\lib\router-server.js
+- C:\Project\AI COO\ai-coo\frontend\node_modules\next\dist\server\lib\start-server.js
+    at <unknown> (C:\Project\AI COO\ai-coo\frontend\.next\server\pages\_document.js:1:325)
+    at Object.<anonymous> (C:\Project\AI COO\ai-coo\frontend\.next\server\pages\_document.js:1:371) {
+  code: 'MODULE_NOT_FOUND',
+  requireStack: [Array]
+}
+ GET /auth/confirm 500 in 5740ms
+ ⨯ Error: ENOENT: no such file or directory, open 'C:\Project\AI COO\ai-coo\frontend\.next\server\vendor-chunks\framer-motion.js'
+    at <unknown> (C:\Project\AI COO\ai-coo\frontend\.next\server\app\auth\register\page.js:476:47)
+    at Object.<anonymous> (C:\Project\AI COO\ai-coo\frontend\.next\server\app\auth\register\page.js:479:3) {
+  errno: -4058,
+  code: 'ENOENT',
+  syscall: 'open',
+  path: 'C:\\Project\\AI COO\\ai-coo\\frontend\\.next\\server\\vendor-chunks\\framer-motion.js',
+  page: '/auth/register'
+}
+ ⨯ Error: Cannot find module './611.js'
+Require stack:
+- C:\Project\AI COO\ai-coo\frontend\.next\server\webpack-runtime.js
+- C:\Project\AI COO\ai-coo\frontend\.next\server\app\auth\confirm\page.js
+- C:\Project\AI COO\ai-coo\frontend\node_modules\next\dist\server\require.js
+- C:\Project\AI COO\ai-coo\frontend\node_modules\next\dist\server\load-components.js
+- C:\Project\AI COO\ai-coo\frontend\node_modules\next\dist\build\utils.js
+- C:\Project\AI COO\ai-coo\frontend\node_modules\next\dist\build\swc\options.js
+- C:\Project\AI COO\ai-coo\frontend\node_modules\next\dist\build\swc\index.js
+- C:\Project\AI COO\ai-coo\frontend\node_modules\next\dist\build\analysis\parse-module.js
+- C:\Project\AI COO\ai-coo\frontend\node_modules\next\dist\build\analysis\get-page-static-info.js
+- C:\Project\AI COO\ai-coo\frontend\node_modules\next\dist\server\lib\router-utils\setup-dev-bundler.js
+- C:\Project\AI COO\ai-coo\frontend\node_modules\next\dist\server\lib\router-server.js
+- C:\Project\AI COO\ai-coo\frontend\node_modules\next\dist\server\lib\start-server.js
+    at <unknown> (C:\Project\AI COO\ai-coo\frontend\.next\server\pages\_document.js:1:325)
+    at Object.<anonymous> (C:\Project\AI COO\ai-coo\frontend\.next\server\pages\_document.js:1:371) {
+  code: 'MODULE_NOT_FOUND',
+  requireStack: [Array]
+}
+ GET /auth/register 500 in 119ms
+ ⨯ Error: ENOENT: no such file or directory, open 'C:\Project\AI COO\ai-coo\frontend\.next\server\vendor-chunks\framer-motion.js'
+    at <unknown> (C:\Project\AI COO\ai-coo\frontend\.next\server\app\auth\confirm\page.js:476:47)
+    at Object.<anonymous> (C:\Project\AI COO\ai-coo\frontend\.next\server\app\auth\confirm\page.js:479:3) {
+  errno: -4058,
+  code: 'ENOENT',
+  syscall: 'open',
+  path: 'C:\\Project\\AI COO\\ai-coo\\frontend\\.next\\server\\vendor-chunks\\framer-motion.js',
+  page: '/auth/confirm'
+}
+ ⨯ Error: Cannot find module './611.js'
+Require stack:
+- C:\Project\AI COO\ai-coo\frontend\.next\server\webpack-runtime.js
+- C:\Project\AI COO\ai-coo\frontend\.next\server\app\auth\confirm\page.js
+- C:\Project\AI COO\ai-coo\frontend\node_modules\next\dist\server\require.js
+- C:\Project\AI COO\ai-coo\frontend\node_modules\next\dist\server\load-components.js
+- C:\Project\AI COO\ai-coo\frontend\node_modules\next\dist\build\utils.js
+- C:\Project\AI COO\ai-coo\frontend\node_modules\next\dist\build\swc\options.js
+- C:\Project\AI COO\ai-coo\frontend\node_modules\next\dist\build\swc\index.js
+- C:\Project\AI COO\ai-coo\frontend\node_modules\next\dist\build\analysis\parse-module.js
+- C:\Project\AI COO\ai-coo\frontend\node_modules\next\dist\build\analysis\get-page-static-info.js
+- C:\Project\AI COO\ai-coo\frontend\node_modules\next\dist\server\lib\router-utils\setup-dev-bundler.js
+- C:\Project\AI COO\ai-coo\frontend\node_modules\next\dist\server\lib\router-server.js
+- C:\Project\AI COO\ai-coo\frontend\node_modules\next\dist\server\lib\start-server.js
+    at <unknown> (C:\Project\AI COO\ai-coo\frontend\.next\server\pages\_document.js:1:325)
+    at Object.<anonymous> (C:\Project\AI COO\ai-coo\frontend\.next\server\pages\_document.js:1:371) {
+  code: 'MODULE_NOT_FOUND',
+  requireStack: [Array]
+}
+ GET /auth/confirm 500 in 164ms
+ ⨯ Error: ENOENT: no such file or directory, open 'C:\Project\AI COO\ai-coo\frontend\.next\server\vendor-chunks\framer-motion.js'
+    at <unknown> (C:\Project\AI COO\ai-coo\frontend\.next\server\app\auth\confirm\page.js:476:47)
+    at Object.<anonymous> (C:\Project\AI COO\ai-coo\frontend\.next\server\app\auth\confirm\page.js:479:3) {
+  errno: -4058,
+  code: 'ENOENT',
+  syscall: 'open',
+  path: 'C:\\Project\\AI COO\\ai-coo\\frontend\\.next\\server\\vendor-chunks\\framer-motion.js',
+  page: '/auth/confirm'
+}
+ ⨯ Error: Cannot find module './611.js'
+Require stack:
+- C:\Project\AI COO\ai-coo\frontend\.next\server\webpack-runtime.js
+- C:\Project\AI COO\ai-coo\frontend\.next\server\app\auth\confirm\page.js
+- C:\Project\AI COO\ai-coo\frontend\node_modules\next\dist\server\require.js
+- C:\Project\AI COO\ai-coo\frontend\node_modules\next\dist\server\load-components.js
+- C:\Project\AI COO\ai-coo\frontend\node_modules\next\dist\build\utils.js
+- C:\Project\AI COO\ai-coo\frontend\node_modules\next\dist\build\swc\options.js
+- C:\Project\AI COO\ai-coo\frontend\node_modules\next\dist\build\swc\index.js
+- C:\Project\AI COO\ai-coo\frontend\node_modules\next\dist\build\analysis\parse-module.js
+- C:\Project\AI COO\ai-coo\frontend\node_modules\next\dist\build\analysis\get-page-static-info.js
+- C:\Project\AI COO\ai-coo\frontend\node_modules\next\dist\server\lib\router-utils\setup-dev-bundler.js
+- C:\Project\AI COO\ai-coo\frontend\node_modules\next\dist\server\lib\router-server.js
+- C:\Project\AI COO\ai-coo\frontend\node_modules\next\dist\server\lib\start-server.js
+    at <unknown> (C:\Project\AI COO\ai-coo\frontend\.next\server\pages\_document.js:1:325)
+    at Object.<anonymous> (C:\Project\AI COO\ai-coo\frontend\.next\server\pages\_document.js:1:371) {
+  code: 'MODULE_NOT_FOUND',
+  requireStack: [Array]
+}
+ GET /auth/confirm 500 in 311ms
+ ⨯ Error: ENOENT: no such file or directory, open 'C:\Project\AI COO\ai-coo\frontend\.next\server\vendor-chunks\framer-motion.js'
+    at <unknown> (C:\Project\AI COO\ai-coo\frontend\.next\server\app\auth\confirm\page.js:476:47)
+    at Object.<anonymous> (C:\Project\AI COO\ai-coo\frontend\.next\server\app\auth\confirm\page.js:479:3) {
+  errno: -4058,
+  code: 'ENOENT',
+  syscall: 'open',
+  path: 'C:\\Project\\AI COO\\ai-coo\\frontend\\.next\\server\\vendor-chunks\\framer-motion.js',
+  page: '/auth/confirm'
+}
+ ⨯ Error: ENOENT: no such file or directory, open 'C:\Project\AI COO\ai-coo\frontend\.next\server\vendor-chunks\framer-motion.js'
+    at <unknown> (C:\Project\AI COO\ai-coo\frontend\.next\server\app\auth\register\page.js:476:47)
+    at Object.<anonymous> (C:\Project\AI COO\ai-coo\frontend\.next\server\app\auth\register\page.js:479:3) {
+  errno: -4058,
+  code: 'ENOENT',
+  syscall: 'open',
+  path: 'C:\\Project\\AI COO\\ai-coo\\frontend\\.next\\server\\vendor-chunks\\framer-motion.js',
+  page: '/auth/register'
+}
+ ⨯ Error: Cannot find module './611.js'
+Require stack:
+- C:\Project\AI COO\ai-coo\frontend\.next\server\webpack-runtime.js
+- C:\Project\AI COO\ai-coo\frontend\.next\server\app\auth\confirm\page.js
+- C:\Project\AI COO\ai-coo\frontend\node_modules\next\dist\server\require.js
+- C:\Project\AI COO\ai-coo\frontend\node_modules\next\dist\server\load-components.js
+- C:\Project\AI COO\ai-coo\frontend\node_modules\next\dist\build\utils.js
+- C:\Project\AI COO\ai-coo\frontend\node_modules\next\dist\build\swc\options.js
+- C:\Project\AI COO\ai-coo\frontend\node_modules\next\dist\build\swc\index.js
+- C:\Project\AI COO\ai-coo\frontend\node_modules\next\dist\build\analysis\parse-module.js
+- C:\Project\AI COO\ai-coo\frontend\node_modules\next\dist\build\analysis\get-page-static-info.js
+- C:\Project\AI COO\ai-coo\frontend\node_modules\next\dist\server\lib\router-utils\setup-dev-bundler.js
+- C:\Project\AI COO\ai-coo\frontend\node_modules\next\dist\server\lib\router-server.js
+- C:\Project\AI COO\ai-coo\frontend\node_modules\next\dist\server\lib\start-server.js
+    at <unknown> (C:\Project\AI COO\ai-coo\frontend\.next\server\pages\_document.js:1:325)
+    at Object.<anonymous> (C:\Project\AI COO\ai-coo\frontend\.next\server\pages\_document.js:1:371) {
+  code: 'MODULE_NOT_FOUND',
+  requireStack: [Array]
+}
+ ⨯ Error: Cannot find module './611.js'
+Require stack:
+- C:\Project\AI COO\ai-coo\frontend\.next\server\webpack-runtime.js
+- C:\Project\AI COO\ai-coo\frontend\.next\server\app\auth\confirm\page.js
+- C:\Project\AI COO\ai-coo\frontend\node_modules\next\dist\server\require.js
+- C:\Project\AI COO\ai-coo\frontend\node_modules\next\dist\server\load-components.js
+- C:\Project\AI COO\ai-coo\frontend\node_modules\next\dist\build\utils.js
+- C:\Project\AI COO\ai-coo\frontend\node_modules\next\dist\build\swc\options.js
+- C:\Project\AI COO\ai-coo\frontend\node_modules\next\dist\build\swc\index.js
+- C:\Project\AI COO\ai-coo\frontend\node_modules\next\dist\build\analysis\parse-module.js
+- C:\Project\AI COO\ai-coo\frontend\node_modules\next\dist\build\analysis\get-page-static-info.js
+- C:\Project\AI COO\ai-coo\frontend\node_modules\next\dist\server\lib\router-utils\setup-dev-bundler.js
+- C:\Project\AI COO\ai-coo\frontend\node_modules\next\dist\server\lib\router-server.js
+- C:\Project\AI COO\ai-coo\frontend\node_modules\next\dist\server\lib\start-server.js
+    at <unknown> (C:\Project\AI COO\ai-coo\frontend\.next\server\pages\_document.js:1:325)
+    at Object.<anonymous> (C:\Project\AI COO\ai-coo\frontend\.next\server\pages\_document.js:1:371) {
+  code: 'MODULE_NOT_FOUND',
+  requireStack: [Array]
+}
+ HEAD /auth/confirm 500 in 476ms
+ HEAD /auth/register 500 in 475ms
+[?25h
+
+C:\Project\AI COO\ai-coo\frontend>

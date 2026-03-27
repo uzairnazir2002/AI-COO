@@ -1,0 +1,10 @@
+﻿date,amount,type,category,vendor,notes
+2026-02-01,19000.00,REVENUE,Sales,Stripe,Monthly subscriptions batch
+2026-02-02,4500.00,EXPENSE,Payroll,Remote Payroll,Core team payroll cycle 1
+2026-02-02,4500.00,EXPENSE,Payroll,Remote Payroll,Core team payroll cycle 1
+2026-02-03,700.00,EXPENSE,Software,Notion,Workspace annual plan
+2026-02-03,700.00,EXPENSE,Software,Notion,Workspace annual plan
+2026-02-05,1600.00,EXPENSE,Marketing,Meta Ads,Brand awareness campaign
+2026-02-05,1600.00,EXPENSE,Marketing,Meta Ads,Brand awareness campaign
+2026-02-08,26500.00,REVENUE,Sales,Wise,Enterprise invoice payment
+2026-02-08,26500.00,REVENUE,Sales,Wise,Enterprise invoice payment

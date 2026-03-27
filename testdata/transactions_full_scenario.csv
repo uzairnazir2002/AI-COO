@@ -1,0 +1,152 @@
+﻿date,amount,type,category,vendor,notes
+2025-10-01,18000.00,REVENUE,Sales,Stripe,Monthly subscriptions batch
+2025-10-02,4200.00,EXPENSE,Payroll,Remote Payroll,Core team payroll cycle 1
+2025-10-03,650.00,EXPENSE,Software,Notion,Workspace annual plan
+2025-10-04,380.00,EXPENSE,Software,Slack,Pro plan monthly
+2025-10-05,1200.00,EXPENSE,Marketing,Meta Ads,Brand awareness campaign
+2025-10-06,950.00,EXPENSE,Marketing,Google Ads,Search campaign
+2025-10-07,420.00,EXPENSE,Operations,Amazon,Office consumables
+2025-10-08,24000.00,REVENUE,Sales,Wise,Enterprise invoice payment
+2025-10-09,290.00,EXPENSE,Utilities,K-Electric,Office electricity
+2025-10-10,210.00,EXPENSE,Internet,PTCL,Business internet bill
+2025-10-11,330.00,EXPENSE,Travel,Uber,Client visit transportation
+2025-10-12,1100.00,EXPENSE,Subscriptions,Figma,Org design plan
+2025-10-13,1600.00,EXPENSE,Legal,Lexis Consultants,Contract drafting
+2025-10-14,500.00,EXPENSE,Miscellaneous,Local Vendor,Ad hoc maintenance
+2025-10-15,19500.00,REVENUE,Sales,Stripe,Mid-month subscription renewals
+2025-10-16,4300.00,EXPENSE,Payroll,Remote Payroll,Core team payroll cycle 2
+2025-10-17,250.00,EXPENSE,Bank Fees,HBL,Business account charges
+2025-10-18,720.00,EXPENSE,Operations,Daraz,Warehouse supplies
+2025-10-19,9800.00,REVENUE,Consulting,Direct Client A,Consulting retainer
+2025-10-20,1450.00,EXPENSE,Marketing,Meta Ads,Lead gen retargeting
+2025-10-21,470.00,EXPENSE,Software,GitHub,Team license seats
+2025-10-22,240.00,EXPENSE,Utilities,SNGPL,Gas utility bill
+2025-10-23,410.00,EXPENSE,Travel,Careem,Airport transfer for advisor
+2025-10-24,20800.00,REVENUE,Sales,Stripe,Monthly subscriptions batch 2
+2025-10-25,530.00,EXPENSE,Miscellaneous,Corner Shop,Unclassified office purchases
+2025-10-26,2600.00,EXPENSE,Payroll,Freelancer Pool,Specialist contractors
+2025-10-27,680.00,EXPENSE,Subscriptions,Canva,Team plan expansion
+2025-10-28,390.00,EXPENSE,Operations,Metro Cash,Pantry and cleaning stock
+2025-10-29,11200.00,REVENUE,Sales,Upwork,Project milestone approved
+2025-10-30,180.00,EXPENSE,Bank Fees,HBL,Wire transfer fee
+2025-10-31,900.00,EXPENSE,Legal,Lexis Consultants,Compliance filing
+2025-11-01,18200.00,REVENUE,Sales,Stripe,Monthly subscriptions batch
+2025-11-02,4200.00,EXPENSE,Payroll,Remote Payroll,Core team payroll cycle 1
+2025-11-03,650.00,EXPENSE,Software,Notion,Workspace annual plan
+2025-11-04,380.00,EXPENSE,Software,Slack,Pro plan monthly
+2025-11-05,1250.00,EXPENSE,Marketing,Meta Ads,Brand awareness campaign
+2025-11-06,980.00,EXPENSE,Marketing,Google Ads,Search campaign
+2025-11-07,430.00,EXPENSE,Operations,Amazon,Office consumables
+2025-11-08,25000.00,REVENUE,Sales,Wise,Enterprise invoice payment
+2025-11-09,300.00,EXPENSE,Utilities,K-Electric,Office electricity
+2025-11-10,220.00,EXPENSE,Internet,PTCL,Business internet bill
+2025-11-11,340.00,EXPENSE,Travel,Uber,Client visit transportation
+2025-11-12,1150.00,EXPENSE,Subscriptions,Figma,Org design plan
+2025-11-13,1700.00,EXPENSE,Legal,Lexis Consultants,Contract drafting
+2025-11-14,620.00,EXPENSE,Miscellaneous,Local Vendor,Ad hoc maintenance
+2025-11-15,20000.00,REVENUE,Sales,Stripe,Mid-month subscription renewals
+2025-11-16,4300.00,EXPENSE,Payroll,Remote Payroll,Core team payroll cycle 2
+2025-11-17,260.00,EXPENSE,Bank Fees,HBL,Business account charges
+2025-11-18,740.00,EXPENSE,Operations,Daraz,Warehouse supplies
+2025-11-19,10200.00,REVENUE,Consulting,Direct Client A,Consulting retainer
+2025-11-20,1500.00,EXPENSE,Marketing,Meta Ads,Lead gen retargeting
+2025-11-21,480.00,EXPENSE,Software,GitHub,Team license seats
+2025-11-22,250.00,EXPENSE,Utilities,SNGPL,Gas utility bill
+2025-11-23,430.00,EXPENSE,Travel,Careem,Airport transfer for advisor
+2025-11-24,21000.00,REVENUE,Sales,Stripe,Monthly subscriptions batch 2
+2025-11-25,900.00,EXPENSE,Miscellaneous,Corner Shop,Unclassified office purchases
+2025-11-26,2800.00,EXPENSE,Payroll,Freelancer Pool,Specialist contractors
+2025-11-27,700.00,EXPENSE,Subscriptions,Canva,Team plan expansion
+2025-11-28,410.00,EXPENSE,Operations,Metro Cash,Pantry and cleaning stock
+2025-11-29,11600.00,REVENUE,Sales,Upwork,Project milestone approved
+2025-11-30,190.00,EXPENSE,Bank Fees,HBL,Wire transfer fee
+2025-12-01,18500.00,REVENUE,Sales,Stripe,Monthly subscriptions batch
+2025-12-02,4300.00,EXPENSE,Payroll,Remote Payroll,Core team payroll cycle 1
+2025-12-03,670.00,EXPENSE,Software,Notion,Workspace annual plan
+2025-12-04,390.00,EXPENSE,Software,Slack,Pro plan monthly
+2025-12-05,1300.00,EXPENSE,Marketing,Meta Ads,Brand awareness campaign
+2025-12-06,1020.00,EXPENSE,Marketing,Google Ads,Search campaign
+2025-12-07,440.00,EXPENSE,Operations,Amazon,Office consumables
+2025-12-08,25500.00,REVENUE,Sales,Wise,Enterprise invoice payment
+2025-12-09,320.00,EXPENSE,Utilities,K-Electric,Office electricity
+2025-12-10,225.00,EXPENSE,Internet,PTCL,Business internet bill
+2025-12-11,350.00,EXPENSE,Travel,Uber,Client visit transportation
+2025-12-12,1220.00,EXPENSE,Subscriptions,Figma,Org design plan
+2025-12-13,1800.00,EXPENSE,Legal,Lexis Consultants,Contract drafting
+2025-12-14,1200.00,EXPENSE,Miscellaneous,Local Vendor,Ad hoc maintenance
+2025-12-15,20500.00,REVENUE,Sales,Stripe,Mid-month subscription renewals
+2025-12-16,4400.00,EXPENSE,Payroll,Remote Payroll,Core team payroll cycle 2
+2025-12-17,270.00,EXPENSE,Bank Fees,HBL,Business account charges
+2025-12-18,760.00,EXPENSE,Operations,Daraz,Warehouse supplies
+2025-12-19,10500.00,REVENUE,Consulting,Direct Client A,Consulting retainer
+2025-12-20,4600.00,EXPENSE,Marketing,Meta Ads,Holiday campaign scale-up (anomaly candidate)
+2025-12-21,490.00,EXPENSE,Software,GitHub,Team license seats
+2025-12-22,260.00,EXPENSE,Utilities,SNGPL,Gas utility bill
+2025-12-23,450.00,EXPENSE,Travel,Careem,Airport transfer for advisor
+2025-12-24,21500.00,REVENUE,Sales,Stripe,Monthly subscriptions batch 2
+2025-12-25,1600.00,EXPENSE,Miscellaneous,Corner Shop,Unclassified office purchases increased (profit leak signal)
+2025-12-26,3200.00,EXPENSE,Payroll,Freelancer Pool,Specialist contractors
+2025-12-27,710.00,EXPENSE,Subscriptions,Canva,Team plan expansion
+2025-12-28,420.00,EXPENSE,Operations,Metro Cash,Pantry and cleaning stock
+2025-12-29,11800.00,REVENUE,Sales,Upwork,Project milestone approved
+2025-12-30,200.00,EXPENSE,Bank Fees,HBL,Wire transfer fee
+2025-12-31,950.00,EXPENSE,Legal,Lexis Consultants,Year-end compliance filing
+2026-01-01,18800.00,REVENUE,Sales,Stripe,Monthly subscriptions batch
+2026-01-02,4400.00,EXPENSE,Payroll,Remote Payroll,Core team payroll cycle 1
+2026-01-03,680.00,EXPENSE,Software,Notion,Workspace annual plan
+2026-01-04,400.00,EXPENSE,Software,Slack,Pro plan monthly
+2026-01-05,1500.00,EXPENSE,Marketing,Meta Ads,Brand awareness campaign
+2026-01-06,1080.00,EXPENSE,Marketing,Google Ads,Search campaign
+2026-01-07,450.00,EXPENSE,Operations,Amazon,Office consumables
+2026-01-08,26000.00,REVENUE,Sales,Wise,Enterprise invoice payment
+2026-01-09,330.00,EXPENSE,Utilities,K-Electric,Office electricity
+2026-01-10,230.00,EXPENSE,Internet,PTCL,Business internet bill
+2026-01-11,365.00,EXPENSE,Travel,Uber,Client visit transportation
+2026-01-12,1300.00,EXPENSE,Subscriptions,Figma,Org design plan
+2026-01-13,1900.00,EXPENSE,Legal,Lexis Consultants,Contract drafting
+2026-01-14,1800.00,EXPENSE,Miscellaneous,Local Vendor,Ad hoc maintenance high (profit leak signal)
+2026-01-15,21000.00,REVENUE,Sales,Stripe,Mid-month subscription renewals
+2026-01-16,4450.00,EXPENSE,Payroll,Remote Payroll,Core team payroll cycle 2
+2026-01-17,280.00,EXPENSE,Bank Fees,HBL,Business account charges
+2026-01-18,780.00,EXPENSE,Operations,Daraz,Warehouse supplies
+2026-01-19,10800.00,REVENUE,Consulting,Direct Client A,Consulting retainer
+2026-01-20,5000.00,EXPENSE,Marketing,Meta Ads,Spend spike for experiment (anomaly candidate)
+2026-01-21,500.00,EXPENSE,Software,GitHub,Team license seats
+2026-01-22,270.00,EXPENSE,Utilities,SNGPL,Gas utility bill
+2026-01-23,460.00,EXPENSE,Travel,Careem,Airport transfer for advisor
+2026-01-24,22000.00,REVENUE,Sales,Stripe,Monthly subscriptions batch 2
+2026-01-25,2200.00,EXPENSE,Miscellaneous,Corner Shop,Unclassified office purchases elevated
+2026-01-26,3400.00,EXPENSE,Payroll,Freelancer Pool,Specialist contractors
+2026-01-27,730.00,EXPENSE,Subscriptions,Canva,Team plan expansion
+2026-01-28,430.00,EXPENSE,Operations,Metro Cash,Pantry and cleaning stock
+2026-01-29,12100.00,REVENUE,Sales,Upwork,Project milestone approved
+2026-01-30,210.00,EXPENSE,Bank Fees,HBL,Wire transfer fee
+2026-01-31,980.00,EXPENSE,Legal,Lexis Consultants,Month-end compliance
+2026-02-01,19000.00,REVENUE,Sales,Stripe,Monthly subscriptions batch
+2026-02-02,4500.00,EXPENSE,Payroll,Remote Payroll,Core team payroll cycle 1
+2026-02-03,700.00,EXPENSE,Software,Notion,Workspace annual plan
+2026-02-04,410.00,EXPENSE,Software,Slack,Pro plan monthly
+2026-02-05,1600.00,EXPENSE,Marketing,Meta Ads,Brand awareness campaign
+2026-02-06,1120.00,EXPENSE,Marketing,Google Ads,Search campaign
+2026-02-07,460.00,EXPENSE,Operations,Amazon,Office consumables
+2026-02-08,26500.00,REVENUE,Sales,Wise,Enterprise invoice payment
+2026-02-09,335.00,EXPENSE,Utilities,K-Electric,Office electricity
+2026-02-10,235.00,EXPENSE,Internet,PTCL,Business internet bill
+2026-02-11,370.00,EXPENSE,Travel,Uber,Client visit transportation
+2026-02-12,1320.00,EXPENSE,Subscriptions,Figma,Org design plan
+2026-02-13,2000.00,EXPENSE,Legal,Lexis Consultants,Contract drafting
+2026-02-14,2400.00,EXPENSE,Miscellaneous,Local Vendor,Ad hoc maintenance high
+2026-02-15,21200.00,REVENUE,Sales,Stripe,Mid-month subscription renewals
+2026-02-16,4500.00,EXPENSE,Payroll,Remote Payroll,Core team payroll cycle 2
+2026-02-17,285.00,EXPENSE,Bank Fees,HBL,Business account charges
+2026-02-18,790.00,EXPENSE,Operations,Daraz,Warehouse supplies
+2026-02-19,11000.00,REVENUE,Consulting,Direct Client A,Consulting retainer
+2026-02-20,5200.00,EXPENSE,Marketing,Meta Ads,High spend launch test
+2026-02-21,510.00,EXPENSE,Software,GitHub,Team license seats
+2026-02-22,275.00,EXPENSE,Utilities,SNGPL,Gas utility bill
+2026-02-23,470.00,EXPENSE,Travel,Careem,Airport transfer for advisor
+2026-02-24,22500.00,REVENUE,Sales,Stripe,Monthly subscriptions batch 2
+2026-02-25,2500.00,EXPENSE,Miscellaneous,Corner Shop,Unclassified office purchases elevated
+2026-02-26,3550.00,EXPENSE,Payroll,Freelancer Pool,Specialist contractors
+2026-02-27,740.00,EXPENSE,Subscriptions,Canva,Team plan expansion
+2026-02-28,440.00,EXPENSE,Operations,Metro Cash,Pantry and cleaning stock

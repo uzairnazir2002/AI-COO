@@ -1,5 +1,10 @@
-import { redirect } from "next/navigation";
+import ProtectedLayout from "@/app/app/layout";
+import OnboardingPage from "@/app/app/onboarding/page";
 
-export default function LegacyOnboardingRedirect() {
-  redirect("/app/orgs");
+export default function OnboardingRoutePage() {
+  return (
+    <ProtectedLayout>
+      <OnboardingPage />
+    </ProtectedLayout>
+  );
 }

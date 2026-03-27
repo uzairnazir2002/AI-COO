@@ -32,3 +32,16 @@ def test_csv_missing_required_mapped_column_raises():
         assert False, "expected ValueError"
     except ValueError as exc:
         assert "Mapped columns not found" in str(exc)
+
+
+def test_csv_optional_location_mapping_is_supported():
+    content = b"date,amount,type,category,location\n2026-03-01,120.00,EXPENSE,Ops,Karachi HQ"
+    mapping = {
+        "date": "date",
+        "amount": "amount",
+        "type": "type",
+        "category": "category",
+        "location": "location",
+    }
+    rows = parse_csv(content, mapping, 1024 * 1024)
+    assert rows[0]["location"] == "Karachi HQ"

@@ -1,5 +1,10 @@
 # Backup and Restore (Postgres + MinIO)
 
+## Targets
+- RPO target: 24 hours (or better if you increase backup frequency)
+- RTO target: 2 hours for full service restoration in the same region
+- Validation target: one successful restore drill per week
+
 ## Postgres backup
 Create a compressed dump from running compose stack:
 
@@ -30,3 +35,14 @@ mc mirror backups/minio-reports localminio/reports --overwrite
 - Postgres dump: every 24h
 - MinIO mirror: every 24h
 - Verify restore in staging at least weekly
+
+## Scripted commands in this repo
+- `scripts/ops/backup_postgres.sh`
+- `scripts/ops/backup_minio.sh`
+- `scripts/ops/restore_postgres.sh <dump_file>`
+- `scripts/ops/restore_minio.sh <archive>`
+- `scripts/ops/restore_drill.sh <dump_file> <archive>`
+
+Makefile:
+- `make backup`
+- `make restore-drill PG_DUMP=backups/postgres-...dump MINIO_BACKUP=backups/minio-...tar.gz`
