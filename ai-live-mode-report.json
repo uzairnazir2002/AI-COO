@@ -1,0 +1,41 @@
+{
+  "timestamp_utc": "2026-03-27T18:00:26.323311+00:00",
+  "api_base_url": "http://localhost:8000/api/v1",
+  "email": "ai_live_verify_abcf2af068@example.com",
+  "steps": [
+    {
+      "name": "register",
+      "status": "ok"
+    },
+    {
+      "name": "confirm",
+      "status": "ok"
+    },
+    {
+      "name": "login",
+      "status": "ok"
+    },
+    {
+      "name": "create_org",
+      "status": "ok",
+      "org_id": "9a7b606a-d6e8-4752-a5b6-b3b6b18541ad"
+    },
+    {
+      "name": "ai_health",
+      "status": "ok",
+      "payload": {
+        "provider": {
+          "provider": "ollama_server",
+          "model": "gemma3:1b",
+          "configured": true,
+          "healthy": false,
+          "live_check_performed": true,
+          "reason": "timed out"
+        },
+        "fallback_ready": true
+      }
+    }
+  ],
+  "success": false,
+  "error": "AI provider reported healthy=false reason=timed out"
+}

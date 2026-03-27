@@ -49,7 +49,7 @@ export function useAssignAlert() {
   return useMutation({
     mutationFn: ({ id, assigneeUserId }: { id: string; assigneeUserId: string | null }) => {
       const resolvedOrgId = requireOrgId(orgId);
-      return api<{ ok: boolean; alert: Alert }>(apiPaths.assignAlert(id), {
+      return api<{ ok: boolean; alert: Alert }>(`${apiPaths.assignAlert(id)}?org_id=${resolvedOrgId}`, {
         method: "POST",
         body: JSON.stringify({ org_id: resolvedOrgId, assignee_user_id: assigneeUserId }),
       });
@@ -67,7 +67,7 @@ export function useAcknowledgeAlert() {
   return useMutation({
     mutationFn: (id: string) => {
       const resolvedOrgId = requireOrgId(orgId);
-      return api<{ ok: boolean; alert: Alert }>(apiPaths.acknowledgeAlert(id), {
+      return api<{ ok: boolean; alert: Alert }>(`${apiPaths.acknowledgeAlert(id)}?org_id=${resolvedOrgId}`, {
         method: "POST",
         body: JSON.stringify({ org_id: resolvedOrgId }),
       });

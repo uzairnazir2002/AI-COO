@@ -168,3 +168,41 @@ def test_acknowledge_alert_accepts_legacy_query_payload(monkeypatch):
     payload = response.json()
     assert payload["ok"] is True
     assert payload["alert"]["acknowledged_at"] is not None
+
+
+def test_assign_alert_accepts_partial_body_with_query_org(monkeypatch):
+    app = _build_app(monkeypatch, assignee_is_member=True)
+    client = TestClient(app)
+    org_id = uuid4()
+    assignee_id = uuid4()
+    response = client.post(
+        f"/api/v1/alerts/{uuid4()}/assign?org_id={org_id}",
+        json={"assignee_user_id": str(assignee_id)},
+    )
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["ok"] is True
+    assert payload["alert"]["assigned_to_user_id"] == str(assignee_id)
+
+
+def test_acknowledge_alert_accepts_empty_body_with_query_org(monkeypatch):
+    app = _build_app(monkeypatch, assignee_is_member=True)
+    client = TestClient(app)
+    response = client.post(
+        f"/api/v1/alerts/{uuid4()}/acknowledge?org_id={uuid4()}",
+        json={},
+    )
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["ok"] is True
+
+
+def test_assign_alert_rejects_invalid_assignee_uuid(monkeypatch):
+    app = _build_app(monkeypatch, assignee_is_member=True)
+    client = TestClient(app)
+    response = client.post(
+        f"/api/v1/alerts/{uuid4()}/assign",
+        json={"org_id": str(uuid4()), "assignee_user_id": "not-a-uuid"},
+    )
+    assert response.status_code == 422
+    assert response.json()["detail"] == "assignee_user_id must be a valid UUID"

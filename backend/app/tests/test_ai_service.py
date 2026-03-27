@@ -7,6 +7,14 @@ from app.domain.schemas.ai import AISummaryResponse
 from app.infra import ai_client
 
 
+class _FakeLogger:
+    def __init__(self):
+        self.events: list[tuple[str, dict]] = []
+
+    def warning(self, event: str, **kwargs):
+        self.events.append((event, kwargs))
+
+
 class _FakeResponse:
     def __init__(self, payload):
         self._payload = payload
@@ -62,6 +70,57 @@ class _FakeOllamaHttpClient:
         )
 
 
+class _FakeOllamaMalformedHttpClient:
+    def __init__(self, *args, **kwargs):
+        pass
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc, tb):
+        return False
+
+    def post(self, url, headers, json):
+        _ = (url, headers, json)
+        return _FakeResponse(
+            {
+                "aiText": (
+                    "```json\\n{\\n"
+                    "  \\headline\\ \\Weekly COO Summary\\n"
+                    "  \\highlights\\ [\\Revenue remains steady this period.\\n"
+                    "  \\risks\\ [\\Runway risk remains visible.\\n"
+                    "  \\actions\\ [\\Reduce discretionary spend.\\n"
+                    "  \\confidence\\ \\high\\n"
+                    "}\\n```"
+                )
+            }
+        )
+
+
+class _FakeOllamaRepairHttpClient:
+    calls = 0
+
+    def __init__(self, *args, **kwargs):
+        pass
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc, tb):
+        return False
+
+    def post(self, url, headers, json):
+        _ = (url, headers, json)
+        _FakeOllamaRepairHttpClient.calls += 1
+        if _FakeOllamaRepairHttpClient.calls == 1:
+            return _FakeResponse({"aiText": "I cannot provide structured output right now."})
+        return _FakeResponse(
+            {
+                "aiText": '{"headline":"Weekly COO Summary","highlights":["Revenue remains steady this period."],"risks":["Runway risk remains visible."],"actions":["Reduce discretionary spend."],"confidence":"high"}'
+            }
+        )
+
+
 def test_generate_summary_openai_success(monkeypatch):
     monkeypatch.setattr(
         ai_client,
@@ -100,6 +159,54 @@ def test_generate_summary_ollama_server_success(monkeypatch):
 
     assert out.headline == "Weekly COO Summary"
     assert out.highlights[0] == "Revenue stable"
+
+
+def test_generate_summary_ollama_server_relaxed_parsing(monkeypatch):
+    monkeypatch.setattr(
+        ai_client,
+        "get_settings",
+        lambda: SimpleNamespace(
+            ai_provider="ollama_server",
+            ai_ollama_server_url="http://localhost:5000/ai",
+            ai_ollama_server_api_key="shared-secret-key",
+            ai_ollama_server_model="gemma3:1b",
+            ai_timeout_seconds=10,
+        ),
+    )
+    monkeypatch.setattr(ai_client.httpx, "Client", _FakeOllamaMalformedHttpClient)
+
+    out = ai_client.generate_summary({"kpis": {}, "alerts": []})
+
+    assert out.headline == "Weekly COO Summary"
+    assert out.highlights == ["Revenue remains steady this period."]
+    assert out.risks == ["Runway risk remains visible."]
+    assert out.actions == ["Reduce discretionary spend."]
+    assert out.confidence == "high"
+
+
+def test_generate_summary_ollama_server_repair_retry(monkeypatch):
+    _FakeOllamaRepairHttpClient.calls = 0
+    fake_logger = _FakeLogger()
+    monkeypatch.setattr(
+        ai_client,
+        "get_settings",
+        lambda: SimpleNamespace(
+            ai_provider="ollama_server",
+            ai_ollama_server_url="http://localhost:5000/ai",
+            ai_ollama_server_api_key="shared-secret-key",
+            ai_ollama_server_model="gemma3:1b",
+            ai_timeout_seconds=10,
+        ),
+    )
+    monkeypatch.setattr(ai_client.httpx, "Client", _FakeOllamaRepairHttpClient)
+    monkeypatch.setattr(ai_client, "logger", fake_logger)
+
+    out = ai_client.generate_summary({"kpis": {}, "alerts": []})
+
+    assert out.headline == "Weekly COO Summary"
+    assert out.confidence == "high"
+    assert _FakeOllamaRepairHttpClient.calls == 2
+    assert any(event == "ai_ollama_summary_primary_parse_failed" for event, _ in fake_logger.events)
 
 
 def test_ai_provider_health_ollama_server_config_missing(monkeypatch):
@@ -147,12 +254,15 @@ def test_ai_provider_health_ollama_server_live_check(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_ai_service_falls_back_on_provider_error(monkeypatch, sample_metrics):
+    fake_logger = _FakeLogger()
     monkeypatch.setattr("app.domain.services.ai_service.generate_summary", lambda _metrics: (_ for _ in ()).throw(ValueError("boom")))
+    monkeypatch.setattr("app.domain.services.ai_service.logger", fake_logger)
 
     out = await AIService().summary(sample_metrics)
 
     assert out.fallback_used is True
     assert out.summary_json.headline == "Weekly COO Summary"
+    assert any(event == "ai_summary_fallback_used" for event, _ in fake_logger.events)
 
 
 @pytest.mark.asyncio

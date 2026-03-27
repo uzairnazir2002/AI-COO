@@ -31,7 +31,8 @@ class AIService:
                 logger.warning("ai_summary_grounding_validation_failed", violations=violations[:10])
                 raise ValueError("AI summary grounding validation failed")
             return AISummaryOut(summary_json=valid, fallback_used=False)
-        except (ValidationError, AttributeError, TypeError, ValueError):
+        except (ValidationError, AttributeError, TypeError, ValueError) as exc:
+            logger.warning("ai_summary_fallback_used", reason=str(exc)[:300])
             fallback = generate_summary_stub(metrics)
             return AISummaryOut(summary_json=fallback, fallback_used=True)
 
@@ -46,7 +47,8 @@ class AIService:
                 logger.warning("ai_chat_grounding_validation_failed", violations=violations[:10])
                 raise ValueError("AI chat grounding validation failed")
             summary = valid
-        except (ValidationError, AttributeError, TypeError, ValueError):
+        except (ValidationError, AttributeError, TypeError, ValueError) as exc:
+            logger.warning("ai_chat_fallback_used", reason=str(exc)[:300])
             fallback_used = True
             summary = generate_summary_stub(metrics)
 

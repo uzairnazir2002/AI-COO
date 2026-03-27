@@ -1,4 +1,5 @@
 import uuid
+from typing import Any
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -12,8 +13,6 @@ from app.domain.repos.audit_repo import AuditRepo
 from app.domain.repos.location_repo import LocationRepo
 from app.domain.repos.org_repo import OrgRepo
 from app.domain.schemas.alerts import (
-    AlertAcknowledgeIn,
-    AlertAssignIn,
     AlertHistoryItem,
     AlertHistoryOut,
     AlertOut,
@@ -32,6 +31,19 @@ from app.domain.services.read_cache_service import (
 )
 
 router = APIRouter()
+
+
+def _coerce_uuid(value: Any, field_name: str) -> uuid.UUID | None:
+    if value is None or value == "":
+        return None
+    if isinstance(value, uuid.UUID):
+        return value
+    if isinstance(value, str):
+        try:
+            return uuid.UUID(value)
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=f"{field_name} must be a valid UUID") from exc
+    raise HTTPException(status_code=422, detail=f"{field_name} must be a valid UUID")
 
 
 @router.get("", response_model=AlertsOut)
@@ -106,15 +118,22 @@ async def assign_alert(
     alert_id: uuid.UUID,
     org_id: uuid.UUID | None = Query(default=None),
     assignee_user_id: uuid.UUID | None = Query(default=None),
-    body: AlertAssignIn | None = Body(default=None),
+    body: dict[str, Any] | None = Body(default=None),
     user: User = Depends(get_current_user),
     _: object = Depends(require_roles("OWNER", "EDITOR")),
     db: AsyncSession = Depends(get_db),
 ):
-    resolved_org_id = body.org_id if body is not None else org_id
+    if body is not None and not isinstance(body, dict):
+        raise HTTPException(status_code=422, detail="Request body must be an object")
+
+    body_org_id = _coerce_uuid(body.get("org_id"), "org_id") if isinstance(body, dict) else None
+    resolved_org_id = body_org_id or org_id
     if resolved_org_id is None:
         raise HTTPException(status_code=422, detail="org_id is required")
-    resolved_assignee_user_id = body.assignee_user_id if body is not None else assignee_user_id
+
+    has_assignee_in_body = isinstance(body, dict) and "assignee_user_id" in body
+    body_assignee_user_id = _coerce_uuid(body.get("assignee_user_id"), "assignee_user_id") if has_assignee_in_body else None
+    resolved_assignee_user_id = body_assignee_user_id if has_assignee_in_body else assignee_user_id
 
     await get_org_context(org_id=resolved_org_id, user=user, db=db)
     repo = AlertRepo(db)
@@ -150,12 +169,15 @@ async def assign_alert(
 async def acknowledge_alert(
     alert_id: uuid.UUID,
     org_id: uuid.UUID | None = Query(default=None),
-    body: AlertAcknowledgeIn | None = Body(default=None),
+    body: dict[str, Any] | None = Body(default=None),
     user: User = Depends(get_current_user),
     _: object = Depends(require_roles("OWNER", "EDITOR")),
     db: AsyncSession = Depends(get_db),
 ):
-    resolved_org_id = body.org_id if body is not None else org_id
+    if body is not None and not isinstance(body, dict):
+        raise HTTPException(status_code=422, detail="Request body must be an object")
+    body_org_id = _coerce_uuid(body.get("org_id"), "org_id") if isinstance(body, dict) else None
+    resolved_org_id = body_org_id or org_id
     if resolved_org_id is None:
         raise HTTPException(status_code=422, detail="org_id is required")
 
