@@ -58,6 +58,9 @@ class Settings(BaseSettings):
     ai_openai_api_key: str = Field(default="", alias="AI_OPENAI_API_KEY")
     ai_openai_model: str = Field(default="gpt-4o-mini", alias="AI_OPENAI_MODEL")
     ai_openai_base_url: str = Field(default="https://api.openai.com/v1", alias="AI_OPENAI_BASE_URL")
+    ai_ollama_server_url: str = Field(default="http://localhost:5000/ai", alias="AI_OLLAMA_SERVER_URL")
+    ai_ollama_server_api_key: str = Field(default="", alias="AI_OLLAMA_SERVER_API_KEY")
+    ai_ollama_server_model: str = Field(default="", alias="AI_OLLAMA_SERVER_MODEL")
     ai_timeout_seconds: int = Field(default=20, alias="AI_TIMEOUT_SECONDS")
 
     auth_cookie_mode: bool = Field(default=False, alias="AUTH_COOKIE_MODE")

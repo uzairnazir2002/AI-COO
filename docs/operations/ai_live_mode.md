@@ -1,14 +1,26 @@
 # AI Live Mode Verification
 
-Use this checklist before enabling live OpenAI mode in non-local environments.
+Use this checklist before enabling live AI mode in non-local environments.
 
 ## 1) Set env values
+
+### Option A: OpenAI
 
 ```env
 AI_PROVIDER=openai
 AI_OPENAI_API_KEY=<your-api-key>
 AI_OPENAI_MODEL=gpt-4o-mini
 AI_OPENAI_BASE_URL=https://api.openai.com/v1
+AI_TIMEOUT_SECONDS=20
+```
+
+### Option B: Office Ollama server (shared API)
+
+```env
+AI_PROVIDER=ollama_server
+AI_OLLAMA_SERVER_URL=http://<server-ip>:5000/ai
+AI_OLLAMA_SERVER_API_KEY=<shared-secret-key>
+AI_OLLAMA_SERVER_MODEL=gemma3:1b
 AI_TIMEOUT_SECONDS=20
 ```
 
@@ -22,7 +34,7 @@ curl "http://localhost:8000/api/v1/ai/health?org_id=<ORG_ID>&live_check=true" \
 ```
 
 Expected:
-- `provider.provider = "openai"`
+- `provider.provider` equals configured provider (`openai` or `ollama_server`)
 - `provider.configured = true`
 - `provider.healthy = true`
 - `provider.live_check_performed = true`

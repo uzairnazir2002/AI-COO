@@ -43,6 +43,25 @@ class _FakeHttpClient:
         )
 
 
+class _FakeOllamaHttpClient:
+    def __init__(self, *args, **kwargs):
+        pass
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc, tb):
+        return False
+
+    def post(self, url, headers, json):
+        _ = (url, headers, json)
+        return _FakeResponse(
+            {
+                "aiText": '{"headline":"Weekly COO Summary","highlights":["Revenue stable"],"risks":["Runway watch"],"actions":["Trim non-essential spend"],"confidence":"medium"}'
+            }
+        )
+
+
 def test_generate_summary_openai_success(monkeypatch):
     monkeypatch.setattr(
         ai_client,
@@ -61,6 +80,69 @@ def test_generate_summary_openai_success(monkeypatch):
 
     assert out.headline == "Weekly COO Summary"
     assert out.confidence == "medium"
+
+
+def test_generate_summary_ollama_server_success(monkeypatch):
+    monkeypatch.setattr(
+        ai_client,
+        "get_settings",
+        lambda: SimpleNamespace(
+            ai_provider="ollama_server",
+            ai_ollama_server_url="http://localhost:5000/ai",
+            ai_ollama_server_api_key="shared-secret-key",
+            ai_ollama_server_model="gemma3:1b",
+            ai_timeout_seconds=10,
+        ),
+    )
+    monkeypatch.setattr(ai_client.httpx, "Client", _FakeOllamaHttpClient)
+
+    out = ai_client.generate_summary({"kpis": {}, "alerts": []})
+
+    assert out.headline == "Weekly COO Summary"
+    assert out.highlights[0] == "Revenue stable"
+
+
+def test_ai_provider_health_ollama_server_config_missing(monkeypatch):
+    monkeypatch.setattr(
+        ai_client,
+        "get_settings",
+        lambda: SimpleNamespace(
+            ai_provider="ollama_server",
+            ai_ollama_server_url="http://localhost:5000/ai",
+            ai_ollama_server_api_key="",
+            ai_ollama_server_model="gemma3:1b",
+            ai_timeout_seconds=10,
+        ),
+    )
+
+    health = ai_client.get_ai_provider_health(live_check=False)
+
+    assert health["provider"] == "ollama_server"
+    assert health["configured"] is False
+    assert health["healthy"] is False
+    assert "AI_OLLAMA_SERVER_URL and AI_OLLAMA_SERVER_API_KEY" in str(health["reason"])
+
+
+def test_ai_provider_health_ollama_server_live_check(monkeypatch):
+    monkeypatch.setattr(
+        ai_client,
+        "get_settings",
+        lambda: SimpleNamespace(
+            ai_provider="ollama_server",
+            ai_ollama_server_url="http://localhost:5000/ai",
+            ai_ollama_server_api_key="shared-secret-key",
+            ai_ollama_server_model="gemma3:1b",
+            ai_timeout_seconds=10,
+        ),
+    )
+    monkeypatch.setattr(ai_client, "_ollama_server_live_health_check", lambda: None)
+
+    health = ai_client.get_ai_provider_health(live_check=True)
+
+    assert health["provider"] == "ollama_server"
+    assert health["configured"] is True
+    assert health["healthy"] is True
+    assert health["live_check_performed"] is True
 
 
 @pytest.mark.asyncio

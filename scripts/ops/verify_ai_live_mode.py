@@ -68,12 +68,13 @@ def _run_fallback_test(pytest_target: str) -> dict[str, object]:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Verify live OpenAI mode safely with API checks and fallback guard test.")
+    parser = argparse.ArgumentParser(description="Verify live AI provider mode safely with API checks and fallback guard test.")
     parser.add_argument("--api-base-url", default="http://localhost:8000/api/v1")
     parser.add_argument("--database-url", default=os.getenv("DATABASE_URL", "postgresql://ai_coo:ai_coo@localhost:5432/ai_coo"))
     parser.add_argument("--email", default="")
     parser.add_argument("--password", default="Password123!")
     parser.add_argument("--org-name", default="AI Live Verify Org")
+    parser.add_argument("--expected-provider", default="openai")
     parser.add_argument("--live-check", action="store_true")
     parser.add_argument("--verify-fallback-test", action="store_true")
     parser.add_argument(
@@ -128,8 +129,9 @@ def main() -> int:
             report["steps"].append({"name": "ai_health", "status": "ok", "payload": health_payload})
 
             provider = health_payload.get("provider", {})
-            if provider.get("provider") != "openai":
-                raise RuntimeError(f"Expected provider=openai, got {provider.get('provider')}")
+            expected_provider = (args.expected_provider or "").strip().lower()
+            if provider.get("provider") != expected_provider:
+                raise RuntimeError(f"Expected provider={expected_provider}, got {provider.get('provider')}")
             if not provider.get("configured"):
                 raise RuntimeError("AI provider reported configured=false")
             if not provider.get("healthy"):
