@@ -22,7 +22,7 @@ Status legend: `COMPLETE`, `PARTIAL`, `MISSING`
 | NFR Security | COMPLETE | MFA/session/policy/lockout/privacy baseline in `backend/app/api/v1/auth.py`, `backend/app/core/mfa.py`, `backend/app/core/auth_lockout.py`, `backend/app/core/pii_crypto.py` | Key rotation operations require disciplined ops runbook execution |
 | NFR Performance | PARTIAL | `perf-artifacts/stage2-closure/perf_gate_summary.json` (`PASS`), `scripts/loadtest/*`, `.github/workflows/perf.yml` | Inventory/mixed churn high-rate envelopes still show dropped iterations/latency pressure |
 | NFR Scalability | PARTIAL | Split load profiles + seed tooling: `scripts/loadtest/`, `scripts/seed_load_dataset.py`, `docs/performance.md` | Need higher-envelope capacity tuning for sustained churn scenarios |
-| NFR Reliability | COMPLETE | Backend full tests green (`221 passed, 4 skipped`), full Playwright regression green (`expected=19`, `unexpected=0`), async jobs/outbox/DLQ in place | Env-gated suites still require dedicated runs with required secrets/flags |
+| NFR Reliability | COMPLETE | Backend full tests green (`221 passed, 4 skipped`), full Playwright regression green (`expected=19`, `unexpected=0`), async jobs/outbox/DLQ in place, strict release gate in `docs/operations/release_checklist.md` | Env-gated suites still require dedicated runs with required secrets/flags |
 
 ## Stage-2 epic completion rollup
 - Epic A (Plaid): Implemented, env-gated e2e in full suite.
@@ -35,3 +35,4 @@ Status legend: `COMPLETE`, `PARTIAL`, `MISSING`
 See:
 - `docs/final_cross_epic_closure_matrix.md`
 - `docs/final_cross_epic_verification_appendix.md`
+- `docs/operations/release_checklist.md`

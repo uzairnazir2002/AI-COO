@@ -26,3 +26,4 @@ Date: 2026-03-26
 ## Remaining non-blocking hardening
 1. Keep env-gated suites (`plaid-integration`, `cookie-csrf`, `sse-fallback`, `visual`) in dedicated scheduled/secret-enabled jobs.
 2. Re-run inventory churn profile at agreed envelope and tighten Epic E capacity guardrail thresholds as load grows.
+3. Enforce production cutover using `docs/operations/release_checklist.md` as mandatory go/no-go evidence.

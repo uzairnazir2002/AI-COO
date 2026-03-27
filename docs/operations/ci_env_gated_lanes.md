@@ -32,3 +32,8 @@ The following CI jobs are intentionally gated by repository variables and/or sec
 - `run_ai_live_lane=true`
 
 Use these when variables are not permanently enabled.
+
+## Release usage
+
+- Treat these env-gated lanes as mandatory checks when executing the production checklist:
+  - `docs/operations/release_checklist.md`
