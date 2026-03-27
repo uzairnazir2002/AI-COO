@@ -480,10 +480,17 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - name: Validate OpenAI secret
+      - id: ai_secret_gate
+        name: Check OpenAI secret availability
         run: |
-          test -n "${AI_OPENAI_API_KEY}" || { echo "::error::Missing AI_OPENAI_API_KEY secret"; exit 1; }
+          if [ -n "${AI_OPENAI_API_KEY}" ]; then
+            echo "has_secret=true" >> "${GITHUB_OUTPUT}"
+          else
+            echo "::warning::AI_OPENAI_API_KEY secret missing; skipping ai-live-mode lane."
+            echo "has_secret=false" >> "${GITHUB_OUTPUT}"
+          fi
       - name: Prepare AI live-mode env
+        if: ${{ steps.ai_secret_gate.outputs.has_secret == 'true' }}
         run: |
           cp .env.example .env
           {
@@ -494,8 +501,10 @@ jobs:
             echo "COOKIE_SECURE=false"
           } >> .env
       - name: Start stack
+        if: ${{ steps.ai_secret_gate.outputs.has_secret == 'true' }}
         run: docker compose --env-file .env up --build -d postgres redis minio backend
       - name: Wait for health
+        if: ${{ steps.ai_secret_gate.outputs.has_secret == 'true' }}
         run: |
           for i in {1..50}; do
             if curl -sf http://localhost:8000/api/v1/health; then exit 0; fi
@@ -504,10 +513,12 @@ jobs:
           docker compose logs backend --tail 200
           exit 1
       - name: Install script dependencies
+        if: ${{ steps.ai_secret_gate.outputs.has_secret == 'true' }}
         run: |
           python -m pip install --upgrade pip
           pip install httpx asyncpg
       - name: Verify AI live mode + fallback guard
+        if: ${{ steps.ai_secret_gate.outputs.has_secret == 'true' }}
         run: |
           python scripts/ops/verify_ai_live_mode.py \
             --api-base-url http://localhost:8000/api/v1 \
@@ -517,13 +528,13 @@ jobs:
             --fallback-test-path backend/app/tests/test_ai_service.py::test_ai_service_falls_back_on_provider_error \
             --out-json ai-live-mode-report.json
       - name: Upload AI live-mode report
-        if: always()
+        if: ${{ always() && steps.ai_secret_gate.outputs.has_secret == 'true' }}
         uses: actions/upload-artifact@v4
         with:
           name: ai-live-mode-report
           path: ai-live-mode-report.json
       - name: Stop stack
-        if: always()
+        if: ${{ always() && steps.ai_secret_gate.outputs.has_secret == 'true' && hashFiles('.env') != '' }}
         run: docker compose --env-file .env down -v
 
   stripe-epic-b:
