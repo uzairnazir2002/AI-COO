@@ -3,7 +3,7 @@ import uuid
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_current_user, get_org_context
+from app.api.deps import get_current_user, get_org_context, require_roles
 from app.db.session import get_db
 from app.domain.models.user import User
 from app.domain.repos.ai_chat_repo import AIChatRepo
@@ -18,6 +18,8 @@ from app.domain.schemas.ai import (
     AIChatSessionCreateIn,
     AIChatSessionDetailOut,
     AIChatSessionOut,
+    AIHealthOut,
+    AIProviderHealthOut,
     AISummaryOut,
     AISummaryRequest,
 )
@@ -26,8 +28,29 @@ from app.domain.services.ai_service import AIService
 from app.domain.services.analytics_service import AnalyticsService
 from app.domain.services.errors import NotFoundError
 from app.domain.services.usage_service import METRIC_AI_SUMMARIES, UsageService
+from app.infra.ai_client import generate_summary_stub, get_ai_provider_health
 
 router = APIRouter()
+
+
+@router.get("/health", response_model=AIHealthOut)
+async def ai_health(
+    org_id: uuid.UUID = Query(...),
+    live_check: bool = Query(default=False),
+    user: User = Depends(get_current_user),
+    _: object = Depends(require_roles("OWNER", "EDITOR")),
+    db: AsyncSession = Depends(get_db),
+):
+    await get_org_context(org_id=org_id, user=user, db=db)
+    provider = AIProviderHealthOut.model_validate(get_ai_provider_health(live_check=live_check))
+
+    fallback_ready = True
+    try:
+        generate_summary_stub({"kpis": {}, "alerts": []})
+    except Exception:
+        fallback_ready = False
+
+    return AIHealthOut(provider=provider, fallback_ready=fallback_ready)
 
 
 @router.post("/summary", response_model=AISummaryOut)

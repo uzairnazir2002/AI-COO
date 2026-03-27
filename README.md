@@ -103,6 +103,7 @@ See ADRs:
 - `MINIO_ENDPOINT`, `MINIO_ACCESS_KEY`, `MINIO_SECRET_KEY`, `MINIO_BUCKET`
 - `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`, `EMAIL_DRY_RUN`
 - `NEXT_PUBLIC_API_BASE_URL`
+- `NEXT_PUBLIC_API_URL` (optional alias used by frontend API client)
 - `AUTH_COOKIE_MODE`, `COOKIE_SECURE`, `COOKIE_SAMESITE`, `ACCESS_COOKIE_NAME`, `REFRESH_COOKIE_NAME`
 - `ENFORCE_HTTPS` (optional strict transport enforcement for non-development environments)
 - `PII_ENCRYPTION_KEYS`, `PII_ENCRYPTION_ACTIVE_KEY_ID` (PII encryption keyring + active key selector)
@@ -141,7 +142,7 @@ Main groups:
   - `POST /integrations/payments/stripe/connect`
   - `POST /integrations/payments/stripe/webhook`
   - `GET /integrations/payments/reconciliation?org_id=...&date_from=...&date_to=...`
-- `ai`: executive summary
+- `ai`: executive summary + chat + provider/fallback health (`GET /api/v1/ai/health?org_id=...&live_check=true`)
 - `health`: service checks
 
 OpenAPI export:
@@ -192,6 +193,16 @@ Full runtime verification (manual command):
 python scripts/verify_runtime.py --api-base-url http://localhost:8000/api/v1 --frontend-base-url http://localhost:3000
 ```
 
+AI live-mode verification (manual command):
+```bash
+python scripts/ops/verify_ai_live_mode.py --api-base-url http://localhost:8000/api/v1 --database-url postgresql://ai_coo:ai_coo@localhost:5432/ai_coo --live-check --verify-fallback-test
+```
+
+Secret hygiene audit (manual command):
+```bash
+python scripts/ops/secret_hygiene_audit.py --root . --env-file .env.example
+```
+
 ## Demo data seed (6 months)
 Use `shared/demo/transactions_6months.csv` with the transactions CSV import endpoint to generate realistic trends for anomaly/profit-leak/forecast output.
 
@@ -212,6 +223,9 @@ curl -X POST http://localhost:8000/api/v1/transactions/import/csv \
 - Reference Nginx config: `docker/nginx/default.conf`
 - Backup/restore runbook: `docs/operations/backup_restore.md`
 - Privacy/deletion operations runbook: `docs/operations/privacy_deletion.md`
+- AI live-mode runbook: `docs/operations/ai_live_mode.md`
+- Secret hygiene checklist: `docs/operations/secret_hygiene_checklist.md`
+- CI env-gated lanes: `docs/operations/ci_env_gated_lanes.md`
 - Performance harness docs: `docs/performance.md`
 
 ## API examples

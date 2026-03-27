@@ -22,6 +22,14 @@ on:
         description: "Run Playwright visual regression lane"
         required: false
         default: "false"
+      run_plaid_lane:
+        description: "Run Plaid Epic A lane"
+        required: false
+        default: "false"
+      run_ai_live_lane:
+        description: "Run AI live-mode verification lane"
+        required: false
+        default: "false"
 
 jobs:
   migration-safety:
@@ -274,6 +282,29 @@ jobs:
       - name: Run pre-commit
         run: pre-commit run --all-files
 
+  secret-hygiene:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Run secret hygiene audit
+        run: |
+          python scripts/ops/secret_hygiene_audit.py \
+            --root . \
+            --env-file .env.example \
+            --out-json secret-hygiene-report.json \
+            --out-md secret-hygiene-report.md
+      - name: Upload secret hygiene report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: secret-hygiene-report
+          path: |
+            secret-hygiene-report.json
+            secret-hygiene-report.md
+
   integration:
     if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.run_integration == 'true' }}
     runs-on: ubuntu-latest
@@ -340,7 +371,7 @@ jobs:
         run: docker compose --env-file .env down -v
 
   plaid-epic-a:
-    if: ${{ vars.PLAID_CLIENT_ID != '' && vars.PLAID_SECRET != '' }}
+    if: ${{ (vars.CI_E2E_PLAID_LANE == '1' || (github.event_name == 'workflow_dispatch' && github.event.inputs.run_plaid_lane == 'true')) && secrets.PLAID_CLIENT_ID != '' && secrets.PLAID_SECRET != '' }}
     runs-on: ubuntu-latest
     env:
       PLAID_CLIENT_ID: ${{ secrets.PLAID_CLIENT_ID }}
@@ -430,6 +461,60 @@ jobs:
         with:
           name: plaid-playwright-report
           path: frontend/playwright-report
+      - name: Stop stack
+        if: always()
+        run: docker compose --env-file .env down -v
+
+  ai-live-mode:
+    if: ${{ (vars.CI_AI_LIVE_MODE_LANE == '1' || (github.event_name == 'workflow_dispatch' && github.event.inputs.run_ai_live_lane == 'true')) && secrets.AI_OPENAI_API_KEY != '' }}
+    runs-on: ubuntu-latest
+    env:
+      AI_OPENAI_API_KEY: ${{ secrets.AI_OPENAI_API_KEY }}
+      AI_OPENAI_MODEL: ${{ vars.AI_OPENAI_MODEL != '' && vars.AI_OPENAI_MODEL || 'gpt-4o-mini' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Prepare AI live-mode env
+        run: |
+          cp .env.example .env
+          {
+            echo "AI_PROVIDER=openai"
+            echo "AI_OPENAI_API_KEY=${AI_OPENAI_API_KEY}"
+            echo "AI_OPENAI_MODEL=${AI_OPENAI_MODEL}"
+            echo "AUTH_COOKIE_MODE=false"
+            echo "COOKIE_SECURE=false"
+          } >> .env
+      - name: Start stack
+        run: docker compose --env-file .env up --build -d postgres redis minio backend
+      - name: Wait for health
+        run: |
+          for i in {1..50}; do
+            if curl -sf http://localhost:8000/api/v1/health; then exit 0; fi
+            sleep 3
+          done
+          docker compose logs backend --tail 200
+          exit 1
+      - name: Install script dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install httpx asyncpg
+      - name: Verify AI live mode + fallback guard
+        run: |
+          python scripts/ops/verify_ai_live_mode.py \
+            --api-base-url http://localhost:8000/api/v1 \
+            --database-url postgresql://ai_coo:ai_coo@localhost:5432/ai_coo \
+            --live-check \
+            --verify-fallback-test \
+            --fallback-test-path backend/app/tests/test_ai_service.py::test_ai_service_falls_back_on_provider_error \
+            --out-json ai-live-mode-report.json
+      - name: Upload AI live-mode report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ai-live-mode-report
+          path: ai-live-mode-report.json
       - name: Stop stack
         if: always()
         run: docker compose --env-file .env down -v

@@ -74,8 +74,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }, [selectedOrgId]);
 
   return (
-    <div className="min-h-screen md:grid" style={{ gridTemplateColumns: collapsed ? "92px 1fr" : "290px 1fr" }}>
-      <aside className="border-r border-border/70 bg-card/65 px-3 py-4 backdrop-blur-xl">
+    <div className="min-h-screen md:grid md:h-dvh md:overflow-hidden" style={{ gridTemplateColumns: collapsed ? "92px 1fr" : "290px 1fr" }}>
+      <aside data-testid="app-sidebar" className="border-r border-border/70 bg-card/65 px-3 py-4 backdrop-blur-xl md:sticky md:top-0 md:h-dvh md:overflow-y-auto">
         <div className="flex items-center justify-between px-2">
           <Link href="/app/dashboard" className={cn("flex items-center gap-3 rounded-2xl px-3 py-3", collapsed && "justify-center")}>
             <div className="rounded-2xl bg-primary/12 p-2 text-primary">
@@ -122,7 +122,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         ) : null}
       </aside>
 
-      <div className="min-w-0">
+      <div data-testid="app-main-scroll" className="min-w-0 md:h-dvh md:overflow-y-auto">
         <header className="sticky top-0 z-20 border-b border-border/70 bg-background/90 backdrop-blur-xl">
           <div className="page-container flex flex-col gap-4 py-4">
             <div className="flex flex-wrap items-center gap-3">

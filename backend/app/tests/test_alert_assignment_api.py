@@ -142,3 +142,29 @@ def test_alert_history_returns_assignment_events(monkeypatch):
     payload = response.json()
     assert len(payload["items"]) == 1
     assert payload["items"][0]["action"] == "alert.assign"
+
+
+def test_assign_alert_accepts_legacy_query_payload(monkeypatch):
+    app = _build_app(monkeypatch, assignee_is_member=True)
+    client = TestClient(app)
+    org_id = uuid4()
+    assignee_id = uuid4()
+    response = client.post(
+        f"/api/v1/alerts/{uuid4()}/assign?org_id={org_id}&assignee_user_id={assignee_id}",
+    )
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["ok"] is True
+    assert payload["alert"]["assigned_to_user_id"] == str(assignee_id)
+
+
+def test_acknowledge_alert_accepts_legacy_query_payload(monkeypatch):
+    app = _build_app(monkeypatch, assignee_is_member=True)
+    client = TestClient(app)
+    response = client.post(
+        f"/api/v1/alerts/{uuid4()}/acknowledge?org_id={uuid4()}",
+    )
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["ok"] is True
+    assert payload["alert"]["acknowledged_at"] is not None

@@ -104,66 +104,78 @@ async def dismiss_alert(
 @router.post("/{alert_id}/assign", response_model=dict)
 async def assign_alert(
     alert_id: uuid.UUID,
-    body: AlertAssignIn = Body(...),
+    org_id: uuid.UUID | None = Query(default=None),
+    assignee_user_id: uuid.UUID | None = Query(default=None),
+    body: AlertAssignIn | None = Body(default=None),
     user: User = Depends(get_current_user),
     _: object = Depends(require_roles("OWNER", "EDITOR")),
     db: AsyncSession = Depends(get_db),
 ):
-    await get_org_context(org_id=body.org_id, user=user, db=db)
+    resolved_org_id = body.org_id if body is not None else org_id
+    if resolved_org_id is None:
+        raise HTTPException(status_code=422, detail="org_id is required")
+    resolved_assignee_user_id = body.assignee_user_id if body is not None else assignee_user_id
+
+    await get_org_context(org_id=resolved_org_id, user=user, db=db)
     repo = AlertRepo(db)
-    alert = await repo.get(alert_id, body.org_id)
+    alert = await repo.get(alert_id, resolved_org_id)
     if not alert:
         raise HTTPException(status_code=404, detail="Alert not found")
 
-    if body.assignee_user_id is not None:
-        assignee_membership = await OrgRepo(db).membership(body.assignee_user_id, body.org_id)
+    if resolved_assignee_user_id is not None:
+        assignee_membership = await OrgRepo(db).membership(resolved_assignee_user_id, resolved_org_id)
         if not assignee_membership:
             raise HTTPException(status_code=404, detail="Assignee is not a member of organization")
 
     await AlertsService(db, repo).assign(
         alert=alert,
-        assignee_user_id=body.assignee_user_id,
+        assignee_user_id=resolved_assignee_user_id,
         actor_user_id=user.id,
     )
     await AuditRepo(db).log(
         actor_user_id=user.id,
-        org_id=body.org_id,
+        org_id=resolved_org_id,
         action="alert.assign",
         entity_type="alert",
         entity_id=str(alert.id),
-        metadata_json={"assigned_to_user_id": str(body.assignee_user_id) if body.assignee_user_id else None},
+        metadata_json={"assigned_to_user_id": str(resolved_assignee_user_id) if resolved_assignee_user_id else None},
     )
     await db.commit()
-    await cache_delete_prefix(alerts_cache_prefix(body.org_id))
-    await cache_delete_prefix(analytics_summary_cache_prefix(body.org_id))
+    await cache_delete_prefix(alerts_cache_prefix(resolved_org_id))
+    await cache_delete_prefix(analytics_summary_cache_prefix(resolved_org_id))
     return {"ok": True, "alert": AlertOut.model_validate(alert)}
 
 
 @router.post("/{alert_id}/acknowledge", response_model=dict)
 async def acknowledge_alert(
     alert_id: uuid.UUID,
-    body: AlertAcknowledgeIn = Body(...),
+    org_id: uuid.UUID | None = Query(default=None),
+    body: AlertAcknowledgeIn | None = Body(default=None),
     user: User = Depends(get_current_user),
     _: object = Depends(require_roles("OWNER", "EDITOR")),
     db: AsyncSession = Depends(get_db),
 ):
-    await get_org_context(org_id=body.org_id, user=user, db=db)
+    resolved_org_id = body.org_id if body is not None else org_id
+    if resolved_org_id is None:
+        raise HTTPException(status_code=422, detail="org_id is required")
+
+    await get_org_context(org_id=resolved_org_id, user=user, db=db)
     repo = AlertRepo(db)
-    alert = await repo.get(alert_id, body.org_id)
+    alert = await repo.get(alert_id, resolved_org_id)
     if not alert:
         raise HTTPException(status_code=404, detail="Alert not found")
 
     await AlertsService(db, repo).acknowledge(alert=alert)
     await AuditRepo(db).log(
         actor_user_id=user.id,
-        org_id=body.org_id,
+        org_id=resolved_org_id,
         action="alert.acknowledge",
         entity_type="alert",
         entity_id=str(alert.id),
         metadata_json={"acknowledged": True},
     )
     await db.commit()
-    await cache_delete_prefix(alerts_cache_prefix(body.org_id))
+    await cache_delete_prefix(alerts_cache_prefix(resolved_org_id))
     return {"ok": True, "alert": AlertOut.model_validate(alert)}
 
 

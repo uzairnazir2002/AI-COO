@@ -2,11 +2,18 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { api } from "@/lib/api/client";
+import { ApiError, api } from "@/lib/api/client";
 import { apiPaths } from "@/lib/api/endpoints";
 import { qk } from "@/lib/query/keys";
 import { useAppStore } from "@/store/appStore";
 import type { Alert, AlertHistoryItem } from "@/types/domain";
+
+function requireOrgId(orgId: string | null): string {
+  if (!orgId) {
+    throw new ApiError("Select an organization before managing alerts.", 400);
+  }
+  return orgId;
+}
 
 export function useAlerts(status: "open" | "dismissed", assigneeUserId?: string, enabled = true) {
   const orgId = useAppStore((s) => s.selectedOrgId);
@@ -25,7 +32,10 @@ export function useDismissAlert() {
   const orgId = useAppStore((s) => s.selectedOrgId);
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (id: string) => api<{ ok: boolean }>(`${apiPaths.dismissAlert(id)}?org_id=${orgId}`, { method: "POST" }),
+    mutationFn: (id: string) => {
+      const resolvedOrgId = requireOrgId(orgId);
+      return api<{ ok: boolean }>(`${apiPaths.dismissAlert(id)}?org_id=${resolvedOrgId}`, { method: "POST" });
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["alerts"] });
       queryClient.invalidateQueries({ queryKey: ["summary"] });
@@ -37,11 +47,13 @@ export function useAssignAlert() {
   const orgId = useAppStore((s) => s.selectedOrgId);
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, assigneeUserId }: { id: string; assigneeUserId: string | null }) =>
-      api<{ ok: boolean; alert: Alert }>(apiPaths.assignAlert(id), {
+    mutationFn: ({ id, assigneeUserId }: { id: string; assigneeUserId: string | null }) => {
+      const resolvedOrgId = requireOrgId(orgId);
+      return api<{ ok: boolean; alert: Alert }>(apiPaths.assignAlert(id), {
         method: "POST",
-        body: JSON.stringify({ org_id: orgId, assignee_user_id: assigneeUserId }),
-      }),
+        body: JSON.stringify({ org_id: resolvedOrgId, assignee_user_id: assigneeUserId }),
+      });
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["alerts"] });
       queryClient.invalidateQueries({ queryKey: ["summary"] });
@@ -53,11 +65,13 @@ export function useAcknowledgeAlert() {
   const orgId = useAppStore((s) => s.selectedOrgId);
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (id: string) =>
-      api<{ ok: boolean; alert: Alert }>(apiPaths.acknowledgeAlert(id), {
+    mutationFn: (id: string) => {
+      const resolvedOrgId = requireOrgId(orgId);
+      return api<{ ok: boolean; alert: Alert }>(apiPaths.acknowledgeAlert(id), {
         method: "POST",
-        body: JSON.stringify({ org_id: orgId }),
-      }),
+        body: JSON.stringify({ org_id: resolvedOrgId }),
+      });
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["alerts"] });
       queryClient.invalidateQueries({ queryKey: ["summary"] });

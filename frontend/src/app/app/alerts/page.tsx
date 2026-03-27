@@ -17,6 +17,11 @@ import { alertImpactValue } from "@/lib/utils/chart";
 import { useAppStore } from "@/store/appStore";
 import type { Alert } from "@/types/domain";
 
+function getErrorMessage(error: unknown): string {
+  if (error instanceof Error && error.message.trim()) return error.message;
+  return "Request failed. Please try again.";
+}
+
 export default function AlertsPage() {
   const [status, setStatus] = useState<"open" | "dismissed">("open");
   const [kind, setKind] = useState("ALL");
@@ -123,8 +128,12 @@ export default function AlertsPage() {
                 onDismiss={
                   status === "open"
                     ? async (id) => {
-                        await dismiss.mutateAsync(id);
-                        toast.toast({ title: "Alert dismissed" });
+                        try {
+                          await dismiss.mutateAsync(id);
+                          toast.toast({ title: "Alert dismissed" });
+                        } catch (error) {
+                          toast.toast({ title: "Could not dismiss alert", description: getErrorMessage(error), variant: "danger" });
+                        }
                       }
                     : undefined
                 }
@@ -158,23 +167,39 @@ export default function AlertsPage() {
                 onClose={() => setActiveAlertId(null)}
                 onAssignToMe={async (id) => {
                   if (!userId) return;
-                  await assign.mutateAsync({ id, assigneeUserId: userId });
-                  toast.toast({ title: "Alert assigned to you" });
+                  try {
+                    await assign.mutateAsync({ id, assigneeUserId: userId });
+                    toast.toast({ title: "Alert assigned to you" });
+                  } catch (error) {
+                    toast.toast({ title: "Could not assign alert", description: getErrorMessage(error), variant: "danger" });
+                  }
                 }}
                 onUnassign={async (id) => {
-                  await assign.mutateAsync({ id, assigneeUserId: null });
-                  toast.toast({ title: "Alert unassigned" });
+                  try {
+                    await assign.mutateAsync({ id, assigneeUserId: null });
+                    toast.toast({ title: "Alert unassigned" });
+                  } catch (error) {
+                    toast.toast({ title: "Could not unassign alert", description: getErrorMessage(error), variant: "danger" });
+                  }
                 }}
                 onAcknowledge={async (id) => {
-                  await acknowledge.mutateAsync(id);
-                  toast.toast({ title: "Alert acknowledged" });
+                  try {
+                    await acknowledge.mutateAsync(id);
+                    toast.toast({ title: "Alert acknowledged" });
+                  } catch (error) {
+                    toast.toast({ title: "Could not acknowledge alert", description: getErrorMessage(error), variant: "danger" });
+                  }
                 }}
                 members={members.data ?? []}
                 assigneeSelection={assigneeSelection}
                 onAssigneeSelectionChange={setAssigneeSelection}
                 onAssignToMember={async (id, memberId) => {
-                  await assign.mutateAsync({ id, assigneeUserId: memberId });
-                  toast.toast({ title: "Alert assignment updated" });
+                  try {
+                    await assign.mutateAsync({ id, assigneeUserId: memberId });
+                    toast.toast({ title: "Alert assignment updated" });
+                  } catch (error) {
+                    toast.toast({ title: "Could not update assignee", description: getErrorMessage(error), variant: "danger" });
+                  }
                 }}
                 historyItems={history.data?.items ?? []}
                 memberEmailById={memberEmailById}

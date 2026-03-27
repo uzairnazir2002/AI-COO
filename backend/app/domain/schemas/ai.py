@@ -68,3 +68,17 @@ class AIChatRequest(BaseModel):
 class AIChatOut(BaseModel):
     session_id: uuid.UUID
     message: AIChatMessageOut
+
+
+class AIProviderHealthOut(BaseModel):
+    provider: str
+    model: str | None = None
+    configured: bool
+    healthy: bool
+    live_check_performed: bool
+    reason: str | None = None
+
+
+class AIHealthOut(BaseModel):
+    provider: AIProviderHealthOut
+    fallback_ready: bool

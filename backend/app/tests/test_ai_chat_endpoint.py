@@ -251,3 +251,60 @@ def test_ai_chat_send_message(ai_module, monkeypatch):
     body = res.json()
     assert body["session_id"] == str(session_id)
     assert body["message"]["role"] == "ASSISTANT"
+
+
+def test_ai_health_endpoint_reports_provider_and_fallback(ai_module, monkeypatch):
+    org_id = uuid.uuid4()
+    app = _app(monkeypatch, ai_module)
+    client = TestClient(app)
+
+    monkeypatch.setattr(
+        ai_module,
+        "get_ai_provider_health",
+        lambda live_check=False: {
+            "provider": "openai",
+            "model": "gpt-4o-mini",
+            "configured": True,
+            "healthy": True,
+            "live_check_performed": live_check,
+            "reason": None,
+        },
+    )
+
+    res = client.get(f"/api/v1/ai/health?org_id={org_id}&live_check=true")
+    assert res.status_code == 200, res.text
+    body = res.json()
+    assert body["provider"]["provider"] == "openai"
+    assert body["provider"]["healthy"] is True
+    assert body["provider"]["live_check_performed"] is True
+    assert body["fallback_ready"] is True
+
+
+def test_ai_health_endpoint_marks_fallback_unavailable(ai_module, monkeypatch):
+    org_id = uuid.uuid4()
+    app = _app(monkeypatch, ai_module)
+    client = TestClient(app)
+
+    monkeypatch.setattr(
+        ai_module,
+        "get_ai_provider_health",
+        lambda live_check=False: {
+            "provider": "stub",
+            "model": None,
+            "configured": True,
+            "healthy": True,
+            "live_check_performed": live_check,
+            "reason": None,
+        },
+    )
+
+    def _broken_fallback(_metrics):
+        raise RuntimeError("broken fallback")
+
+    monkeypatch.setattr(ai_module, "generate_summary_stub", _broken_fallback)
+
+    res = client.get(f"/api/v1/ai/health?org_id={org_id}")
+    assert res.status_code == 200, res.text
+    body = res.json()
+    assert body["provider"]["provider"] == "stub"
+    assert body["fallback_ready"] is False
