@@ -11,8 +11,8 @@ test.describe("Plaid integration flow", () => {
     await page.goto("/app/settings");
     await expect(page.getByRole("heading", { name: "Bank integrations (Plaid)" })).toBeVisible();
 
-    await page.getByRole("button", { name: "Connect with Plaid" }).click();
-    // In sandbox automation mode, use manual fallback exchange path for deterministic token injection.
+    // In sandbox automation mode, use manual fallback exchange path directly
+    // to avoid external Plaid iframe overlay interfering with in-app controls.
     await page.getByText("Advanced manual public token exchange").click();
     await page.getByPlaceholder("Plaid public_token").fill(publicToken);
     await page.getByRole("button", { name: "Exchange token manually" }).click();
