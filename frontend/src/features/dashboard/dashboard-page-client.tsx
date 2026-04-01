@@ -1,25 +1,24 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import Link from "next/link";
-import { AnimatePresence, motion } from "framer-motion";
-import { Area, AreaChart, Bar, BarChart, CartesianGrid, Line, ReferenceLine, Tooltip, XAxis, YAxis } from "recharts";
-import { ArrowRight, BellRing, Download } from "lucide-react";
+import { ArrowRight, Download } from "lucide-react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
-import { AIInsightPanel } from "@/components/common/ai-insight-panel";
-import { AlertCard } from "@/components/common/alert-card";
 import { EmptyState } from "@/components/common/empty-state";
 import { ErrorState } from "@/components/common/error-state";
 import { SectionHeader } from "@/components/common/section-header";
-import { ChartCard } from "@/components/charts/chart-card";
-import { ChartCanvas } from "@/components/charts/chart-canvas";
-import { ChartFrame } from "@/components/charts/chart-frame";
-import { chartPalette } from "@/components/charts/theme";
-import { FinancialTooltip } from "@/components/charts/chart-tooltip";
-import { KpiCard } from "@/components/kpi/kpi-card";
+import { CalculationDrawer } from "@/components/drawers/calculation-drawer";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useDashboardData } from "@/features/dashboard/hooks";
+import { AlertDetailDrawer } from "@/features/dashboard/panels/alert-detail-drawer";
+import { BenchmarkPanel } from "@/features/dashboard/panels/benchmark-panel";
+import { CashflowChartPanel } from "@/features/dashboard/panels/cashflow-chart-panel";
+import { HeroStrip } from "@/features/dashboard/panels/hero-strip";
+import { DashboardKpiGrid } from "@/features/dashboard/panels/kpi-grid";
+import { PriorityAlertsPanel } from "@/features/dashboard/panels/priority-alerts-panel";
+import { RevenueExpenseChartPanel } from "@/features/dashboard/panels/revenue-expense-chart-panel";
 import { computeChartDomain, downsamplePoints, toNumber } from "@/lib/utils/chart";
 import { formatCompactMoney, formatMoney, shiftDaysISO, todayISO } from "@/lib/utils/format";
 import { useAppStore } from "@/store/appStore";
@@ -27,10 +26,111 @@ import { useAppStore } from "@/store/appStore";
 export function DashboardPageClient() {
   const data = useDashboardData();
   const [activeAlertId, setActiveAlertId] = useState<string | null>(null);
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const cashflowGranularity = useAppStore((s) => s.cashflowGranularity);
   const setCashflowGranularity = useAppStore((s) => s.setCashflowGranularity);
   const setGlobalDateRange = useAppStore((s) => s.setGlobalDateRange);
   const selectedLocationId = useAppStore((s) => s.selectedLocationId);
+  const metricForCalc = searchParams.get("metric");
+  const drillPointDate = searchParams.get("point");
+
+  const updateDashboardQuery = useCallback((next: { metric?: string | null; point?: string | null }) => {
+    const params = new URLSearchParams(searchParams.toString());
+    if (next.metric !== undefined) {
+      if (next.metric) params.set("metric", next.metric);
+      else params.delete("metric");
+    }
+    if (next.point !== undefined) {
+      if (next.point) params.set("point", next.point);
+      else params.delete("point");
+    }
+    const query = params.toString();
+    router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
+  }, [pathname, router, searchParams]);
+
+  const pointsRaw =
+    data.cashflow?.points.map((p) => ({
+      ...p,
+      revenue: toNumber(p.revenue),
+      expense: toNumber(p.expense),
+      net: toNumber(p.net),
+    })) || [];
+  const points = downsamplePoints(pointsRaw, 120);
+  const scopedPoints = useMemo(() => {
+    if (!drillPointDate) return points;
+    const narrowed = points.filter((point) => point.date === drillPointDate);
+    return narrowed.length > 0 ? narrowed : points;
+  }, [drillPointDate, points]);
+  const sparklineData = downsamplePoints(
+    scopedPoints.map((point) => ({ label: point.date, value: point.net })),
+    40,
+  );
+  const burnSpark = downsamplePoints(
+    scopedPoints.map((point) => ({ label: point.date, value: point.expense - point.revenue })),
+    40,
+  );
+
+  const hasData = scopedPoints.length > 0;
+  const resetToLast90Days = () => {
+    const to = todayISO();
+    const from = shiftDaysISO(to, -89);
+    setGlobalDateRange({ from, to });
+  };
+  const alertDetail = data.alerts.find((item) => item.id === activeAlertId) ?? null;
+  const maxImpact = data.alerts.reduce((acc, alert) => {
+    const value = toNumber((alert.meta as Record<string, unknown> | undefined)?.impact);
+    return Math.max(acc, Math.abs(value));
+  }, 0);
+  const netChange = scopedPoints.length > 1 ? scopedPoints[scopedPoints.length - 1].net - scopedPoints[0].net : 0;
+  const budgetPlanned = toNumber(data.budgetVariance?.totals.planned_amount);
+  const budgetActual = toNumber(data.budgetVariance?.totals.actual_amount);
+  const budgetVarianceAmount = toNumber(data.budgetVariance?.totals.variance_amount);
+  const budgetVariancePct = budgetPlanned > 0 ? (budgetVarianceAmount / budgetPlanned) * 100 : 0;
+  const revenueMtd = toNumber(data.summary?.revenue_mtd);
+  const expenseMtd = toNumber(data.summary?.expenses_mtd);
+  const netMarginPct = revenueMtd > 0 ? ((revenueMtd - expenseMtd) / revenueMtd) * 100 : 0;
+  const hasBudgetVariance = budgetPlanned > 0 || budgetActual > 0;
+  const benchmarkRows = data.locationBenchmark?.locations ?? [];
+  const cashflowDomain = computeChartDomain(
+    scopedPoints.flatMap((point) => [point.revenue, point.expense, point.net]),
+    500,
+  );
+  const calculationSpecs: Record<string, { formula: string; inputs: Array<{ label: string; value: string; source?: string }> }> = {
+    "Cash balance": {
+      formula: "Current cash snapshot from summary service",
+      inputs: [{ label: "Cash balance", value: formatMoney(data.summary?.cash_balance), source: "Summary API: cash_balance" }],
+    },
+    Runway: {
+      formula: "Runway days = projected cash coverage under current burn profile",
+      inputs: [
+        { label: "Runway days", value: `${data.runway?.runway_days ?? 0} days`, source: "Runway API: runway_days" },
+        { label: "Monthly burn", value: formatCompactMoney(data.summary?.burn_rate_monthly), source: "Summary API: burn_rate_monthly" },
+      ],
+    },
+    "Burn rate": {
+      formula: "Rolling monthly burn estimate",
+      inputs: [{ label: "Burn rate", value: formatCompactMoney(data.summary?.burn_rate_monthly), source: "Summary API: burn_rate_monthly" }],
+    },
+    "Revenue MTD": {
+      formula: "Sum of MTD revenue transactions in selected scope",
+      inputs: [{ label: "Revenue MTD", value: formatCompactMoney(revenueMtd), source: "Summary API: revenue_mtd" }],
+    },
+    "Expense MTD": {
+      formula: "Sum of MTD expense transactions in selected scope",
+      inputs: [{ label: "Expense MTD", value: formatCompactMoney(expenseMtd), source: "Summary API: expenses_mtd" }],
+    },
+    "Net margin": {
+      formula: "((Revenue MTD - Expense MTD) / Revenue MTD) * 100",
+      inputs: [
+        { label: "Revenue MTD", value: formatCompactMoney(revenueMtd), source: "Summary API: revenue_mtd" },
+        { label: "Expense MTD", value: formatCompactMoney(expenseMtd), source: "Summary API: expenses_mtd" },
+        { label: "Net margin", value: `${netMarginPct.toFixed(1)}%`, source: "Client formula" },
+      ],
+    },
+  };
+  const selectedCalculation = metricForCalc ? calculationSpecs[metricForCalc] : null;
 
   if (!data.orgId) {
     return (
@@ -47,51 +147,18 @@ export function DashboardPageClient() {
     return <ErrorState description={String((data.error as Error).message || data.error)} />;
   }
 
-  const pointsRaw =
-    data.cashflow?.points.map((p) => ({
-      ...p,
-      revenue: toNumber(p.revenue),
-      expense: toNumber(p.expense),
-      net: toNumber(p.net),
-    })) || [];
-  const points = downsamplePoints(pointsRaw, 120);
-  const sparklineData = downsamplePoints(
-    points.map((point) => ({ label: point.date, value: point.net })),
-    40,
-  );
-  const burnSpark = downsamplePoints(
-    points.map((point) => ({ label: point.date, value: point.expense - point.revenue })),
-    40,
-  );
-
-  const hasData = points.length > 0;
-  const resetToLast90Days = () => {
-    const to = todayISO();
-    const from = shiftDaysISO(to, -89);
-    setGlobalDateRange({ from, to });
-  };
-  const alertDetail = data.alerts.find((item) => item.id === activeAlertId) ?? null;
-  const maxImpact = data.alerts.reduce((acc, alert) => {
-    const value = toNumber((alert.meta as Record<string, unknown> | undefined)?.impact);
-    return Math.max(acc, Math.abs(value));
-  }, 0);
-  const netChange = points.length > 1 ? points[points.length - 1].net - points[0].net : 0;
-  const budgetPlanned = toNumber(data.budgetVariance?.totals.planned_amount);
-  const budgetActual = toNumber(data.budgetVariance?.totals.actual_amount);
-  const budgetVarianceAmount = toNumber(data.budgetVariance?.totals.variance_amount);
-  const budgetVariancePct = budgetPlanned > 0 ? (budgetVarianceAmount / budgetPlanned) * 100 : 0;
-  const hasBudgetVariance = budgetPlanned > 0 || budgetActual > 0;
-  const benchmarkRows = data.locationBenchmark?.locations ?? [];
-  const cashflowDomain = computeChartDomain(
-    points.flatMap((point) => [point.revenue, point.expense, point.net]),
-    500,
-  );
-
   return (
     <div className="space-y-6">
       <SectionHeader
+        eyebrow="Overview"
         title="Executive dashboard"
         description="KPIs, risk signals, cashflow movement, and AI narrative for the currently selected organization and date range."
+        scopeChips={[
+          `${data.from} to ${data.to}`,
+          selectedLocationId ? "Location scope: filtered" : "Location scope: all",
+          `Granularity: ${cashflowGranularity}`,
+          drillPointDate ? `Drill point: ${drillPointDate}` : "Drill point: none",
+        ]}
         actions={
           <>
             <div className="w-36">
@@ -107,8 +174,13 @@ export function DashboardPageClient() {
                   <SelectItem value="week">Weekly</SelectItem>
                   <SelectItem value="month">Monthly</SelectItem>
                 </SelectContent>
-              </Select>
-            </div>
+                </Select>
+              </div>
+            {drillPointDate ? (
+              <Button variant="ghost" onClick={() => updateDashboardQuery({ point: null })}>
+                Clear drill
+              </Button>
+            ) : null}
             <Button asChild variant="outline">
               <Link href="/app/reports">
                 Weekly report <Download className="ml-2 h-4 w-4" />
@@ -123,256 +195,78 @@ export function DashboardPageClient() {
         }
       />
 
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <KpiCard
-          label="Cash balance"
-          value={formatMoney(data.summary?.cash_balance)}
-          hint={`${data.from} to ${data.to}`}
-          sparklineData={sparklineData}
-        />
-        <KpiCard
-          label="Runway"
-          value={`${data.runway?.runway_days ?? 0} days`}
-          warning={Boolean(data.runway?.alert)}
-          hint={data.runway?.alert ? "Below alert threshold" : "Healthy runway buffer"}
-          sparklineData={sparklineData}
-        />
-        <KpiCard
-          label="Monthly burn"
-          value={formatCompactMoney(data.summary?.burn_rate_monthly)}
-          hint="Rolling burn estimate"
-          sparklineData={burnSpark}
-        />
-        <KpiCard
-          label="Net change"
-          value={formatCompactMoney(netChange)}
-          hint={netChange >= 0 ? "Cashflow improving" : "Cashflow under pressure"}
-          sparklineData={sparklineData}
-        />
-      </div>
+      <HeroStrip from={data.from} to={data.to} headline={data.ai?.summary_json?.headline} />
 
-      <div className="grid gap-4 sm:grid-cols-3">
-        <KpiCard
-          label="Budget planned (month)"
-          value={formatMoney(budgetPlanned)}
-          hint={hasBudgetVariance ? "Current month expense budget total" : "No monthly budgets configured"}
-        />
-        <KpiCard
-          label="Budget actual (month)"
-          value={formatMoney(budgetActual)}
-          hint={hasBudgetVariance ? "Matched against expense transactions" : "No budget variance baseline yet"}
-        />
-        <KpiCard
-          label="Budget variance (month)"
-          value={formatMoney(budgetVarianceAmount)}
-          warning={budgetVarianceAmount > 0}
-          hint={hasBudgetVariance ? `Variance ${budgetVariancePct.toFixed(1)}%` : "Variance available once budget rows exist"}
-        />
-      </div>
-
-      <section className="rounded-2xl border border-border/70 bg-card/70 p-4">
-        <div className="flex items-center justify-between">
-          <h2 className="text-base font-semibold">Cross-location benchmark</h2>
-          <p className="text-xs text-muted-foreground">
-            {data.from} to {data.to}
-          </p>
-        </div>
-        {benchmarkRows.length === 0 ? (
-          <p className="mt-2 text-sm text-muted-foreground">No location-distributed transactions in this range.</p>
-        ) : (
-          <div className="mt-3 grid gap-2">
-            {benchmarkRows.slice(0, 6).map((row) => {
-              const isActiveScope = selectedLocationId !== null && row.location_id === selectedLocationId;
-              return (
-                <div
-                  key={`${row.location_id ?? "unassigned"}-${row.location_name}`}
-                  className={`flex items-center justify-between rounded-xl border px-3 py-2 text-sm ${isActiveScope ? "border-primary/60 bg-primary/5" : "border-border/60"}`}
-                >
-                  <div>
-                    <p className="font-medium">{row.location_name}</p>
-                    <p className="text-xs text-muted-foreground">
-                      Rev {formatCompactMoney(toNumber(row.revenue))} | Exp {formatCompactMoney(toNumber(row.expense))}
-                    </p>
-                  </div>
-                  <div className="text-right">
-                    <p className="font-medium">{formatCompactMoney(toNumber(row.net))}</p>
-                    <p className="text-xs text-muted-foreground">
-                      Margin {toNumber(row.margin_pct).toFixed(1)}%
-                    </p>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </section>
+      <DashboardKpiGrid
+        periodLabel={`${data.from} to ${data.to}`}
+        cashBalance={data.summary?.cash_balance}
+        netChange={netChange}
+        runwayDays={data.runway?.runway_days}
+        runwayAlert={data.runway?.alert}
+        burnRateMonthly={data.summary?.burn_rate_monthly}
+        revenueMtd={revenueMtd}
+        expenseMtd={expenseMtd}
+        netMarginPct={netMarginPct}
+        sparklineData={sparklineData}
+        burnSpark={burnSpark}
+        budgetPlanned={budgetPlanned}
+        budgetActual={budgetActual}
+        budgetVarianceAmount={budgetVarianceAmount}
+        budgetVariancePct={budgetVariancePct}
+        hasBudgetVariance={hasBudgetVariance}
+        onSelectMetric={(metric) => updateDashboardQuery({ metric })}
+      />
 
       <div className="grid gap-4 xl:grid-cols-2">
-        <ChartCard
-          title="Cashflow"
-          description={`Revenue, expenses, and net (${cashflowGranularity})`}
+        <CashflowChartPanel
           loading={data.loading}
-          empty={
-            !hasData ? (
-              <EmptyState
-                eyebrow="No cashflow yet"
-                title="No points in selected range."
-                description="This usually means your current date range has no transactions. Try widening the range or import data."
-                actions={[
-                  { label: "Last 90 days", onClick: resetToLast90Days, variant: "outline" },
-                  { label: "Go to transactions", href: "/app/transactions" },
-                ]}
-              />
-            ) : undefined
-          }
-        >
-          <ChartFrame
-            className="h-80 w-full"
-            label="Cashflow chart"
-            description={`Time series with revenue, expense, and net values in ${cashflowGranularity} intervals from ${data.from} to ${data.to}.`}
-          >
-            <ChartCanvas className="h-80 w-full">
-              {({ width, height }) => (
-                <AreaChart width={width} height={height} data={points}>
-                <CartesianGrid stroke={chartPalette.grid} strokeDasharray="3 3" />
-                <XAxis dataKey="date" tickLine={false} />
-                <YAxis domain={cashflowDomain} tickFormatter={(v) => formatCompactMoney(v)} />
-                <Tooltip content={<FinancialTooltip />} />
-                <Area dataKey="revenue" name="Revenue" stroke={chartPalette.revenueStroke} fill={chartPalette.revenueFill} fillOpacity={0.35} isAnimationActive={false} />
-                <Area dataKey="expense" name="Expense" stroke={chartPalette.expenseStroke} fill={chartPalette.expenseFill} fillOpacity={0.3} isAnimationActive={false} />
-                <Line
-                  type="monotone"
-                  dataKey="net"
-                  name="Net"
-                  stroke={chartPalette.netStroke}
-                  strokeWidth={2.5}
-                  dot={points.length <= 2}
-                  isAnimationActive={false}
-                />
-                </AreaChart>
-              )}
-            </ChartCanvas>
-          </ChartFrame>
-        </ChartCard>
-
-        <ChartCard
-          title="Revenue vs Expense"
-          description="Comparative trend with net baseline"
+          hasData={hasData}
+          points={scopedPoints}
+          cashflowGranularity={cashflowGranularity}
+          from={data.from}
+          to={data.to}
+          domain={cashflowDomain}
+          onResetToLast90Days={resetToLast90Days}
+          selectedPointDate={drillPointDate}
+          onPointSelect={(date) => updateDashboardQuery({ point: drillPointDate === date ? null : date })}
+        />
+        <RevenueExpenseChartPanel
           loading={data.loading}
-          empty={
-            !hasData ? (
-              <EmptyState
-                eyebrow="No trend yet"
-                title="Not enough data to render trend."
-                description="Load recent history to render this chart."
-                actions={[{ label: "Last 90 days", onClick: resetToLast90Days, variant: "outline" }]}
-              />
-            ) : undefined
-          }
-        >
-          <ChartFrame
-            className="h-80 w-full"
-            label="Revenue versus expense bar chart"
-            description={`Grouped bars showing revenue and expense over ${cashflowGranularity} intervals from ${data.from} to ${data.to}.`}
-          >
-            <ChartCanvas className="h-80 w-full">
-              {({ width, height }) => (
-                <BarChart width={width} height={height} data={points}>
-                <CartesianGrid stroke={chartPalette.grid} strokeDasharray="3 3" />
-                <XAxis dataKey="date" tickLine={false} />
-                <YAxis domain={cashflowDomain} tickFormatter={(v) => formatCompactMoney(v)} />
-                <Tooltip content={<FinancialTooltip />} />
-                <ReferenceLine y={0} stroke={chartPalette.baseline} />
-                <Bar dataKey="revenue" name="Revenue" fill={chartPalette.revenueStroke} radius={[6, 6, 0, 0]} isAnimationActive={false} />
-                <Bar dataKey="expense" name="Expense" fill={chartPalette.expenseStroke} radius={[6, 6, 0, 0]} isAnimationActive={false} />
-                </BarChart>
-              )}
-            </ChartCanvas>
-          </ChartFrame>
-        </ChartCard>
+          hasData={hasData}
+          points={scopedPoints}
+          cashflowGranularity={cashflowGranularity}
+          from={data.from}
+          to={data.to}
+          domain={cashflowDomain}
+          onResetToLast90Days={resetToLast90Days}
+          selectedPointDate={drillPointDate}
+          onPointSelect={(date) => updateDashboardQuery({ point: drillPointDate === date ? null : date })}
+        />
       </div>
 
-      <div className="grid gap-4 xl:grid-cols-[1.2fr_1fr]">
-        <section className="space-y-3">
-          <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold">Open alerts</h2>
-            <Button asChild variant="ghost">
-              <Link href="/app/alerts">View all</Link>
-            </Button>
-          </div>
-          {data.budgetThresholdAlerts.length > 0 ? (
-            <div
-              data-testid="budget-threshold-alerts"
-              className="rounded-2xl border border-warning/35 bg-warning/10 p-4"
-            >
-              <div className="flex items-center gap-2 text-sm font-medium text-warning">
-                <BellRing className="h-4 w-4" />
-                Budget threshold alerts ({data.budgetThresholdAlerts.length})
-              </div>
-              <div className="mt-2 space-y-1 text-sm">
-                {data.budgetThresholdAlerts.map((item) => (
-                  <p key={item.alertId}>
-                    {item.category}: {formatMoney(item.actualAmount)} actual vs {formatMoney(item.plannedAmount)} planned
-                    {" "}({item.variancePct.toFixed(1)}% over)
-                    {item.periodMonth ? ` in ${item.periodMonth}` : ""}
-                  </p>
-                ))}
-              </div>
-              <p className="mt-2 text-xs text-muted-foreground">
-                {data.budgetThresholdPct !== null
-                  ? `Configured threshold: ${data.budgetThresholdPct.toFixed(1)}% variance over planned.`
-                  : "Threshold configured in Organization Settings."}
-              </p>
-            </div>
-          ) : null}
-          {!data.loading && data.alerts.length === 0 && data.budgetThresholdAlerts.length === 0 ? (
-            <EmptyState eyebrow="All clear" title="No open alerts." description="Current monitoring did not detect active anomalies or leak signals." />
-          ) : null}
-          {data.alerts.map((alert) => (
-            <button key={alert.id} type="button" className="block w-full text-left" onClick={() => setActiveAlertId(alert.id)}>
-              <AlertCard alert={alert} maxImpact={maxImpact} />
-            </button>
-          ))}
-        </section>
+      <PriorityAlertsPanel
+        loading={data.loading}
+        alerts={data.alerts}
+        maxImpact={maxImpact}
+        onOpenAlert={setActiveAlertId}
+        budgetThresholdAlerts={data.budgetThresholdAlerts}
+        budgetThresholdPct={data.budgetThresholdPct}
+        aiSummary={data.ai?.summary_json ?? null}
+        aiFallbackUsed={data.ai?.fallback_used}
+      />
 
-        <AIInsightPanel summary={data.ai?.summary_json ?? null} fallbackUsed={data.ai?.fallback_used} />
-      </div>
+      <BenchmarkPanel from={data.from} to={data.to} rows={benchmarkRows} selectedLocationId={selectedLocationId} />
 
-      <AnimatePresence>
-        {alertDetail ? (
-          <>
-            <motion.button
-              type="button"
-              className="fixed inset-0 z-40 bg-background/55 backdrop-blur-sm"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setActiveAlertId(null)}
-              aria-label="Close alert drawer"
-            />
-            <motion.aside
-              initial={{ x: 420 }}
-              animate={{ x: 0 }}
-              exit={{ x: 420 }}
-              className="fixed right-0 top-0 z-50 h-full w-full max-w-xl border-l border-border bg-background p-6 shadow-2xl"
-            >
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-[0.24em] text-primary">Alert detail</p>
-                  <h2 className="mt-2 text-2xl font-semibold">{alertDetail.title}</h2>
-                </div>
-                <Button variant="ghost" onClick={() => setActiveAlertId(null)}>
-                  Close
-                </Button>
-              </div>
-              <div className="mt-6 rounded-[24px] border border-border/70 bg-card/75 p-5">
-                <p className="text-sm text-muted-foreground">{alertDetail.description}</p>
-                <pre className="mt-4 overflow-auto rounded-2xl bg-muted p-4 text-xs">{JSON.stringify(alertDetail.meta ?? {}, null, 2)}</pre>
-              </div>
-            </motion.aside>
-          </>
-        ) : null}
-      </AnimatePresence>
+      <AlertDetailDrawer alert={alertDetail} onClose={() => setActiveAlertId(null)} />
+      {selectedCalculation ? (
+        <CalculationDrawer
+          open={Boolean(metricForCalc)}
+          onClose={() => updateDashboardQuery({ metric: null })}
+          metricLabel={metricForCalc || "Metric"}
+          formula={selectedCalculation.formula}
+          inputs={selectedCalculation.inputs}
+        />
+      ) : null}
     </div>
   );
 }

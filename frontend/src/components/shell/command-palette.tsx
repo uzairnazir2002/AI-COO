@@ -75,12 +75,12 @@ export function CommandPalette({
   return (
     <Dialog.Root open={open} onOpenChange={setOpen}>
       <Dialog.Trigger asChild>
-        <Button variant="outline" className="hidden min-w-48 justify-between md:inline-flex">
+        <Button variant="outline" className="hidden min-w-52 justify-between rounded-2xl md:inline-flex">
           <span className="flex items-center gap-2">
             <Search className="h-4 w-4" />
-            Command menu
+            Search or command
           </span>
-          <span className="text-xs text-muted-foreground">Ctrl K</span>
+          <span className="text-xs text-muted-foreground">Ctrl+K</span>
         </Button>
       </Dialog.Trigger>
       <Dialog.Portal>

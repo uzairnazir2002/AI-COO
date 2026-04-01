@@ -25,6 +25,25 @@ type AppState = {
   clearSession: () => void;
 };
 
+function localDateISO(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function startOfMonthISO(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  return `${year}-${month}-01`;
+}
+
+function normalizeDateRange(range: { from: string; to: string }) {
+  if (range.from <= range.to) return range;
+  const fallbackFrom = `${range.to.slice(0, 7)}-01`;
+  return { from: fallbackFrom <= range.to ? fallbackFrom : range.to, to: range.to };
+}
+
 function persistSelectedOrgCookie(selectedOrgId: string | null) {
   if (typeof document === "undefined") return;
   if (selectedOrgId) {
@@ -37,15 +56,20 @@ function persistSelectedOrgCookie(selectedOrgId: string | null) {
 export const useAppStore = create<AppState>()(
   persist(
     (set, get) => ({
+      ...(() => {
+        const today = localDateISO(new Date());
+        return {
+          globalDateRange: normalizeDateRange({
+            from: startOfMonthISO(new Date()),
+            to: today,
+          }),
+        };
+      })(),
       selectedOrgId: null,
       selectedLocationId: null,
       user: null,
       orgs: [],
       shellCollapsed: false,
-      globalDateRange: {
-        from: `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, "0")}-01`,
-        to: new Date().toISOString().slice(0, 10),
-      },
       cashflowGranularity: "week",
       setSelectedOrgId: (selectedOrgId) => {
         persistSelectedOrgCookie(selectedOrgId);
@@ -59,7 +83,7 @@ export const useAppStore = create<AppState>()(
         set({ user, orgs, selectedOrgId, selectedLocationId: null });
       },
       setShellCollapsed: (shellCollapsed) => set({ shellCollapsed }),
-      setGlobalDateRange: (globalDateRange) => set({ globalDateRange }),
+      setGlobalDateRange: (globalDateRange) => set({ globalDateRange: normalizeDateRange(globalDateRange) }),
       setCashflowGranularity: (cashflowGranularity) => set({ cashflowGranularity }),
       clearSession: () => {
         persistSelectedOrgCookie(null);
@@ -68,6 +92,17 @@ export const useAppStore = create<AppState>()(
     }),
     {
       name: "ai-coo-app-store",
+      merge: (persisted, current) => {
+        const persistedState = (persisted as Partial<AppState> | undefined) ?? {};
+        const dateRange = persistedState.globalDateRange
+          ? normalizeDateRange(persistedState.globalDateRange)
+          : current.globalDateRange;
+        return {
+          ...current,
+          ...persistedState,
+          globalDateRange: dateRange,
+        };
+      },
       partialize: (s) => ({
         selectedOrgId: s.selectedOrgId,
         selectedLocationId: s.selectedLocationId,

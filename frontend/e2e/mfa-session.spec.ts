@@ -3,6 +3,9 @@ import crypto from "node:crypto";
 import { expect, test } from "./fixtures/auth";
 
 const apiBase = process.env.E2E_API_URL || "http://localhost:8000/api/v1";
+const apiRetryAttempts = Math.max(1, Number(process.env.E2E_API_RETRY_ATTEMPTS || 3));
+const apiRetryDelayMs = Math.max(200, Number(process.env.E2E_API_RETRY_DELAY_MS || 700));
+const apiRequestTimeoutMs = Math.max(10_000, Number(process.env.E2E_API_REQUEST_TIMEOUT_MS || 45_000));
 
 function totpCode(secret: string, time = Date.now()): string {
   const normalized = secret.toUpperCase();
@@ -31,9 +34,29 @@ function decodeBase32(input: string): Buffer {
   return Buffer.from(bytes);
 }
 
+function delay(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function requestWithRetry<T>(run: () => Promise<T>) {
+  let lastError: unknown = null;
+  for (let attempt = 1; attempt <= apiRetryAttempts; attempt += 1) {
+    try {
+      return await run();
+    } catch (error) {
+      lastError = error;
+      if (attempt < apiRetryAttempts) {
+        await delay(apiRetryDelayMs * attempt);
+      }
+    }
+  }
+  throw lastError instanceof Error ? lastError : new Error("request failed after retries");
+}
+
 test("mfa and session API smoke", async ({ page, authSession, authenticatedPage }) => {
   await authenticatedPage;
   await page.goto("/app/settings");
+  await page.getByRole("tab", { name: "Security", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Multi-factor authentication" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Session management" })).toBeVisible();
 
@@ -57,15 +80,20 @@ test("mfa and session API smoke", async ({ page, authSession, authenticatedPage 
   const enableBody = (await enable.json()) as { recovery_codes: string[] };
   expect(enableBody.recovery_codes.length).toBeGreaterThan(0);
 
-  const sessions = await page.request.get(
-    `${apiBase}/auth/sessions${authSession.authMode === "bearer" && authSession.refreshToken ? `?refresh_token=${encodeURIComponent(authSession.refreshToken)}` : ""}`,
-    { headers },
+  const sessions = await requestWithRetry(() =>
+    page.request.get(
+      `${apiBase}/auth/sessions${authSession.authMode === "bearer" && authSession.refreshToken ? `?refresh_token=${encodeURIComponent(authSession.refreshToken)}` : ""}`,
+      { headers, timeout: apiRequestTimeoutMs },
+    ),
   );
   expect(sessions.ok(), await sessions.text()).toBeTruthy();
 
-  const revokeOthers = await page.request.post(`${apiBase}/auth/sessions/revoke-others`, {
-    headers,
-    data: authSession.authMode === "bearer" ? { refresh_token: authSession.refreshToken } : {},
-  });
+  const revokeOthers = await requestWithRetry(() =>
+    page.request.post(`${apiBase}/auth/sessions/revoke-others`, {
+      headers,
+      timeout: apiRequestTimeoutMs,
+      data: authSession.authMode === "bearer" ? { refresh_token: authSession.refreshToken } : {},
+    }),
+  );
   expect(revokeOthers.ok(), await revokeOthers.text()).toBeTruthy();
 });

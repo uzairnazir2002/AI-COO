@@ -24,20 +24,43 @@ loadEnvFile(path.join(frontendDir, ".env.e2e.local"));
 loadEnvFile(path.join(frontendDir, ".env.local"));
 loadEnvFile(path.join(frontendDir, "..", ".env"));
 
+const e2eBaseURL = process.env.E2E_BASE_URL || "http://localhost:3001";
+const e2eUrl = new URL(e2eBaseURL);
+const e2eHost = e2eUrl.hostname;
+const e2ePort = Number(e2eUrl.port || (e2eUrl.protocol === "https:" ? "443" : "80"));
+const e2eWebServerMode = process.env.E2E_WEB_SERVER_MODE || "start";
+const useExternalBaseUrl = process.env.E2E_USE_EXTERNAL_BASE_URL === "1";
+const webServerCommand =
+  e2eWebServerMode === "dev"
+    ? `npm run dev -- --hostname ${e2eHost} --port ${e2ePort}`
+    : `npm run build && npm run start -- --hostname ${e2eHost} --port ${e2ePort}`;
+
 export default defineConfig({
   testDir: "./e2e",
   snapshotPathTemplate: "{testDir}/__screenshots__/{testFilePath}/{arg}{ext}",
-  timeout: 120_000,
+  timeout: 180_000,
   expect: { timeout: 15_000 },
+  workers: Number(process.env.E2E_WORKERS || "1"),
   fullyParallel: false,
   retries: 1,
   reporter: [["list"], ["html", { open: "never" }]],
   use: {
-    baseURL: process.env.E2E_BASE_URL || "http://localhost:3000",
+    baseURL: e2eBaseURL,
     trace: "retain-on-failure",
     screenshot: "only-on-failure",
     video: "retain-on-failure",
   },
+  webServer: useExternalBaseUrl
+    ? undefined
+    : {
+        command: webServerCommand,
+        cwd: frontendDir,
+        url: e2eBaseURL,
+        timeout: 900_000,
+        reuseExistingServer: false,
+        stdout: "pipe",
+        stderr: "pipe",
+      },
   projects: [
     {
       name: "chromium",

@@ -25,6 +25,7 @@ test("transactions csv mapping required-field guard disables import actions", as
   await page.getByRole("button", { name: "Import CSV" }).click();
   const csvPath = path.resolve(process.cwd(), "..", "shared", "demo", "transactions_6months.csv");
   await page.getByTestId("csv-file-input").setInputFiles(csvPath);
+  await expect(page.getByTestId("csv-step-status")).toContainText(/Step (2|3) -/);
   await expect(page.getByText("Column mapping")).toBeVisible();
   await expect(page.getByTestId("csv-action-footer")).toBeVisible();
 
@@ -119,6 +120,13 @@ test("forecast inline override supports dirty state, save and reset", async ({ p
 
   await page.goto("/app/forecast");
   await expect(page.locator("h1", { hasText: "Forecast" })).toBeVisible();
+  const assumptionsPanel = page.getByTestId("forecast-assumptions-panel");
+  if (await assumptionsPanel.count()) {
+    await expect(assumptionsPanel).toBeVisible();
+    await expect(page.getByTestId("forecast-sensitivity-panel")).toBeVisible();
+    await expect(page.getByTestId("forecast-risk-panel")).toBeVisible();
+  }
+  await page.getByRole("tab", { name: "Overrides", exact: true }).click();
 
   const revenueInput = page.locator('[data-testid^="forecast-override-revenue-"]').first();
   await expect(revenueInput).toBeVisible();
@@ -154,6 +162,7 @@ test("rbac smoke: viewer-style UI does not expose add transaction action", async
   await expect(page.getByRole("button", { name: "Add transaction" })).toHaveCount(0);
 
   await page.goto("/app/settings");
+  await page.getByRole("tab", { name: "Team", exact: true }).click();
   await expect(page.getByText("Only owners can view and invite members.")).toBeVisible();
   await expect(page.getByPlaceholder("member@example.com")).toHaveCount(0);
 });

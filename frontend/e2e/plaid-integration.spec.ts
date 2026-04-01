@@ -9,6 +9,7 @@ test.describe("Plaid integration flow", () => {
   test("connects bank via public token and enqueues sync", async ({ page, authenticatedPage }) => {
     void authenticatedPage;
     await page.goto("/app/settings");
+    await page.getByRole("tab", { name: "Integrations", exact: true }).click();
     await expect(page.getByRole("heading", { name: "Bank integrations (Plaid)" })).toBeVisible();
 
     // In sandbox automation mode, use manual fallback exchange path directly

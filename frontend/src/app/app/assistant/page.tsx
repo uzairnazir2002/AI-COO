@@ -1,28 +1,32 @@
-"use client";
+﻿"use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
 
 import { EmptyState } from "@/components/common/empty-state";
-import { ErrorState } from "@/components/common/error-state";
+import { InlineErrorBanner } from "@/components/states/inline-error-banner";
+import { RetryCard } from "@/components/states/retry-card";
+import { SkeletonPanel } from "@/components/states/skeleton-panel";
 import { SectionHeader } from "@/components/common/section-header";
 import { useToast } from "@/components/common/use-toast";
-import { Badge } from "@/components/ui/badge";
+import { StatusStrip } from "@/components/layout/status-strip";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { AssistantWorkspaceContainer } from "@/features/ai-chat/containers/assistant-workspace-container";
 import { useAiChatSession, useAiChatSessions, useCreateAiChatSession, useSendAiChatMessage } from "@/features/ai-chat/hooks";
-import { cn } from "@/lib/utils/cn";
+import { buildSuggestedPrompts } from "@/features/ai-chat/services/suggested-prompts";
 import { useAppStore } from "@/store/appStore";
 
 export default function AssistantPage() {
   const selectedOrgId = useAppStore((s) => s.selectedOrgId);
   const selectedOrg = useAppStore((s) => s.orgs.find((org) => org.org_id === s.selectedOrgId));
   const range = useAppStore((s) => s.globalDateRange);
+  const selectedLocationId = useAppStore((s) => s.selectedLocationId);
   const toast = useToast();
 
   const sessions = useAiChatSessions({ mineOnly: false, limit: 40 });
   const createSession = useCreateAiChatSession();
   const sendMessage = useSendAiChatMessage();
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState("chat");
   const [messageInput, setMessageInput] = useState("");
   const detail = useAiChatSession(activeSessionId);
 
@@ -35,7 +39,18 @@ export default function AssistantPage() {
   }, [activeSessionId, sessions.data]);
 
   const messages = detail.data?.messages ?? [];
-  const hasMessages = messages.length > 0;
+  const sessionsError = sessions.error instanceof Error ? sessions.error.message : null;
+  const detailError = detail.error instanceof Error ? detail.error.message : null;
+  const suggestedPrompts = useMemo(
+    () =>
+      buildSuggestedPrompts({
+        from: range.from,
+        to: range.to,
+        locationId: selectedLocationId,
+        hasMessages: messages.length > 0,
+      }),
+    [range.from, range.to, selectedLocationId, messages.length],
+  );
   const sessionTitle = useMemo(() => {
     if (!activeSessionId) return "No active chat";
     const match = sessions.data?.find((session) => session.id === activeSessionId);
@@ -50,10 +65,6 @@ export default function AssistantPage() {
         description="AI chat is organization-scoped and grounded on org analytics and alerts."
       />
     );
-  }
-
-  if (sessions.error) {
-    return <ErrorState description={String((sessions.error as Error).message || sessions.error)} />;
   }
 
   async function onNewChat() {
@@ -102,106 +113,54 @@ export default function AssistantPage() {
         }
       />
 
-      <div className="grid gap-4 xl:grid-cols-[320px_1fr]">
-        <Card>
-          <CardHeader>
-            <CardTitle>Sessions</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            {sessions.isLoading ? <p className="text-sm text-muted-foreground">Loading sessions...</p> : null}
-            {!sessions.isLoading && (sessions.data?.length || 0) === 0 ? (
-              <p className="text-sm text-muted-foreground">No sessions yet. Start a new chat.</p>
-            ) : null}
-            {(sessions.data || []).map((session) => (
-              <button
-                key={session.id}
-                type="button"
-                data-testid="ai-chat-session-item"
-                className={cn(
-                  "w-full rounded-2xl border px-3 py-2 text-left",
-                  activeSessionId === session.id
-                    ? "border-primary/60 bg-primary/10"
-                    : "border-border/70 hover:bg-muted",
-                )}
-                onClick={() => setActiveSessionId(session.id)}
-              >
-                <p className="line-clamp-1 text-sm font-medium">{session.title}</p>
-                <p className="mt-1 text-xs text-muted-foreground">{new Date(session.last_activity_at).toLocaleString()}</p>
-              </button>
-            ))}
-          </CardContent>
-        </Card>
+      <StatusStrip
+        items={[
+          { label: "Sessions", value: String(sessions.data?.length ?? 0), tone: "neutral" },
+          { label: "Scope", value: `${range.from} to ${range.to}`, tone: "neutral" },
+          { label: "Location", value: selectedLocationId || "All", tone: "neutral" },
+        ]}
+      />
 
-        <Card>
-          <CardHeader>
-            <CardTitle>{sessionTitle}</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {detail.error ? <ErrorState description={String((detail.error as Error).message || detail.error)} /> : null}
-            {detail.isLoading ? <p className="text-sm text-muted-foreground">Loading conversation...</p> : null}
-            {!detail.isLoading && !detail.error && !hasMessages ? (
-              <p className="text-sm text-muted-foreground">
-                Ask a question about cashflow, runway, budget variance, forecasts, or active alerts.
-              </p>
-            ) : null}
+      {sessions.isLoading && !sessions.data ? <SkeletonPanel rows={5} /> : null}
 
-            <div className="max-h-[460px] space-y-3 overflow-y-auto rounded-2xl border border-border/70 bg-card/45 p-3" data-testid="ai-chat-messages">
-              {messages.map((message) => {
-                const isUser = message.role.toUpperCase() === "USER";
-                const isAssistant = message.role.toUpperCase() === "ASSISTANT";
-                return (
-                  <div key={message.id} className={cn("flex", isUser ? "justify-end" : "justify-start")} data-testid={isAssistant ? "ai-chat-assistant-message" : "ai-chat-user-message"}>
-                    <div
-                      className={cn(
-                        "max-w-[85%] rounded-2xl px-3 py-2 text-sm",
-                        isUser ? "bg-primary text-primary-foreground" : "border border-border/70 bg-background",
-                      )}
-                    >
-                      <div className="mb-1 flex items-center gap-2">
-                        <span className="text-[11px] font-semibold uppercase tracking-[0.2em] opacity-80">
-                          {isUser ? "You" : message.role}
-                        </span>
-                        {isAssistant ? (
-                          message.fallback_used ? (
-                            <Badge variant="warning">Fallback</Badge>
-                          ) : (
-                            <Badge variant="secondary">Grounded</Badge>
-                          )
-                        ) : null}
-                      </div>
-                      <p className="whitespace-pre-wrap break-words">{message.content}</p>
-                      {isAssistant && message.grounding_violations.length > 0 ? (
-                        <p className="mt-2 text-xs text-warning">
-                          Grounding validator fallback: {message.grounding_violations.join("; ")}
-                        </p>
-                      ) : null}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
+      {sessionsError ? (
+        <div className="space-y-3">
+          <InlineErrorBanner message={sessionsError} />
+          <RetryCard message="Unable to load AI chat sessions." onRetry={() => void sessions.refetch()} />
+        </div>
+      ) : null}
 
-            <form className="space-y-2" onSubmit={onSend}>
-              <textarea
-                value={messageInput}
-                onChange={(event) => setMessageInput(event.target.value)}
-                placeholder="Ask a business question..."
-                rows={4}
-                className="w-full rounded-2xl border border-border bg-background px-3 py-2 text-sm outline-none ring-offset-background transition focus-visible:ring-2 focus-visible:ring-ring"
-                data-testid="ai-chat-composer"
-              />
-              <div className="flex items-center justify-between">
-                <p className="text-xs text-muted-foreground">
-                  Time scope: {range.from} to {range.to}
-                </p>
-                <Button type="submit" disabled={sendMessage.isPending || createSession.isPending || !messageInput.trim()} data-testid="ai-chat-send">
-                  {sendMessage.isPending ? "Sending..." : "Send"}
-                </Button>
-              </div>
-            </form>
-          </CardContent>
-        </Card>
-      </div>
+      {detailError ? (
+        <div className="space-y-3">
+          <InlineErrorBanner message={detailError} />
+          <RetryCard message="Unable to load selected conversation." onRetry={() => void detail.refetch()} />
+        </div>
+      ) : null}
+
+      <AssistantWorkspaceContainer
+        activeTab={activeTab}
+        onTabChange={setActiveTab}
+        sessionsLoading={sessions.isLoading}
+        sessionsData={sessions.data || []}
+        activeSessionId={activeSessionId}
+        onSessionSelect={setActiveSessionId}
+        sessionTitle={sessionTitle}
+        detailLoading={detail.isLoading}
+        detailError={detail.error}
+        messages={messages}
+        messageInput={messageInput}
+        onMessageInputChange={setMessageInput}
+        onSend={onSend}
+        sendPending={sendMessage.isPending}
+        createSessionPending={createSession.isPending}
+        rangeFrom={range.from}
+        rangeTo={range.to}
+        selectedOrgName={selectedOrg?.name || "Unknown org"}
+        selectedLocationId={selectedLocationId}
+        suggestedPrompts={suggestedPrompts}
+        onUsePrompt={(prompt) => setMessageInput(prompt)}
+      />
     </div>
   );
 }
+

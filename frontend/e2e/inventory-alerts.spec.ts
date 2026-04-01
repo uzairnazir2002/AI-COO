@@ -13,7 +13,12 @@ test("inventory flow: mutate stock, queue refresh, and surface persisted stockou
   await page.getByPlaceholder("Reorder point (qty)").fill("10");
   await page.getByRole("button", { name: "Create item" }).click();
   await expect(page.getByText("Inventory item created")).toBeVisible();
+  await page.getByText(sku).first().click();
+  await expect(page.getByRole("heading", { name: "Inventory detail" })).toBeVisible();
+  await expect(page.getByText("Related alert context")).toBeVisible();
+  await page.getByRole("button", { name: "Close" }).first().click();
 
+  await page.getByRole("tab", { name: "Stock Events", exact: true }).click();
   await page.getByLabel("Stock event item").selectOption({ label: `${sku} - Risky item` });
   await page.getByLabel("Stock event type").selectOption("OUTBOUND");
   await page.getByPlaceholder("Quantity").first().fill("30");

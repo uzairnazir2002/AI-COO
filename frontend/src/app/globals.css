@@ -19,9 +19,14 @@
   --warning: 34 92% 48%;
   --danger: 3 77% 53%;
   --accent: 196 100% 44%;
+  --ai: 264 78% 58%;
+  --live: 190 88% 46%;
   --surface: 210 28% 99%;
   --surface-2: 214 30% 96%;
-  --radius: 1.1rem;
+  --radius: 1rem;
+  --radius-sm: 10px;
+  --radius-md: 16px;
+  --radius-lg: 24px;
 }
 
 .dark {
@@ -41,6 +46,8 @@
   --warning: 38 93% 58%;
   --danger: 0 80% 60%;
   --accent: 190 91% 48%;
+  --ai: 268 78% 68%;
+  --live: 190 84% 54%;
   --surface: 222 33% 9%;
   --surface-2: 223 23% 13%;
 }
@@ -57,8 +64,8 @@ body {
   @apply bg-background text-foreground antialiased;
   font-family: var(--font-body), sans-serif;
   background-image:
-    radial-gradient(circle at 0% 0%, hsl(var(--accent) / 0.12), transparent 24%),
-    radial-gradient(circle at 100% 0%, hsl(var(--primary) / 0.12), transparent 28%),
+    radial-gradient(circle at 0% 0%, hsl(var(--accent) / 0.11), transparent 24%),
+    radial-gradient(circle at 100% 0%, hsl(var(--primary) / 0.1), transparent 28%),
     linear-gradient(180deg, hsl(var(--surface)) 0%, hsl(var(--background)) 36%, hsl(var(--surface-2)) 100%);
   min-height: 100vh;
 }
@@ -105,10 +112,10 @@ textarea {
   }
 
   .glass-panel {
-    @apply border border-white/10 bg-card/75 backdrop-blur-xl;
+    @apply border border-border/60 bg-card/85 backdrop-blur-md;
     box-shadow:
-      0 24px 60px -34px hsl(var(--foreground) / 0.45),
-      inset 0 1px 0 hsl(0 0% 100% / 0.08);
+      0 18px 42px -30px hsl(var(--foreground) / 0.4),
+      inset 0 1px 0 hsl(0 0% 100% / 0.06);
   }
 
   .page-container {

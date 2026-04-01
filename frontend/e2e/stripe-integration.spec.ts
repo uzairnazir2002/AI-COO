@@ -6,6 +6,10 @@ const liveStripe = process.env.E2E_STRIPE_LIVE === "1";
 const stripeSecretKey = process.env.E2E_STRIPE_SECRET_KEY || "";
 const stripeWebhookSecret = process.env.E2E_STRIPE_WEBHOOK_SECRET || "";
 const apiBase = process.env.E2E_API_URL || "http://localhost:8000/api/v1";
+const apiRetryAttempts = Math.max(1, Number(process.env.E2E_API_RETRY_ATTEMPTS || 3));
+const apiRetryDelayMs = Math.max(300, Number(process.env.E2E_API_RETRY_DELAY_MS || 900));
+const apiRequestTimeoutMs = Math.max(10_000, Number(process.env.E2E_API_REQUEST_TIMEOUT_MS || 90_000));
+const reconciliationWaitMs = Math.max(10_000, Number(process.env.E2E_RECON_WAIT_MS || 60_000));
 
 async function stripeRequest(path: string, body?: URLSearchParams) {
   const response = await fetch(`https://api.stripe.com${path}`, {
@@ -27,6 +31,25 @@ function signStripePayload(payload: string, secret: string): string {
   const signedPayload = `${timestamp}.${payload}`;
   const signature = crypto.createHmac("sha256", secret).update(signedPayload, "utf8").digest("hex");
   return `t=${timestamp},v1=${signature}`;
+}
+
+function delay(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function requestWithRetry<T>(run: () => Promise<T>) {
+  let lastError: unknown = null;
+  for (let attempt = 1; attempt <= apiRetryAttempts; attempt += 1) {
+    try {
+      return await run();
+    } catch (error) {
+      lastError = error;
+      if (attempt < apiRetryAttempts) {
+        await delay(apiRetryDelayMs * attempt);
+      }
+    }
+  }
+  throw lastError instanceof Error ? lastError : new Error("request failed after retries");
 }
 
 async function createLiveCharge(orgId: string) {
@@ -57,6 +80,7 @@ test.describe("Stripe integration flow", () => {
     void authenticatedPage;
 
     await page.goto("/app/settings");
+    await page.getByRole("tab", { name: "Integrations", exact: true }).click();
     await expect(page.getByRole("heading", { name: "Payment integrations (Stripe)" })).toBeVisible();
 
     const label = `E2E Stripe ${authSession.namespace}`;
@@ -70,13 +94,16 @@ test.describe("Stripe integration flow", () => {
     const payload = JSON.stringify(event);
     const signature = signStripePayload(payload, stripeWebhookSecret);
 
-    const webhook = await page.request.post(`${apiBase}/integrations/payments/stripe/webhook`, {
-      data: payload,
-      headers: {
-        "Content-Type": "application/json",
-        "Stripe-Signature": signature,
-      },
-    });
+    const webhook = await requestWithRetry(() =>
+      page.request.post(`${apiBase}/integrations/payments/stripe/webhook`, {
+        timeout: apiRequestTimeoutMs,
+        data: payload,
+        headers: {
+          "Content-Type": "application/json",
+          "Stripe-Signature": signature,
+        },
+      }),
+    );
     expect(webhook.ok(), await webhook.text()).toBeTruthy();
     const webhookJson = await webhook.json();
     expect(webhookJson.ok).toBeTruthy();
@@ -84,15 +111,26 @@ test.describe("Stripe integration flow", () => {
 
     const dateTo = new Date().toISOString().slice(0, 10);
     const dateFrom = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
-    const reconciliation = await page.request.get(
-      `${apiBase}/integrations/payments/reconciliation?org_id=${authSession.orgId}&provider=STRIPE&date_from=${dateFrom}&date_to=${dateTo}`,
-      {
-        headers: authSession.accessToken ? { Authorization: `Bearer ${authSession.accessToken}` } : undefined,
-      },
-    );
-    expect(reconciliation.ok(), await reconciliation.text()).toBeTruthy();
-    const reconJson = await reconciliation.json();
-    expect(Number(reconJson.processor.entry_count)).toBeGreaterThan(0);
+    let reconJson: any = null;
+    const until = Date.now() + reconciliationWaitMs;
+    while (Date.now() < until) {
+      const reconciliation = await requestWithRetry(() =>
+        page.request.get(
+          `${apiBase}/integrations/payments/reconciliation?org_id=${authSession.orgId}&provider=STRIPE&date_from=${dateFrom}&date_to=${dateTo}`,
+          {
+            timeout: apiRequestTimeoutMs,
+            headers: authSession.accessToken ? { Authorization: `Bearer ${authSession.accessToken}` } : undefined,
+          },
+        ),
+      );
+      expect(reconciliation.ok(), await reconciliation.text()).toBeTruthy();
+      reconJson = await reconciliation.json();
+      if (Number(reconJson?.processor?.entry_count || 0) > 0) {
+        break;
+      }
+      await delay(1_500);
+    }
+    expect(Number(reconJson?.processor?.entry_count || 0)).toBeGreaterThan(0);
 
     await page.getByTestId("stripe-reconciliation-card").getByRole("button", { name: "Refresh" }).click();
     await expect(page.getByTestId("stripe-reconciliation-card")).toContainText("Processor Net");

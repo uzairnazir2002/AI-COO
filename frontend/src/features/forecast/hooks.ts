@@ -8,7 +8,7 @@ import { qk } from "@/lib/query/keys";
 import { useAppStore } from "@/store/appStore";
 import type { Forecast } from "@/types/domain";
 
-export function useForecast(months: 3 | 6) {
+export function useForecast(months: 3 | 6 | 12) {
   const orgId = useAppStore((s) => s.selectedOrgId);
   return useQuery({
     queryKey: qk.forecast(orgId || "", months),

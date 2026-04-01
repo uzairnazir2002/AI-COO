@@ -200,6 +200,14 @@ async function seedBrowserSessionState(page: Page, session: AuthSession) {
   );
 }
 
+async function loginThroughUi(page: Page, email: string, password: string) {
+  await page.goto("/auth/login", { waitUntil: "domcontentloaded" });
+  await page.getByLabel("Email").fill(email);
+  await page.getByLabel("Password").fill(password);
+  await page.getByRole("button", { name: /Sign in/i }).click();
+  await page.waitForURL(/\/(app\/(dashboard|orgs)|auth\/login)/, { timeout: 30_000 });
+}
+
 export const test = base.extend<Fixtures>({
   authSession: async ({ page }, use, testInfo) => {
     validateSeededAuthEnv();
@@ -313,7 +321,7 @@ export const test = base.extend<Fixtures>({
 
   authenticatedPage: async ({ page, authSession }, use) => {
     let lastLoginError: string | null = null;
-    for (let attempt = 1; attempt <= 3; attempt += 1) {
+    for (let attempt = 1; attempt <= 4; attempt += 1) {
       await seedBrowserSessionState(page, authSession);
       await page.goto("/app/dashboard");
       await page.waitForURL(/\/(app\/(dashboard|orgs)|auth\/login)/, { timeout: 30_000 });
@@ -333,7 +341,19 @@ export const test = base.extend<Fixtures>({
             continue;
           }
         }
-        continue;
+
+        await seedBrowserSessionState(page, authSession);
+        await page.goto("/app/dashboard");
+        await page.waitForURL(/\/(app\/(dashboard|orgs)|auth\/login)/, { timeout: 30_000 });
+
+        if (page.url().includes("/auth/login")) {
+          await loginThroughUi(page, authSession.email, authSession.password);
+          if (page.url().includes("/auth/login")) {
+            const bodyText = (await page.locator("body").innerText()).slice(0, 220).replace(/\s+/g, " ").trim();
+            lastLoginError = `attempt ${attempt} still redirected to /auth/login after API+UI bootstrap. Page snippet: ${bodyText}`;
+            continue;
+          }
+        }
       }
 
       if (page.url().includes("/app/orgs")) {

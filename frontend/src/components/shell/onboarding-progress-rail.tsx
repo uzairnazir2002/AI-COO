@@ -39,6 +39,7 @@ export function OnboardingProgressRail({
           <p className="mt-1 text-xs text-muted-foreground">
             {orgName ? `${orgName}` : "Current organization"} completion: {completedCount}/{totalSteps}
           </p>
+          <p className="mt-1 text-[11px] text-muted-foreground">This guidance remains visible until all baseline onboarding steps are complete.</p>
         </div>
         {nextStep ? (
           <Button asChild size="sm" data-testid="onboarding-progress-next">

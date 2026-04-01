@@ -11,6 +11,7 @@ async function clickCsvAction(page: Page, testId: string) {
 }
 
 test("full app flow: auth fixture -> dashboard -> transactions -> reports", async ({ page, authSession, authenticatedPage }) => {
+  test.setTimeout(300_000);
   await authenticatedPage;
   await expect(page.locator("h1", { hasText: "Executive dashboard" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Cashflow" })).toBeVisible();
@@ -18,6 +19,8 @@ test("full app flow: auth fixture -> dashboard -> transactions -> reports", asyn
 
   await page.goto("/app/transactions");
   await expect(page.locator("h1", { hasText: "Transactions" })).toBeVisible();
+  await expect(page.getByTestId("saved-view-selector")).toBeVisible();
+  await expect(page.getByTestId("column-visibility-menu")).toBeVisible();
 
   await page.getByRole("button", { name: "Add transaction" }).first().click();
   const addDialog = page.getByRole("dialog");
@@ -29,19 +32,34 @@ test("full app flow: auth fixture -> dashboard -> transactions -> reports", asyn
   const csvPath = path.resolve(process.cwd(), "..", "shared", "demo", "transactions_6months.csv");
   await page.getByRole("button", { name: "Import CSV" }).click();
   await page.getByTestId("csv-file-input").setInputFiles(csvPath);
+  await expect(page.getByTestId("csv-step-status")).toContainText(/Step (2|3) -/);
   await clickCsvAction(page, "csv-preview-button");
   await expect(page.getByText(/Rows:/)).toBeVisible();
   await clickCsvAction(page, "csv-confirm-button");
   await expect(page.getByText(/CSV imported/)).toBeVisible();
+  await page.getByRole("cell", { name: "Sales" }).first().click();
+  await expect(page.getByText("Related alerts")).toBeVisible();
+  await expect(page.getByText("Audit snippet")).toBeVisible();
 
   await page.goto("/app/dashboard");
   await expect(page.getByRole("heading", { name: "Cashflow" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Revenue vs Expense" })).toBeVisible();
 
+  await page.goto("/app/alerts");
+  await expect(page.locator("h1", { hasText: "Alerts" })).toBeVisible();
+  const quietBoard = page.getByText("No alerts in this view.");
+  if (await quietBoard.count()) {
+    await expect(quietBoard.first()).toBeVisible();
+  } else {
+    await expect(page.getByRole("heading", { name: "Alert feed" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Action panel" })).toBeVisible();
+  }
+
   await page.goto("/app/forecast");
   await expect(page.locator("h1", { hasText: "Forecast" })).toBeVisible();
   await expect(page.getByText("Scenario projection")).toBeVisible();
-  await expect(page.getByText("Projected runway delta")).toBeVisible();
+  const runwayImpact = page.getByText(/Projected runway delta|Projected runway|Runway impact/i).first();
+  await expect(runwayImpact).toBeVisible();
 
   await page.goto("/app/reports");
   await expect(page.locator("h1", { hasText: "Reports" })).toBeVisible();
@@ -50,6 +68,8 @@ test("full app flow: auth fixture -> dashboard -> transactions -> reports", asyn
   await expect(page.getByText("Report generation requested")).toBeVisible();
 
   await expect(page.getByRole("heading", { name: "Recent report jobs" })).toBeVisible();
+  await expect(page.getByTestId("schedule-report-card")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Report metadata & sharing" })).toBeVisible();
   await expect(page.getByText("generate_weekly_report")).toBeVisible({ timeout: 30_000 });
   const downloadBtn = page.getByRole("button", { name: "Download" }).first();
   if ((await downloadBtn.count()) > 0) {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
@@ -10,22 +10,27 @@ import {
   AlertTriangle,
   BarChart3,
   Boxes,
+  Building2,
   ChevronsLeftRightEllipsis,
   FileText,
   Landmark,
   LineChart,
-  LogOut,
   MessageSquare,
   PiggyBank,
   Settings2,
+  Sparkles,
   Wallet,
 } from "lucide-react";
 
+import { StatusStrip, type StatusItem } from "@/components/layout/status-strip";
+import { PageContainer } from "@/components/layout/page-container";
 import { Breadcrumbs } from "@/components/shell/breadcrumbs";
 import { CommandPalette } from "@/components/shell/command-palette";
 import { DateRangeControl } from "@/components/shell/date-range-control";
 import { NotificationCenter } from "@/components/shell/notification-center";
 import { OnboardingProgressRail } from "@/components/shell/onboarding-progress-rail";
+import { ProfileMenu } from "@/components/shell/profile-menu";
+import { QuickCreateMenu } from "@/components/shell/quick-create-menu";
 import { ThemeToggle } from "@/components/common/theme-toggle";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -33,21 +38,59 @@ import { useLocations } from "@/features/locations/hooks";
 import { useOnboardingProgress } from "@/features/onboarding/hooks";
 import { useOrgEventFeed } from "@/features/notifications/hooks";
 import { logout } from "@/lib/api/client";
-import { useAppStore } from "@/store/appStore";
 import { cn } from "@/lib/utils/cn";
+import { useAppStore } from "@/store/appStore";
 
-const nav = [
-  { href: "/app/dashboard", label: "Dashboard", icon: BarChart3 },
-  { href: "/app/activity", label: "Activity", icon: ActivityIcon },
-  { href: "/app/transactions", label: "Transactions", icon: Wallet },
-  { href: "/app/inventory", label: "Inventory", icon: Boxes },
-  { href: "/app/budgets", label: "Budgets", icon: PiggyBank },
-  { href: "/app/forecast", label: "Forecast", icon: LineChart },
-  { href: "/app/assistant", label: "AI Chat", icon: MessageSquare },
-  { href: "/app/alerts", label: "Alerts", icon: AlertTriangle },
-  { href: "/app/reports", label: "Reports", icon: FileText },
-  { href: "/app/settings", label: "Settings", icon: Settings2 },
+type NavItem = {
+  href: string;
+  label: string;
+  icon: React.ComponentType<{ className?: string }>;
+};
+
+type NavSection = {
+  title: string;
+  items: NavItem[];
+};
+
+const navSections: NavSection[] = [
+  {
+    title: "Core",
+    items: [
+      { href: "/app/dashboard", label: "Overview", icon: BarChart3 },
+      { href: "/app/transactions", label: "Money", icon: Wallet },
+      { href: "/app/budgets", label: "Budgets", icon: PiggyBank },
+      { href: "/app/forecast", label: "Forecasting", icon: LineChart },
+      { href: "/app/reports", label: "Reports", icon: FileText },
+    ],
+  },
+  {
+    title: "Intelligence",
+    items: [
+      { href: "/app/alerts", label: "Alerts", icon: AlertTriangle },
+      { href: "/app/assistant", label: "AI Assistant", icon: MessageSquare },
+    ],
+  },
+  {
+    title: "Operations",
+    items: [
+      { href: "/app/inventory", label: "Inventory", icon: Boxes },
+      { href: "/app/activity", label: "Activity", icon: ActivityIcon },
+    ],
+  },
+  {
+    title: "Admin",
+    items: [
+      { href: "/app/settings", label: "Settings", icon: Settings2 },
+      { href: "/app/orgs", label: "Organizations", icon: Building2 },
+      { href: "/app/onboarding", label: "Onboarding", icon: Sparkles },
+    ],
+  },
 ];
+
+function streamStatusValue(value: "idle" | "connecting" | "live" | "error" | "fallback_polling") {
+  if (value === "fallback_polling") return "fallback polling";
+  return value;
+}
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -68,67 +111,101 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const showOnboardingRail =
     Boolean(onboardingProgress.orgId) && !onboardingProgress.isComplete && !pathname.startsWith("/app/onboarding");
 
+  const selectedOrg = orgs.find((org) => org.org_id === selectedOrgId);
+
   useEffect(() => {
     if (!selectedOrgId || typeof document === "undefined") return;
     document.cookie = `ai_coo_selected_org=${selectedOrgId}; path=/; max-age=31536000; SameSite=Lax`;
   }, [selectedOrgId]);
 
+  const statusItems: StatusItem[] = useMemo(() => {
+    return [
+      {
+        label: "Stream",
+        value: streamStatusValue(streamStatus),
+        tone: streamStatus === "live" ? "live" : streamStatus === "fallback_polling" ? "warning" : "neutral",
+      },
+      {
+        label: "Org scope",
+        value: selectedOrg?.name || "not selected",
+        tone: selectedOrg ? "neutral" : "warning",
+      },
+      {
+        label: "Location",
+        value: selectedLocationId ? "filtered" : "all",
+        tone: "neutral",
+      },
+    ];
+  }, [streamStatus, selectedLocationId, selectedOrg]);
+
   return (
-    <div className="min-h-screen md:grid md:h-dvh md:overflow-hidden" style={{ gridTemplateColumns: collapsed ? "92px 1fr" : "290px 1fr" }}>
-      <aside data-testid="app-sidebar" className="border-r border-border/70 bg-card/65 px-3 py-4 backdrop-blur-xl md:sticky md:top-0 md:h-dvh md:overflow-y-auto">
+    <div
+      className="min-h-screen md:grid md:h-dvh md:overflow-hidden"
+      style={{ gridTemplateColumns: collapsed ? "100px 1fr" : "300px 1fr" }}
+    >
+      <aside className="border-r border-border/70 bg-card/70 px-3 py-4 backdrop-blur-md md:sticky md:top-0 md:h-dvh md:overflow-y-auto">
         <div className="flex items-center justify-between px-2">
-          <Link href="/app/dashboard" className={cn("flex items-center gap-3 rounded-2xl px-3 py-3", collapsed && "justify-center")}>
+          <Link href="/app/dashboard" className={cn("flex items-center gap-3 rounded-2xl px-3 py-3", collapsed && "justify-center")}> 
             <div className="rounded-2xl bg-primary/12 p-2 text-primary">
               <Landmark className="h-5 w-5" />
             </div>
             {!collapsed ? (
               <div>
                 <p className="text-sm font-semibold uppercase tracking-[0.22em] text-primary">AI COO</p>
-                <p className="text-xs text-muted-foreground">Executive cockpit</p>
+                <p className="text-xs text-muted-foreground">Executive operating system</p>
               </div>
             ) : null}
           </Link>
-          <Button variant="ghost" size="icon" className="hidden md:inline-flex" onClick={() => setCollapsed(!collapsed)} aria-label="Toggle sidebar">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="hidden md:inline-flex"
+            onClick={() => setCollapsed(!collapsed)}
+            aria-label="Toggle sidebar"
+          >
             <ChevronsLeftRightEllipsis className="h-4 w-4" />
           </Button>
         </div>
-        <nav className="mt-8 space-y-1">
-          {nav.map((item) => {
-            const Icon = item.icon;
-            const active = pathname.startsWith(item.href);
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={cn(
-                  "flex items-center gap-3 rounded-2xl px-3 py-3 text-sm transition",
-                  collapsed && "justify-center px-0",
-                  active ? "bg-primary text-primary-foreground shadow-lg shadow-primary/20" : "text-muted-foreground hover:bg-muted hover:text-foreground",
-                )}
-                aria-current={active ? "page" : undefined}
-              >
-                <Icon className="h-4 w-4" />
-                {!collapsed ? <span>{item.label}</span> : null}
-              </Link>
-            );
-          })}
-        </nav>
-        {!collapsed ? (
-          <div className="mt-8 rounded-[24px] border border-border/70 bg-background/65 p-4">
-            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-primary">Workspace</p>
-            <p className="mt-2 text-sm font-medium">Everything stays org-scoped.</p>
-            <p className="mt-1 text-xs leading-5 text-muted-foreground">Routes, RBAC, auth mode, and org context remain backed by the current API.</p>
-          </div>
-        ) : null}
+
+        <div className="mt-6 space-y-5">
+          {navSections.map((section) => (
+            <div key={section.title} className="space-y-1">
+              {!collapsed ? <p className="px-3 text-[11px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">{section.title}</p> : null}
+              <nav className="space-y-1">
+                {section.items.map((item) => {
+                  const Icon = item.icon;
+                  const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
+                  return (
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      className={cn(
+                        "flex items-center gap-3 rounded-2xl px-3 py-2.5 text-sm transition",
+                        collapsed && "justify-center px-0",
+                        active
+                          ? "bg-primary text-primary-foreground shadow-md shadow-primary/20"
+                          : "text-muted-foreground hover:bg-muted hover:text-foreground",
+                      )}
+                      aria-current={active ? "page" : undefined}
+                    >
+                      <Icon className="h-4 w-4" />
+                      {!collapsed ? <span>{item.label}</span> : null}
+                    </Link>
+                  );
+                })}
+              </nav>
+            </div>
+          ))}
+        </div>
       </aside>
 
-      <div data-testid="app-main-scroll" className="min-w-0 md:h-dvh md:overflow-y-auto">
-        <header className="sticky top-0 z-20 border-b border-border/70 bg-background/90 backdrop-blur-xl">
-          <div className="page-container flex flex-col gap-4 py-4">
-            <div className="flex flex-wrap items-center gap-3">
+      <div className="min-w-0 md:h-dvh md:overflow-y-auto">
+        <header className="sticky top-0 z-20 border-b border-border/70 bg-background/92 backdrop-blur-xl">
+          <PageContainer className="flex flex-col gap-3 py-4">
+            <div className="flex flex-wrap items-center gap-2.5">
               <div className="min-w-[220px] flex-1 md:max-w-sm">
                 <Select
-                  value={selectedOrgId || (orgs[0]?.org_id ?? "__none__")}
+                  value={selectedOrgId || orgs[0]?.org_id || "__none__"}
                   onValueChange={(value) => {
                     if (value === "__none__") return;
                     setSelectedOrgId(value);
@@ -139,7 +216,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                     router.refresh();
                   }}
                 >
-                  <SelectTrigger aria-label="Organization switcher" className="h-11 rounded-2xl bg-card/75">
+                  <SelectTrigger aria-label="Organization switcher" className="h-11 rounded-2xl bg-card/85">
                     <SelectValue placeholder="Select organization" />
                   </SelectTrigger>
                   <SelectContent>
@@ -167,7 +244,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                   }}
                   disabled={!selectedOrgId}
                 >
-                  <SelectTrigger aria-label="Location scope switcher" className="h-11 rounded-2xl bg-card/75">
+                  <SelectTrigger aria-label="Location scope switcher" className="h-11 rounded-2xl bg-card/85">
                     <SelectValue placeholder="All locations" />
                   </SelectTrigger>
                   <SelectContent>
@@ -189,26 +266,27 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                   onGenerateReport={() => router.push("/app/reports?action=generate")}
                 />
                 <NotificationCenter streamStatus={streamStatus} />
+                <QuickCreateMenu
+                  onAddTransaction={() => router.push("/app/transactions?action=compose")}
+                  onImportCsv={() => router.push("/app/transactions?action=import")}
+                  onGenerateReport={() => router.push("/app/reports?action=generate")}
+                />
                 <ThemeToggle />
-                <div className="hidden rounded-2xl border border-border bg-card/80 px-3 py-2 text-right md:block">
-                  <p className="max-w-[180px] truncate text-sm font-medium">{user?.email}</p>
-                  <p className="text-xs text-muted-foreground">Secure session</p>
-                </div>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={async () => {
+                <ProfileMenu
+                  email={user?.email}
+                  role={selectedOrg?.role}
+                  onLogout={async () => {
                     await logout();
                     clearSession();
                     router.replace("/auth/login");
                   }}
-                  className="rounded-2xl"
-                >
-                  <LogOut className="mr-2 h-4 w-4" /> Logout
-                </Button>
+                />
               </div>
             </div>
-            <Breadcrumbs />
+            <div className="flex flex-col gap-2">
+              <Breadcrumbs />
+              <StatusStrip items={statusItems} />
+            </div>
             {showOnboardingRail ? (
               <OnboardingProgressRail
                 orgName={onboardingProgress.orgName}
@@ -218,12 +296,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 nextStep={onboardingProgress.nextStep}
               />
             ) : null}
-          </div>
+          </PageContainer>
         </header>
-        <main className="page-container">
-          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="min-w-0">
-            {children}
-          </motion.div>
+        <main>
+          <PageContainer>
+            <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="min-w-0 pb-4">
+              {children}
+            </motion.div>
+          </PageContainer>
         </main>
       </div>
     </div>

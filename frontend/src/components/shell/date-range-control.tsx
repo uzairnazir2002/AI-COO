@@ -31,14 +31,15 @@ export function DateRangeControl() {
   }
 
   return (
-    <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-border bg-card/70 px-3 py-2">
+    <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-border/70 bg-card/85 px-3 py-1.5">
       <CalendarRange className="h-4 w-4 text-muted-foreground" />
+      <span className="text-xs font-medium text-muted-foreground">Date</span>
       <Input
         aria-label="Global from date"
         type="date"
         value={range.from}
         onChange={(event) => updateRange({ ...range, from: event.target.value })}
-        className="h-8 w-auto border-0 bg-transparent px-1"
+        className="h-8 w-auto border-0 bg-transparent px-1 text-xs md:text-sm"
       />
       <span className="text-xs text-muted-foreground">to</span>
       <Input
@@ -46,7 +47,7 @@ export function DateRangeControl() {
         type="date"
         value={range.to}
         onChange={(event) => updateRange({ ...range, to: event.target.value })}
-        className="h-8 w-auto border-0 bg-transparent px-1"
+        className="h-8 w-auto border-0 bg-transparent px-1 text-xs md:text-sm"
       />
     </div>
   );
