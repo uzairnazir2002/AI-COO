@@ -19,12 +19,22 @@ init_sentry(settings, service_name="backend-api")
 app = FastAPI(title=settings.app_name, version="0.1.0")
 app.add_middleware(RequestContextMiddleware)
 origins = [o.strip() for o in settings.cors_origins.split(",") if o.strip()]
+dev_origins = [
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+    "http://localhost:3001",
+    "http://127.0.0.1:3001",
+]
+if settings.env.lower() != "production":
+    # Keep local DX stable across common frontend ports even if CORS_ORIGINS is narrowly configured.
+    origins = list(dict.fromkeys([*origins, *dev_origins]))
 if not origins:
-    # Safe local fallback in case env var is present but empty.
-    origins = ["http://localhost:3000", "http://127.0.0.1:3000", "http://localhost:3001"]
+    origins = dev_origins
+allow_origin_regex = r"^https?://(localhost|127\.0\.0\.1)(:\d+)?$" if settings.env.lower() != "production" else None
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
+    allow_origin_regex=allow_origin_regex,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

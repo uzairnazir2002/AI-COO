@@ -28,6 +28,7 @@ async def test_assign_sets_assignment_and_clears_acknowledged_at():
     assert alert.assigned_to_user_id == assignee
     assert alert.assigned_by_user_id == actor
     assert alert.assigned_at is not None
+    assert alert.assigned_at.tzinfo is None
     assert alert.acknowledged_at is None
 
 
@@ -38,3 +39,4 @@ async def test_acknowledge_sets_timestamp():
     await AlertsService(None, _FakeRepo()).acknowledge(alert=alert)  # type: ignore[arg-type]
 
     assert alert.acknowledged_at is not None
+    assert alert.acknowledged_at.tzinfo is None

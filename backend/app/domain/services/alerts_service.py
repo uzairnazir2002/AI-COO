@@ -51,15 +51,20 @@ class AlertsService:
         alert.status = "DISMISSED"
         await self.repo.save(alert)
 
+    @staticmethod
+    def _utc_now_naive() -> datetime:
+        # alerts.assigned_at / acknowledged_at are stored as TIMESTAMP WITHOUT TIME ZONE.
+        return datetime.now(timezone.utc).replace(tzinfo=None)
+
     async def assign(self, *, alert: Alert, assignee_user_id: uuid.UUID | None, actor_user_id: uuid.UUID):
         alert.assigned_to_user_id = assignee_user_id
         alert.assigned_by_user_id = actor_user_id
-        alert.assigned_at = datetime.now(timezone.utc)
+        alert.assigned_at = self._utc_now_naive()
         alert.acknowledged_at = None
         await self.repo.save(alert)
 
     async def acknowledge(self, *, alert: Alert):
-        alert.acknowledged_at = datetime.now(timezone.utc)
+        alert.acknowledged_at = self._utc_now_naive()
         await self.repo.save(alert)
 
     async def detect_and_create(self, org_id):
