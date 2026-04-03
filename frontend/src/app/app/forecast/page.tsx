@@ -15,13 +15,14 @@ import { useForecast, useForecastOverride } from "@/features/forecast/hooks";
 import { type ForecastAssumptions } from "@/features/forecast/panels/assumptions-panel";
 import { computeChartDomain, toNumber } from "@/lib/utils/chart";
 import { formatMoney } from "@/lib/utils/format";
+import { useAppStore } from "@/store/appStore";
 
 type DraftRow = { revenue: string; expense: string };
 
 export default function ForecastPage() {
   const [months, setMonths] = useState<3 | 6 | 12>(6);
   const [scenario, setScenario] = useState<"base" | "high" | "low">("base");
-  const [activeTab, setActiveTab] = useState("scenario");
+  const [activeTab, setActiveTab] = useState("baseline");
   const [drafts, setDrafts] = useState<Record<string, DraftRow>>({});
   const [savedOverrideMonths, setSavedOverrideMonths] = useState<string[]>([]);
   const [assumptions, setAssumptions] = useState<ForecastAssumptions>({
@@ -33,6 +34,7 @@ export default function ForecastPage() {
   const [lastSuccess, setLastSuccess] = useState("");
 
   const toast = useToast();
+  const experienceTier = useAppStore((s) => s.experienceTier);
   const forecast = useForecast(months);
   const override = useForecastOverride();
 
@@ -104,7 +106,7 @@ export default function ForecastPage() {
     <div className="space-y-6">
       <SectionHeader
         title="Forecast"
-        description="Scenario planning with confidence interval band and override markers."
+        description="Planning workspace with baseline runway, risk view, and optional advanced controls."
         actions={
           <>
             <div className="w-24">
@@ -156,6 +158,7 @@ export default function ForecastPage() {
       ) : null}
 
       <ForecastWorkspaceContainer
+        experienceTier={experienceTier}
         activeTab={activeTab}
         onTabChange={setActiveTab}
         points={points}

@@ -4,7 +4,7 @@ import Link from "next/link";
 
 import { BellRing } from "lucide-react";
 
-import { AIInsightPanel } from "@/components/common/ai-insight-panel";
+import { AiBriefCard } from "@/components/ai/ai-brief-card";
 import { AlertCard } from "@/components/common/alert-card";
 import { EmptyState } from "@/components/common/empty-state";
 import { Panel, PanelBody, PanelHeader } from "@/components/layout/panel";
@@ -91,7 +91,7 @@ export function PriorityAlertsPanel({
         </PanelBody>
       </Panel>
 
-      <AIInsightPanel summary={aiSummary} fallbackUsed={aiFallbackUsed ?? undefined} />
+      <AiBriefCard summary={aiSummary} fallbackUsed={aiFallbackUsed ?? undefined} />
     </div>
   );
 }

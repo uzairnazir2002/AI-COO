@@ -4,6 +4,7 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
 export type OrgRole = "OWNER" | "EDITOR" | "VIEWER";
+export type ExperienceTier = "simple" | "standard" | "advanced";
 
 export type MeOrg = { org_id: string; role: OrgRole; name: string };
 export type MeUser = { id: string; email: string; created_at: string };
@@ -14,12 +15,16 @@ type AppState = {
   user: MeUser | null;
   orgs: MeOrg[];
   shellCollapsed: boolean;
+  experienceTier: ExperienceTier;
+  experienceTiersByOrg: Record<string, ExperienceTier>;
   globalDateRange: { from: string; to: string };
   cashflowGranularity: "day" | "week" | "month";
   setSelectedOrgId: (orgId: string | null) => void;
   setSelectedLocationId: (locationId: string | null) => void;
   setSession: (user: MeUser, orgs: MeOrg[]) => void;
   setShellCollapsed: (collapsed: boolean) => void;
+  setExperienceTier: (tier: ExperienceTier) => void;
+  setExperienceTierForOrg: (orgId: string, tier: ExperienceTier) => void;
   setGlobalDateRange: (range: { from: string; to: string }) => void;
   setCashflowGranularity: (value: "day" | "week" | "month") => void;
   clearSession: () => void;
@@ -70,24 +75,46 @@ export const useAppStore = create<AppState>()(
       user: null,
       orgs: [],
       shellCollapsed: false,
+      experienceTier: "simple",
+      experienceTiersByOrg: {},
       cashflowGranularity: "week",
       setSelectedOrgId: (selectedOrgId) => {
         persistSelectedOrgCookie(selectedOrgId);
-        set({ selectedOrgId, selectedLocationId: null });
+        const byOrg = get().experienceTiersByOrg;
+        const tier = selectedOrgId ? byOrg[selectedOrgId] || "simple" : "simple";
+        set({ selectedOrgId, selectedLocationId: null, experienceTier: tier });
       },
       setSelectedLocationId: (selectedLocationId) => set({ selectedLocationId }),
       setSession: (user, orgs) => {
         const prev = get().selectedOrgId;
         const selectedOrgId = prev && orgs.some((o) => o.org_id === prev) ? prev : orgs[0]?.org_id ?? null;
+        const byOrg = get().experienceTiersByOrg;
+        const experienceTier = selectedOrgId ? byOrg[selectedOrgId] || "simple" : "simple";
         persistSelectedOrgCookie(selectedOrgId);
-        set({ user, orgs, selectedOrgId, selectedLocationId: null });
+        set({ user, orgs, selectedOrgId, selectedLocationId: null, experienceTier });
       },
       setShellCollapsed: (shellCollapsed) => set({ shellCollapsed }),
+      setExperienceTier: (experienceTier) => {
+        const selectedOrgId = get().selectedOrgId;
+        if (!selectedOrgId) {
+          set({ experienceTier });
+          return;
+        }
+        const nextByOrg = { ...get().experienceTiersByOrg, [selectedOrgId]: experienceTier };
+        set({ experienceTier, experienceTiersByOrg: nextByOrg });
+      },
+      setExperienceTierForOrg: (orgId, experienceTier) => {
+        const nextByOrg = { ...get().experienceTiersByOrg, [orgId]: experienceTier };
+        set((state) => ({
+          experienceTiersByOrg: nextByOrg,
+          experienceTier: state.selectedOrgId === orgId ? experienceTier : state.experienceTier,
+        }));
+      },
       setGlobalDateRange: (globalDateRange) => set({ globalDateRange: normalizeDateRange(globalDateRange) }),
       setCashflowGranularity: (cashflowGranularity) => set({ cashflowGranularity }),
       clearSession: () => {
         persistSelectedOrgCookie(null);
-        set({ selectedOrgId: null, selectedLocationId: null, user: null, orgs: [] });
+        set({ selectedOrgId: null, selectedLocationId: null, user: null, orgs: [], experienceTier: "simple" });
       },
     }),
     {
@@ -107,6 +134,8 @@ export const useAppStore = create<AppState>()(
         selectedOrgId: s.selectedOrgId,
         selectedLocationId: s.selectedLocationId,
         shellCollapsed: s.shellCollapsed,
+        experienceTier: s.experienceTier,
+        experienceTiersByOrg: s.experienceTiersByOrg,
         globalDateRange: s.globalDateRange,
         cashflowGranularity: s.cashflowGranularity,
       }),

@@ -4,21 +4,18 @@ import { useEffect, useMemo } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
-import { motion } from "framer-motion";
+import { motion, useReducedMotion } from "framer-motion";
 import {
   Activity as ActivityIcon,
   AlertTriangle,
-  BarChart3,
-  Boxes,
-  Building2,
   ChevronsLeftRightEllipsis,
   FileText,
+  Home,
   Landmark,
   LineChart,
   MessageSquare,
-  PiggyBank,
   Settings2,
-  Sparkles,
+  ShieldCheck,
   Wallet,
 } from "lucide-react";
 
@@ -29,15 +26,18 @@ import { CommandPalette } from "@/components/shell/command-palette";
 import { DateRangeControl } from "@/components/shell/date-range-control";
 import { NotificationCenter } from "@/components/shell/notification-center";
 import { OnboardingProgressRail } from "@/components/shell/onboarding-progress-rail";
+import { PrimaryNav } from "@/components/shell/primary-nav";
 import { ProfileMenu } from "@/components/shell/profile-menu";
 import { QuickCreateMenu } from "@/components/shell/quick-create-menu";
-import { ThemeToggle } from "@/components/common/theme-toggle";
+import { SecondaryNav } from "@/components/shell/secondary-nav";
+import { TopBar } from "@/components/shell/top-bar";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useLocations } from "@/features/locations/hooks";
 import { useOnboardingProgress } from "@/features/onboarding/hooks";
 import { useOrgEventFeed } from "@/features/notifications/hooks";
 import { logout } from "@/lib/api/client";
+import { canAccessAdvancedNav } from "@/lib/ux/experience";
 import { cn } from "@/lib/utils/cn";
 import { useAppStore } from "@/store/appStore";
 
@@ -47,45 +47,21 @@ type NavItem = {
   icon: React.ComponentType<{ className?: string }>;
 };
 
-type NavSection = {
-  title: string;
-  items: NavItem[];
-};
-
-const navSections: NavSection[] = [
-  {
-    title: "Core",
-    items: [
-      { href: "/app/dashboard", label: "Overview", icon: BarChart3 },
-      { href: "/app/transactions", label: "Money", icon: Wallet },
-      { href: "/app/budgets", label: "Budgets", icon: PiggyBank },
-      { href: "/app/forecast", label: "Forecasting", icon: LineChart },
-      { href: "/app/reports", label: "Reports", icon: FileText },
-    ],
-  },
-  {
-    title: "Intelligence",
-    items: [
-      { href: "/app/alerts", label: "Alerts", icon: AlertTriangle },
-      { href: "/app/assistant", label: "AI Assistant", icon: MessageSquare },
-    ],
-  },
-  {
-    title: "Operations",
-    items: [
-      { href: "/app/inventory", label: "Inventory", icon: Boxes },
-      { href: "/app/activity", label: "Activity", icon: ActivityIcon },
-    ],
-  },
-  {
-    title: "Admin",
-    items: [
-      { href: "/app/settings", label: "Settings", icon: Settings2 },
-      { href: "/app/orgs", label: "Organizations", icon: Building2 },
-      { href: "/app/onboarding", label: "Onboarding", icon: Sparkles },
-    ],
-  },
+const primaryNav: NavItem[] = [
+  { href: "/app/dashboard", label: "Home", icon: Home },
+  { href: "/app/transactions", label: "Money", icon: Wallet },
+  { href: "/app/forecast", label: "Forecast", icon: LineChart },
+  { href: "/app/reports", label: "Reports", icon: FileText },
+  { href: "/app/assistant", label: "AI COO", icon: MessageSquare },
 ];
+
+const secondaryNav: NavItem[] = [
+  { href: "/app/alerts", label: "Alerts", icon: AlertTriangle },
+  { href: "/app/activity", label: "Operations", icon: ActivityIcon },
+  { href: "/app/settings", label: "Settings", icon: Settings2 },
+];
+
+const advancedNav: NavItem[] = [{ href: "/app/admin-console", label: "Admin Console", icon: ShieldCheck }];
 
 function streamStatusValue(value: "idle" | "connecting" | "live" | "error" | "fallback_polling") {
   if (value === "fallback_polling") return "fallback polling";
@@ -105,13 +81,17 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const queryClient = useQueryClient();
   const collapsed = useAppStore((s) => s.shellCollapsed);
   const setCollapsed = useAppStore((s) => s.setShellCollapsed);
+  const experienceTier = useAppStore((s) => s.experienceTier);
+  const setExperienceTier = useAppStore((s) => s.setExperienceTier);
   const streamStatus = useOrgEventFeed();
   const locationsQuery = useLocations();
   const onboardingProgress = useOnboardingProgress();
   const showOnboardingRail =
     Boolean(onboardingProgress.orgId) && !onboardingProgress.isComplete && !pathname.startsWith("/app/onboarding");
+  const reduceMotion = useReducedMotion();
 
   const selectedOrg = orgs.find((org) => org.org_id === selectedOrgId);
+  const showAdvancedNav = canAccessAdvancedNav(selectedOrg?.role, experienceTier);
 
   useEffect(() => {
     if (!selectedOrgId || typeof document === "undefined") return;
@@ -135,8 +115,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         value: selectedLocationId ? "filtered" : "all",
         tone: "neutral",
       },
+      {
+        label: "Mode",
+        value: experienceTier,
+        tone: experienceTier === "advanced" ? "warning" : "neutral",
+      },
     ];
-  }, [streamStatus, selectedLocationId, selectedOrg]);
+  }, [streamStatus, selectedLocationId, selectedOrg, experienceTier]);
 
   return (
     <div
@@ -168,11 +153,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </div>
 
         <div className="mt-6 space-y-5">
-          {navSections.map((section) => (
-            <div key={section.title} className="space-y-1">
-              {!collapsed ? <p className="px-3 text-[11px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">{section.title}</p> : null}
+          <PrimaryNav items={primaryNav} pathname={pathname} collapsed={collapsed} />
+          <SecondaryNav items={secondaryNav} pathname={pathname} collapsed={collapsed} />
+          {showAdvancedNav ? (
+            <div className="space-y-1">
+              {!collapsed ? <p className="px-3 text-[11px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">Advanced</p> : null}
               <nav className="space-y-1">
-                {section.items.map((item) => {
+                {advancedNav.map((item) => {
                   const Icon = item.icon;
                   const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
                   return (
@@ -195,14 +182,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 })}
               </nav>
             </div>
-          ))}
+          ) : null}
         </div>
       </aside>
 
       <div className="min-w-0 md:h-dvh md:overflow-y-auto">
         <header className="sticky top-0 z-20 border-b border-border/70 bg-background/92 backdrop-blur-xl">
           <PageContainer className="flex flex-col gap-3 py-4">
-            <div className="flex flex-wrap items-center gap-2.5">
+            <TopBar>
               <div className="min-w-[220px] flex-1 md:max-w-sm">
                 <Select
                   value={selectedOrgId || orgs[0]?.org_id || "__none__"}
@@ -271,10 +258,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                   onImportCsv={() => router.push("/app/transactions?action=import")}
                   onGenerateReport={() => router.push("/app/reports?action=generate")}
                 />
-                <ThemeToggle />
                 <ProfileMenu
                   email={user?.email}
                   role={selectedOrg?.role}
+                  experienceTier={experienceTier}
+                  onExperienceTierChange={setExperienceTier}
                   onLogout={async () => {
                     await logout();
                     clearSession();
@@ -282,7 +270,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                   }}
                 />
               </div>
-            </div>
+            </TopBar>
             <div className="flex flex-col gap-2">
               <Breadcrumbs />
               <StatusStrip items={statusItems} />
@@ -300,7 +288,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </header>
         <main>
           <PageContainer>
-            <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="min-w-0 pb-4">
+            <motion.div
+              initial={reduceMotion ? { opacity: 1 } : { opacity: 0, y: 8 }}
+              animate={reduceMotion ? { opacity: 1 } : { opacity: 1, y: 0 }}
+              transition={reduceMotion ? { duration: 0 } : { duration: 0.2, ease: "easeOut" }}
+              className="min-w-0 pb-4"
+            >
               {children}
             </motion.div>
           </PageContainer>

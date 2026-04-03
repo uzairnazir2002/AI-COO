@@ -17,10 +17,18 @@ async function clickCsvAction(page: Page, testId: string) {
   await button.evaluate((el) => (el as HTMLButtonElement).click());
 }
 
+async function setExperienceTierToAdvanced(page: Page) {
+  await page.getByRole("button", { name: "Profile" }).click();
+  await page.getByTestId("profile-tier-select").click();
+  await page.getByRole("option", { name: "Advanced" }).click();
+  await page.keyboard.press("Escape");
+  await expect(page.getByText("advanced")).toBeVisible();
+}
+
 test("transactions csv mapping required-field guard disables import actions", async ({ page, authenticatedPage }) => {
   await authenticatedPage;
   await page.goto("/app/transactions");
-  await expect(page.locator("h1", { hasText: "Transactions" })).toBeVisible();
+  await expect(page.locator("h1", { hasText: /Transactions|Money/i })).toBeVisible();
 
   await page.getByRole("button", { name: "Import CSV" }).click();
   const csvPath = path.resolve(process.cwd(), "..", "shared", "demo", "transactions_6months.csv");
@@ -65,7 +73,7 @@ test("guided onboarding rail appears for a fresh organization", async ({ page, a
 test("transactions bulk remap success path updates category and shows toast", async ({ page, authenticatedPage, authSession }) => {
   await authenticatedPage;
   await page.goto("/app/transactions");
-  await expect(page.locator("h1", { hasText: "Transactions" })).toBeVisible();
+  await expect(page.locator("h1", { hasText: /Transactions|Money/i })).toBeVisible();
 
   const fromCategory = `From-${authSession.namespace}`;
   const toCategory = `To-${authSession.namespace}`;
@@ -118,6 +126,8 @@ test("forecast inline override supports dirty state, save and reset", async ({ p
   await clickCsvAction(page, "csv-confirm-button");
   await expect(page.getByText(/CSV imported/)).toBeVisible();
 
+  await setExperienceTierToAdvanced(page);
+
   await page.goto("/app/forecast");
   await expect(page.locator("h1", { hasText: "Forecast" })).toBeVisible();
   const assumptionsPanel = page.getByTestId("forecast-assumptions-panel");
@@ -126,7 +136,7 @@ test("forecast inline override supports dirty state, save and reset", async ({ p
     await expect(page.getByTestId("forecast-sensitivity-panel")).toBeVisible();
     await expect(page.getByTestId("forecast-risk-panel")).toBeVisible();
   }
-  await page.getByRole("tab", { name: "Overrides", exact: true }).click();
+  await page.getByRole("tab", { name: /Overrides|Custom plan/i }).click();
 
   const revenueInput = page.locator('[data-testid^="forecast-override-revenue-"]').first();
   await expect(revenueInput).toBeVisible();

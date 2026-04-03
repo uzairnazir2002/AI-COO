@@ -18,6 +18,7 @@ import { AssumptionsPanel, type ForecastAssumptions } from "@/features/forecast/
 import { RiskPanel } from "@/features/forecast/panels/risk-panel";
 import { SensitivityPanel } from "@/features/forecast/panels/sensitivity-panel";
 import { formatCompactMoney, formatMoney } from "@/lib/utils/format";
+import type { ExperienceTier } from "@/store/appStore";
 
 type DraftRow = { revenue: string; expense: string };
 
@@ -36,6 +37,7 @@ type RunwayPoint = {
 };
 
 export function ForecastWorkspaceContainer({
+  experienceTier,
   activeTab,
   onTabChange,
   points,
@@ -61,6 +63,7 @@ export function ForecastWorkspaceContainer({
   assumptionsNetImpact,
   expenseOverRevenue,
 }: {
+  experienceTier: ExperienceTier;
   activeTab: string;
   onTabChange: (tab: string) => void;
   points: ScenarioPoint[];
@@ -92,8 +95,9 @@ export function ForecastWorkspaceContainer({
         active={activeTab}
         onChange={onTabChange}
         items={[
-          { id: "scenario", label: "Scenario Lab" },
-          { id: "overrides", label: "Overrides" },
+          { id: "baseline", label: "Baseline" },
+          { id: "risks", label: "Risks" },
+          { id: "custom", label: "Custom plan" },
         ]}
       />
 
@@ -106,7 +110,7 @@ export function ForecastWorkspaceContainer({
         />
       ) : null}
 
-      {activeTab === "scenario" ? (
+      {activeTab === "baseline" ? (
         <section className="space-y-4">
           <FieldHelpCallout
             title="Scenario guidance"
@@ -172,7 +176,17 @@ export function ForecastWorkspaceContainer({
                 </ChartCanvas>
               </ChartFrame>
             </ChartCard>
-            <AssumptionsPanel assumptions={assumptions} onChange={onAssumptionsChange} runwayImpactPreview={assumptionsNetImpact} />
+            {experienceTier === "simple" ? (
+              <Panel>
+                <PanelHeader><h2 className="text-base font-semibold">Quick plan controls</h2></PanelHeader>
+                <PanelBody className="space-y-2 text-sm text-muted-foreground">
+                  <p>Advanced assumption editing is hidden in Simple mode.</p>
+                  <p>Switch to Standard or Advanced mode in Profile to edit detailed assumptions.</p>
+                </PanelBody>
+              </Panel>
+            ) : (
+              <AssumptionsPanel assumptions={assumptions} onChange={onAssumptionsChange} runwayImpactPreview={assumptionsNetImpact} />
+            )}
           </div>
 
           <ChartCard
@@ -208,23 +222,48 @@ export function ForecastWorkspaceContainer({
             </ChartFrame>
           </ChartCard>
 
+        </section>
+      ) : null}
+
+      {activeTab === "risks" ? (
+        <section className="space-y-4">
           <div className="grid gap-4 xl:grid-cols-2">
-            <SensitivityPanel
-              revenueLiftPct={Number(assumptions.revenueLiftPct || 0)}
-              expenseDeltaPct={Number(assumptions.expenseDeltaPct || 0)}
-              projectedNet={assumptionsNetImpact}
-            />
             <RiskPanel
               risk={risk}
               lastPointMonth={points[points.length - 1]?.month ?? null}
               expenseOverRevenue={expenseOverRevenue}
             />
+            <SensitivityPanel
+              revenueLiftPct={Number(assumptions.revenueLiftPct || 0)}
+              expenseDeltaPct={Number(assumptions.expenseDeltaPct || 0)}
+              projectedNet={assumptionsNetImpact}
+            />
           </div>
+          <Panel>
+            <PanelHeader><h2 className="text-base font-semibold">Top forecast risks</h2></PanelHeader>
+            <PanelBody className="space-y-2 text-sm text-muted-foreground">
+              <p>Scenario: {scenario.toUpperCase()}</p>
+              <p>Horizon: {months} months</p>
+              <p>Expense over revenue at horizon: {formatMoney(expenseOverRevenue)}</p>
+              <p>Model confidence width: {formatMoney((points[points.length - 1]?.confidence_band ?? 0) || 0)}</p>
+            </PanelBody>
+          </Panel>
         </section>
       ) : null}
 
-      {activeTab === "overrides" ? (
+      {activeTab === "custom" ? (
         <section className="space-y-4">
+          {experienceTier === "simple" ? (
+            <Panel>
+              <PanelHeader><h2 className="text-base font-semibold">Advanced assumptions are hidden in Simple mode</h2></PanelHeader>
+              <PanelBody className="text-sm text-muted-foreground">
+                Override editing remains available, but detailed assumption controls stay collapsed.
+              </PanelBody>
+            </Panel>
+          ) : null}
+          {experienceTier !== "simple" ? (
+            <AssumptionsPanel assumptions={assumptions} onChange={onAssumptionsChange} runwayImpactPreview={assumptionsNetImpact} />
+          ) : null}
           <Panel>
             <PanelHeader><h2 className="text-base font-semibold">Override editor</h2></PanelHeader>
             <PanelBody className="space-y-3">
@@ -266,20 +305,20 @@ export function ForecastWorkspaceContainer({
                           <td>{formatMoney(p.revenue_pred)}</td>
                           <td>{formatMoney(p.expense_pred)}</td>
                           <td>
-                            <Input
-                              data-testid={`forecast-override-revenue-${p.month}`}
-                              value={draft.revenue}
-                              placeholder="leave empty"
-                              onChange={(e) => onDraftRevenueChange(p.month, e.target.value)}
-                            />
+                              <Input
+                                data-testid={`forecast-override-revenue-${p.month}`}
+                                value={draft.revenue}
+                                placeholder="leave empty"
+                                onChange={(e) => onDraftRevenueChange(p.month, e.target.value)}
+                              />
                           </td>
                           <td>
-                            <Input
-                              data-testid={`forecast-override-expense-${p.month}`}
-                              value={draft.expense}
-                              placeholder="leave empty"
-                              onChange={(e) => onDraftExpenseChange(p.month, e.target.value)}
-                            />
+                              <Input
+                                data-testid={`forecast-override-expense-${p.month}`}
+                                value={draft.expense}
+                                placeholder="leave empty"
+                                onChange={(e) => onDraftExpenseChange(p.month, e.target.value)}
+                              />
                           </td>
                           <td>{formatMoney(p.confidence_low)} - {formatMoney(p.confidence_high)}</td>
                           <td>

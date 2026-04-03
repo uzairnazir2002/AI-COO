@@ -3,6 +3,7 @@
 import type { FormEvent } from "react";
 import Link from "next/link";
 
+import { PromptSuggestions } from "@/components/ai/prompt-suggestions";
 import { ErrorState } from "@/components/common/error-state";
 import { Panel, PanelBody, PanelHeader } from "@/components/layout/panel";
 import { TabNav } from "@/components/layout/tab-nav";
@@ -168,16 +169,7 @@ export function AssistantWorkspaceContainer({
                 </div>
               </form>
 
-              <div className="rounded-2xl border border-border/70 bg-card/70 p-3" data-testid="ai-chat-suggested-prompts">
-                <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">Suggested prompts</p>
-                <div className="mt-2 flex flex-wrap gap-2">
-                  {suggestedPrompts.map((prompt) => (
-                    <Button key={prompt} size="sm" variant="outline" onClick={() => onUsePrompt(prompt)}>
-                      {prompt}
-                    </Button>
-                  ))}
-                </div>
-              </div>
+              <PromptSuggestions prompts={suggestedPrompts} onSelect={onUsePrompt} />
             </PanelBody>
           </Panel>
         </section>

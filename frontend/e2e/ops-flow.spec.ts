@@ -85,10 +85,13 @@ test("invite acceptance flow creates a usable account", async ({ page, authSessi
   await invitePage.waitForURL(/\/(app\/(dashboard|orgs)|dashboard)/, { timeout: 30000 });
 });
 
-test("activity page handles owner admin operations by role", async ({ page, authenticatedPage }) => {
+test("operations and admin console surfaces handle role-aware tooling", async ({ page, authenticatedPage }) => {
   await authenticatedPage;
   await page.goto("/app/activity");
-  await expect(page.getByRole("heading", { name: "Activity" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Activity", exact: true })).toBeVisible();
+  await expect(page.getByText(/Inventory snapshot/i)).toBeVisible();
+  await page.getByRole("link", { name: /Open admin console/i }).click();
+  await expect(page).toHaveURL(/\/app\/admin-console/);
   await expect(page.getByRole("tablist", { name: "Section tabs" })).toBeVisible();
   await page.getByRole("tab", { name: "Security Ops", exact: true }).click();
   const ownerControlsVisible = (await page.getByText("Security & compliance").count()) > 0;
@@ -111,6 +114,10 @@ test("settings page exposes deletion request controls", async ({ page, authentic
   await page.goto("/app/settings");
   await expect(page.getByRole("heading", { name: "Settings", exact: true })).toBeVisible();
   await expect(page.getByRole("tablist", { name: "Section tabs" })).toBeVisible();
+  const showAdvancedTabs = page.getByRole("button", { name: "Show advanced tabs" });
+  if (await showAdvancedTabs.count()) {
+    await showAdvancedTabs.click();
+  }
   await page.getByRole("tab", { name: "Compliance", exact: true }).click();
   await expect(page.getByText("Data & compliance actions")).toBeVisible();
   await expect(page.getByRole("button", { name: "Request account deletion" })).toBeVisible();
@@ -129,7 +136,7 @@ test("top-level protected aliases render without redirect-only route loss", asyn
   await authenticatedPage;
   await page.goto("/dashboard");
   await expect(page).toHaveURL(/\/dashboard/);
-  await expect(page.getByRole("heading", { name: "Executive dashboard" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /Executive dashboard|Business health/i })).toBeVisible();
 
   await page.goto("/activity");
   await expect(page).toHaveURL(/\/activity/);

@@ -6,14 +6,16 @@ import { ChevronRight } from "lucide-react";
 
 const labels: Record<string, string> = {
   app: "Workspace",
-  dashboard: "Dashboard",
-  transactions: "Transactions",
+  dashboard: "Home",
+  transactions: "Money",
   budgets: "Budgets",
   forecast: "Forecast",
-  assistant: "AI Chat",
+  assistant: "AI COO",
   alerts: "Alerts",
   reports: "Reports",
   settings: "Settings",
+  activity: "Operations",
+  "admin-console": "Admin Console",
   orgs: "Organizations",
 };
 

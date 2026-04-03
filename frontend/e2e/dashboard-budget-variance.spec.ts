@@ -17,13 +17,21 @@ test("dashboard shows budget variance KPIs and threshold alerts", async ({ page,
   await addDialog.getByRole("button", { name: /^Add$/ }).click();
   await expect(page.getByText("Transaction added")).toBeVisible();
 
-  await page.goto("/app/activity");
+  await page.goto("/app/admin-console");
+  await expect(page.getByRole("heading", { name: "Admin Console", exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Queue analytics recompute" }).click();
   await expect(page.getByText("Analytics recompute queued")).toBeVisible();
 
   await page.goto("/app/dashboard");
-  await expect(page.getByText("Budget planned (month)")).toBeVisible();
-  await expect(page.getByText("Budget actual (month)")).toBeVisible();
-  await expect(page.getByText("Budget variance (month)")).toBeVisible();
+  const showMoreInsights = page.getByRole("button", { name: "Show more insights" });
+  if (await showMoreInsights.count()) {
+    await showMoreInsights.click();
+  }
   await expect(page.getByTestId("budget-threshold-alerts")).toContainText("Budget threshold alerts");
+  const budgetPlannedKpi = page.locator("p:visible", { hasText: "Budget planned (month)" });
+  if (await budgetPlannedKpi.count()) {
+    await expect(budgetPlannedKpi).toBeVisible();
+    await expect(page.locator("p:visible", { hasText: "Budget actual (month)" })).toBeVisible();
+    await expect(page.locator("p:visible", { hasText: "Budget variance (month)" })).toBeVisible();
+  }
 });

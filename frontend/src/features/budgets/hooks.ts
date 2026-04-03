@@ -2,7 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { api, apiFetchRaw } from "@/lib/api/client";
+import { ApiError, api, apiFetchRaw } from "@/lib/api/client";
 import { apiPaths } from "@/lib/api/endpoints";
 import { budgetSchema, budgetVarianceSchema } from "@/lib/api/schemas";
 import { qk } from "@/lib/query/keys";
@@ -32,6 +32,13 @@ function buildBudgetQuery(orgId: string, period?: string, budgetType?: string, i
   return qs.toString();
 }
 
+function requireOrgId(orgId: string | null): string {
+  if (!orgId) {
+    throw new ApiError("Select an organization before managing budgets.", 400);
+  }
+  return orgId;
+}
+
 export function useBudgets(period: string, budgetType: "EXPENSE" | "REVENUE" | "ALL" = "ALL", includeHistory = false) {
   const orgId = useAppStore((s) => s.selectedOrgId);
   return useQuery({
@@ -50,9 +57,10 @@ export function useCreateBudget() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (payload: CreateBudgetPayload) => {
+      const resolvedOrgId = requireOrgId(orgId);
       const response = await apiFetchRaw(apiPaths.budgets, {
         method: "POST",
-        body: JSON.stringify({ org_id: orgId, ...payload }),
+        body: JSON.stringify({ org_id: resolvedOrgId, ...payload }),
       });
       const out = budgetSchema.parse((await response.json()) as Budget);
       const taskId = response.headers.get("X-Alert-Recalc-Task-Id");
@@ -76,10 +84,11 @@ export function useUpdateBudget() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (payload: UpdateBudgetPayload) => {
+      const resolvedOrgId = requireOrgId(orgId);
       const response = await apiFetchRaw(apiPaths.budgetById(payload.budgetId), {
         method: "PUT",
         body: JSON.stringify({
-          org_id: orgId,
+          org_id: resolvedOrgId,
           planned_amount: payload.planned_amount,
           notes: payload.notes,
         }),

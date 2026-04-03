@@ -1,7 +1,7 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils/cn";
 
 export function DetailDrawer({
@@ -20,15 +20,17 @@ export function DetailDrawer({
   return (
     <Dialog open={open} onOpenChange={(nextOpen) => { if (!nextOpen) onClose(); }}>
       <DialogContent
+        data-testid="detail-drawer"
         className={cn(
-          "left-auto right-0 top-0 h-dvh w-full max-w-xl translate-x-0 translate-y-0 rounded-none border-l border-border p-6",
+          "left-0 right-0 top-auto bottom-0 h-[82dvh] w-full max-w-none translate-x-0 translate-y-0 rounded-t-3xl border-t border-border p-6",
+          "md:left-auto md:bottom-auto md:top-0 md:h-dvh md:max-w-xl md:rounded-none md:border-l md:border-t-0",
           className,
         )}
       >
-        <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-xl font-semibold">{title}</h2>
+        <DialogHeader className="mb-4 flex-row items-center justify-between space-y-0">
+          <DialogTitle className="text-xl font-semibold">{title}</DialogTitle>
           <Button variant="ghost" onClick={onClose}>Close</Button>
-        </div>
+        </DialogHeader>
         {children}
       </DialogContent>
     </Dialog>

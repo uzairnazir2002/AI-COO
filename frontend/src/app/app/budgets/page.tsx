@@ -2,6 +2,7 @@
 
 import { FormEvent, useMemo, useState } from "react";
 
+import { EmptyState } from "@/components/common/empty-state";
 import { SectionHeader } from "@/components/common/section-header";
 import { useToast } from "@/components/common/use-toast";
 import { StatusStrip } from "@/components/layout/status-strip";
@@ -101,6 +102,17 @@ export default function BudgetsPage() {
     } catch (err) {
       toast.toast({ title: err instanceof Error ? err.message : "Budget update failed", variant: "danger" });
     }
+  }
+
+  if (!selectedOrg) {
+    return (
+      <EmptyState
+        eyebrow="No organization"
+        title="Select an organization before managing budgets."
+        description="Budget listing, creation, version updates, and variance analytics require an active org context."
+        actions={[{ label: "Go to organizations", href: "/app/orgs" }]}
+      />
+    );
   }
 
   return (

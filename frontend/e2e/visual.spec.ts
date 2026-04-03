@@ -19,7 +19,7 @@ test.describe("visual regression", () => {
       await applyTheme(page, theme);
       await authenticatedPage;
       await page.goto("/app/dashboard");
-      await expect(page.getByRole("heading", { name: "Executive dashboard" })).toBeVisible();
+      await expect(page.getByRole("heading", { name: /Executive dashboard|Business health/i })).toBeVisible();
       await expect(page).toHaveScreenshot(`dashboard-${theme}.png`, {
         fullPage: true,
         animations: "disabled",
@@ -33,7 +33,7 @@ test.describe("visual regression", () => {
       await applyTheme(page, theme);
       await authenticatedPage;
       await page.goto("/app/transactions");
-      await expect(page.getByRole("heading", { name: "Transactions" })).toBeVisible();
+      await expect(page.getByRole("heading", { name: /Transactions|Money/i })).toBeVisible();
       await expect(page).toHaveScreenshot(`transactions-${theme}.png`, {
         fullPage: true,
         animations: "disabled",

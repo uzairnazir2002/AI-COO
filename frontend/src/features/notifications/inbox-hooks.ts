@@ -2,11 +2,18 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { api } from "@/lib/api/client";
+import { ApiError, api } from "@/lib/api/client";
 import { apiPaths } from "@/lib/api/endpoints";
 import { notificationPageSchema, type NotificationPageResponse } from "@/lib/api/schemas";
 import { qk } from "@/lib/query/keys";
 import { useAppStore } from "@/store/appStore";
+
+function requireOrgId(orgId: string | null): string {
+  if (!orgId) {
+    throw new ApiError("Select an organization before managing notifications.", 400);
+  }
+  return orgId;
+}
 
 export function useNotifications(unreadOnly = false) {
   const orgId = useAppStore((s) => s.selectedOrgId);
@@ -24,7 +31,10 @@ export function useMarkNotificationRead() {
   const orgId = useAppStore((s) => s.selectedOrgId);
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (id: string) => api<{ ok: boolean }>(`${apiPaths.notificationRead(id)}?org_id=${orgId}`, { method: "POST" }),
+    mutationFn: (id: string) => {
+      const resolvedOrgId = requireOrgId(orgId);
+      return api<{ ok: boolean }>(`${apiPaths.notificationRead(id)}?org_id=${resolvedOrgId}`, { method: "POST" });
+    },
     onSuccess: async () => {
       await qc.invalidateQueries({ queryKey: ["notifications"] });
     },
@@ -35,7 +45,10 @@ export function useMarkAllNotificationsRead() {
   const orgId = useAppStore((s) => s.selectedOrgId);
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: () => api<{ ok: boolean; updated: number }>(`${apiPaths.notificationReadAll}?org_id=${orgId}`, { method: "POST" }),
+    mutationFn: () => {
+      const resolvedOrgId = requireOrgId(orgId);
+      return api<{ ok: boolean; updated: number }>(`${apiPaths.notificationReadAll}?org_id=${resolvedOrgId}`, { method: "POST" });
+    },
     onSuccess: async () => {
       await qc.invalidateQueries({ queryKey: ["notifications"] });
     },

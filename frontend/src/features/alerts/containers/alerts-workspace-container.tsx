@@ -1,7 +1,11 @@
 "use client";
 
+import type { ExperienceTier } from "@/store/appStore";
+import { AlertDetailCard } from "@/components/alerts/alert-detail-card";
+import { AlertList } from "@/components/alerts/alert-list";
 import { EmptyState } from "@/components/common/empty-state";
 import { SectionHeader } from "@/components/common/section-header";
+import { DetailDrawer } from "@/components/drawers/detail-drawer";
 import { Panel, PanelBody, PanelHeader } from "@/components/layout/panel";
 import { RightRail } from "@/components/layout/right-rail";
 import { Button } from "@/components/ui/button";
@@ -12,6 +16,7 @@ import { AlertFeedPanel } from "@/features/alerts/panels/alert-feed-panel";
 import type { Alert } from "@/types/domain";
 
 export function AlertsWorkspaceContainer({
+  experienceTier,
   status,
   onStatusChange,
   kind,
@@ -35,6 +40,7 @@ export function AlertsWorkspaceContainer({
   memberEmailById,
   onOpenAlert,
 }: {
+  experienceTier: ExperienceTier;
   status: "open" | "dismissed";
   onStatusChange: (value: "open" | "dismissed") => void;
   kind: string;
@@ -112,6 +118,52 @@ export function AlertsWorkspaceContainer({
           description="Signals appear once enough transaction history exists. Use imports or manual entry to activate monitoring."
           actions={[{ label: "Add transactions", href: "/app/transactions" }]}
         />
+      ) : experienceTier !== "advanced" ? (
+        <div className="space-y-4">
+          <SimpleAlertGroup
+            title="Needs attention"
+            alerts={filtered.filter((alert) => alert.severity === "HIGH" && alert.status === "OPEN")}
+            onOpenAlert={onOpenAlert}
+            onDismiss={status === "open" ? onDismiss : undefined}
+          />
+          <SimpleAlertGroup
+            title="Watch"
+            alerts={filtered.filter((alert) => alert.severity !== "HIGH" && alert.status === "OPEN")}
+            onOpenAlert={onOpenAlert}
+            onDismiss={status === "open" ? onDismiss : undefined}
+          />
+          <SimpleAlertGroup
+            title="Resolved"
+            alerts={filtered.filter((alert) => alert.status !== "OPEN")}
+            onOpenAlert={onOpenAlert}
+          />
+
+          <DetailDrawer
+            open={Boolean(activeAlert)}
+            title="Alert detail"
+            onClose={onCloseDetail}
+          >
+            {activeAlert ? (
+              <div className="space-y-4">
+                <AlertDetailPanel alert={activeAlert} />
+                <AlertActionPanel
+                  alert={activeAlert}
+                  userId={userId}
+                  members={members}
+                  assigneeSelection={assigneeSelection}
+                  onAssigneeSelectionChange={onAssigneeSelectionChange}
+                  onAssignToMe={onAssignToMe}
+                  onUnassign={onUnassign}
+                  onAcknowledge={onAcknowledge}
+                  onDismiss={onDismiss}
+                  onAssignToMember={onAssignToMember}
+                  historyItems={historyItems}
+                  memberEmailById={memberEmailById}
+                />
+              </div>
+            ) : null}
+          </DetailDrawer>
+        </div>
       ) : (
         <div className="grid gap-4 xl:grid-cols-[0.9fr_1.1fr_0.9fr]">
           <AlertFeedPanel
@@ -176,5 +228,24 @@ export function AlertsWorkspaceContainer({
         </div>
       )}
     </div>
+  );
+}
+
+function SimpleAlertGroup({
+  title,
+  alerts,
+  onOpenAlert,
+  onDismiss,
+}: {
+  title: string;
+  alerts: Alert[];
+  onOpenAlert: (id: string) => void;
+  onDismiss?: (id: string) => Promise<void>;
+}) {
+  return (
+    <AlertDetailCard title={title}>
+      {alerts.length === 0 ? <p className="text-sm text-muted-foreground">No alerts in this group.</p> : null}
+      <AlertList alerts={alerts} onOpenAlert={onOpenAlert} onDismiss={onDismiss} />
+    </AlertDetailCard>
   );
 }

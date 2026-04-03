@@ -15,7 +15,7 @@ import { useState } from "react";
 export default function OnboardingPage() {
   const progress = useOnboardingProgress({ includeAlerts: true });
   const orgId = progress.orgId;
-  const [activeTab, setActiveTab] = useState("checklist");
+  const [activeTab, setActiveTab] = useState("guided");
 
   if (!orgId) {
     return (

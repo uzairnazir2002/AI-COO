@@ -1,15 +1,15 @@
 "use client";
 
-import { Download } from "lucide-react";
-
 import { EmptyState } from "@/components/common/empty-state";
+import { ProgressiveDisclosure } from "@/components/common/progressive-disclosure";
 import { Panel, PanelBody, PanelHeader } from "@/components/layout/panel";
 import { RightRail } from "@/components/layout/right-rail";
 import { StatusStrip } from "@/components/layout/status-strip";
 import { ReportJobStatusPanel } from "@/components/reports/report-job-status-panel";
+import { ReportHistoryList } from "@/components/reports/report-history-list";
+import { LatestReportCard } from "@/components/reports/latest-report-card";
 import { ReportPreviewFrame } from "@/components/reports/report-preview-frame";
 import { ScheduleReportCard } from "@/components/reports/schedule-report-card";
-import { Button } from "@/components/ui/button";
 import type { Report } from "@/types/domain";
 
 type StatusItem = { label: string; value: string; tone: "neutral" | "live" | "warning" | "danger" };
@@ -44,14 +44,16 @@ export function ReportsWorkspaceContainer({
   onSchedule: () => void;
   lastGeneration?: { jobId: string; status: string; reused: boolean; reportId?: string | null };
 }) {
+  const latestReport = reports[0] ?? null;
+
   return (
     <>
       <StatusStrip items={statusItems} />
 
-      <div className="grid gap-4 xl:grid-cols-[0.95fr_1.2fr_0.85fr]">
+      <div className="grid gap-4 xl:grid-cols-[1fr_1.25fr_0.8fr]">
         <Panel>
           <PanelHeader>
-            <h2 className="text-base font-semibold">Report history</h2>
+            <h2 className="text-base font-semibold">Latest report</h2>
           </PanelHeader>
           <PanelBody className="space-y-3">
             {reports.length === 0 ? (
@@ -62,16 +64,12 @@ export function ReportsWorkspaceContainer({
                 actions={[{ label: "Generate report", onClick: onGenerate }]}
               />
             ) : (
-              reports.map((report) => (
-                <div key={report.id} className="rounded-2xl border border-border/70 bg-card/70 p-4">
-                  <p className="font-medium">{formatDate(report.week_start)} - {formatDate(report.week_end)}</p>
-                  <p className="mt-1 text-xs text-muted-foreground">Created {formatDate(report.created_at)}</p>
-                  <Button className="mt-3" variant="outline" size="sm" onClick={() => void onDownload(report.id)}>
-                    <Download className="mr-2 h-4 w-4" />
-                    Download
-                  </Button>
-                </div>
-              ))
+              <>
+                {latestReport ? (
+                  <LatestReportCard report={latestReport} formatDate={formatDate} onDownload={onDownload} onGenerate={onGenerate} />
+                ) : null}
+                <ReportHistoryList reports={reports} formatDate={formatDate} />
+              </>
             )}
           </PanelBody>
         </Panel>
@@ -83,18 +81,10 @@ export function ReportsWorkspaceContainer({
         </Panel>
 
         <RightRail className="xl:col-start-3" sticky>
-          <Panel>
-            <PanelHeader>
-              <h2 className="text-base font-semibold">Recent report jobs</h2>
-            </PanelHeader>
-            <PanelBody className="space-y-3">
-              <ReportJobStatusPanel jobs={jobs} trackedJob={trackedJob} formatDate={formatDate} />
-            </PanelBody>
-          </Panel>
           <ScheduleReportCard onSchedule={onSchedule} />
           <Panel>
             <PanelHeader>
-              <h2 className="text-base font-semibold">Report metadata & sharing</h2>
+              <h2 className="text-base font-semibold">Metadata & sharing</h2>
             </PanelHeader>
             <PanelBody className="space-y-2 text-sm">
               <p className="text-muted-foreground">
@@ -111,6 +101,16 @@ export function ReportsWorkspaceContainer({
               )}
             </PanelBody>
           </Panel>
+          <ProgressiveDisclosure title="Show generation details" hideLabel="Hide generation details">
+            <Panel>
+              <PanelHeader>
+                <h2 className="text-base font-semibold">Recent report jobs</h2>
+              </PanelHeader>
+              <PanelBody className="space-y-3">
+                <ReportJobStatusPanel jobs={jobs} trackedJob={trackedJob} formatDate={formatDate} />
+              </PanelBody>
+            </Panel>
+          </ProgressiveDisclosure>
         </RightRail>
       </div>
     </>

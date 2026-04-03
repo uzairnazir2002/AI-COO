@@ -5,16 +5,22 @@ import { LogOut, ShieldCheck, UserRound } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils/cn";
+import type { ExperienceTier } from "@/store/appStore";
 
 export function ProfileMenu({
   email,
   role,
+  experienceTier,
+  onExperienceTierChange,
   onLogout,
   className,
 }: {
   email?: string;
   role?: string;
+  experienceTier: ExperienceTier;
+  onExperienceTierChange: (value: ExperienceTier) => void;
   onLogout: () => Promise<void>;
   className?: string;
 }) {
@@ -59,6 +65,19 @@ export function ProfileMenu({
               Secure session
             </div>
             {role ? <Badge className="mt-2" variant="secondary">{role}</Badge> : null}
+            <div className="mt-3 space-y-1">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Workspace mode</p>
+              <Select value={experienceTier} onValueChange={(value) => onExperienceTierChange(value as ExperienceTier)}>
+                <SelectTrigger data-testid="profile-tier-select" className="h-9 rounded-xl">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="simple">Simple</SelectItem>
+                  <SelectItem value="standard">Standard</SelectItem>
+                  <SelectItem value="advanced">Advanced</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
           <Button
             className="mt-3 w-full"

@@ -2,6 +2,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Sparkline } from "@/components/charts/sparkline";
 import { Badge } from "@/components/ui/badge";
 import { ChevronRight } from "lucide-react";
+import { cn } from "@/lib/utils/cn";
 
 export function KpiCard({
   label,
@@ -13,6 +14,7 @@ export function KpiCard({
   sparklineData,
   sparklineKey = "value",
   onClick,
+  className,
 }: {
   label: string;
   value: string;
@@ -23,10 +25,15 @@ export function KpiCard({
   sparklineData?: Array<Record<string, number | string>>;
   sparklineKey?: string;
   onClick?: () => void;
+  className?: string;
 }) {
   return (
     <Card
-      className={`animate-fade-in rounded-3xl border-border/70 bg-card/85 ${onClick ? "cursor-pointer transition hover:border-primary/40 hover:shadow-sm" : ""}`}
+      className={cn(
+        "animate-fade-in rounded-3xl border-border/70 bg-card/85",
+        onClick ? "cursor-pointer transition hover:border-primary/40 hover:shadow-sm" : "",
+        className,
+      )}
       role={onClick ? "button" : undefined}
       tabIndex={onClick ? 0 : undefined}
       onClick={onClick}

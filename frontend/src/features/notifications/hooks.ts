@@ -18,6 +18,7 @@ const fallbackPollIntervalMs = Number(process.env.NEXT_PUBLIC_SSE_FALLBACK_POLL_
 
 export function useOrgEventFeed() {
   const orgId = useAppStore((s) => s.selectedOrgId);
+  const userId = useAppStore((s) => s.user?.id);
   const pushToast = useToastStore((s) => s.push);
   const queryClient = useQueryClient();
   const [status, setStatus] = useState<"idle" | "connecting" | "live" | "error" | "fallback_polling">("idle");
@@ -35,7 +36,7 @@ export function useOrgEventFeed() {
   }, [queryClient]);
 
   useEffect(() => {
-    if (!orgId) {
+    if (!orgId || !userId) {
       setStatus("idle");
       statusRef.current = "idle";
       lastSnapshotRef.current = null;
@@ -239,7 +240,7 @@ export function useOrgEventFeed() {
       stopFallbackPolling();
       controller?.abort();
     };
-  }, [orgId]);
+  }, [orgId, userId]);
 
   return status;
 }

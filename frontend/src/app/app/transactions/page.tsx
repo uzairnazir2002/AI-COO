@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { createColumnHelper } from "@tanstack/react-table";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 
 import { EmptyState } from "@/components/common/empty-state";
@@ -10,6 +11,7 @@ import { type TxFilters } from "@/components/common/filters-bar";
 import { SectionHeader } from "@/components/common/section-header";
 import { RowActionMenu } from "@/components/data-surface/row-action-menu";
 import { useToast } from "@/components/common/use-toast";
+import { TabNav } from "@/components/layout/tab-nav";
 import { Panel, PanelBody } from "@/components/layout/panel";
 import { StatusStrip } from "@/components/layout/status-strip";
 import { SuccessStateCard } from "@/components/states/success-state-card";
@@ -27,6 +29,7 @@ import { EditTransactionDialog } from "@/features/transactions/panels/edit-trans
 import { TransactionsImportDialog } from "@/features/transactions/panels/transactions-import-dialog";
 import { autoDetectMapping, csvFields, csvMaxBytes, type CsvMapping, type CsvRawRow, mappingToApiPayload, parseCsvContent } from "@/features/transactions/services/csv";
 import { loadSavedTransactionViews, persistActiveTransactionView, persistSavedTransactionViews, type SavedTransactionView } from "@/features/transactions/services/saved-views";
+import { useBudgets } from "@/features/budgets/hooks";
 import {
   type AlertRecalcMetadata,
   useCreateImportProfile,
@@ -58,6 +61,7 @@ export default function TransactionsPage() {
   const [activeSavedViewId, setActiveSavedViewId] = useState("");
   const [page, setPage] = useState(1);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [workspaceTab, setWorkspaceTab] = useState<"transactions" | "budgets" | "imports">("transactions");
   const [activeTxId, setActiveTxId] = useState<string | null>(null);
   const [composeOpen, setComposeOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
@@ -84,7 +88,9 @@ export default function TransactionsPage() {
   const [bulkRemapState, setBulkRemapState] = useState({ from_category: "", to_category: "", from_date: filters.from, to_date: filters.to });
 
   const pageSize = 100;
+  const budgetPeriod = filters.from.slice(0, 7);
   const query = useTransactions({ ...filters, page, page_size: pageSize });
+  const budgetPreview = useBudgets(budgetPeriod, "EXPENSE", true);
   const importHistory = useImportHistory(1, 20);
   const createTx = useCreateTransaction();
   const updateTx = useUpdateTransaction();
@@ -255,6 +261,11 @@ export default function TransactionsPage() {
     if (typeof window === "undefined") return;
     const searchParams = new URLSearchParams(window.location.search);
     const action = searchParams.get("action");
+    const tab = searchParams.get("tab");
+    if (tab === "transactions" || tab === "budgets" || tab === "imports") {
+      setWorkspaceTab(tab);
+      router.replace("/app/transactions");
+    }
     if (action === "compose") {
       setComposeOpen(true);
       router.replace("/app/transactions");
@@ -409,7 +420,7 @@ export default function TransactionsPage() {
       <SectionHeader
         eyebrow="Money"
         title="Transactions"
-        description="Fast ledger operations with virtualization, org-scoped filtering, import history, and bulk category governance."
+        description="Unified workspace for transactions, budgets, and imports."
         scopeChips={[
           role ? `Role: ${role}` : "Role: unknown",
           selectedLocationId ? "Location scope: filtered" : "Location scope: all",
@@ -571,45 +582,107 @@ export default function TransactionsPage() {
         />
       ) : null}
 
-      <TransactionsWorkspaceContainer
-        editable={editable}
-        filters={filters}
-        onFiltersChange={applyFilters}
-        savedViews={savedViews.map((view) => ({ id: view.id, name: view.name }))}
-        activeSavedViewId={activeSavedViewId}
-        onSelectSavedView={handleSelectSavedView}
-        onSaveSavedView={handleSaveSavedView}
-        onDeleteSavedView={handleDeleteSavedView}
-        selectedCount={selectedIds.size}
-        deletePending={deleteTx.isPending}
-        remapPending={bulkRemap.isPending}
-        bulkRemapState={bulkRemapState}
-        onBulkRemapStateChange={setBulkRemapState}
-        onDeleteSelected={handleDeleteSelected}
-        onClearSelection={() => setSelectedIds(new Set())}
-        onRemap={handleBulkRemap}
-        total={total}
-        isFetching={query.isFetching}
-        csvBusy={csvBusy}
-        page={page}
-        pageSize={pageSize}
-        onPrevPage={() => setPage((p) => p - 1)}
-        onNextPage={() => setPage((p) => p + 1)}
-        data={data}
-        columns={columns}
-        onRowSelect={setActiveTxId}
-        onAddTransaction={() => setComposeOpen(true)}
-        activeTransaction={activeTransaction}
-        onEditTransaction={setEditingRow}
-        categoryBreakdown={categoryBreakdown}
-        categoryColors={categoryColors}
-        onSelectCategory={(category) => {
-          setFilters((prev) => ({ ...prev, category }));
-          setPage(1);
-        }}
-        importHistoryItems={importHistory.data?.items ?? []}
-        onDownloadErrors={handleDownloadImportErrors}
+      <TabNav
+        active={workspaceTab}
+        onChange={(value) => setWorkspaceTab(value as "transactions" | "budgets" | "imports")}
+        items={[
+          { id: "transactions", label: "Transactions" },
+          { id: "budgets", label: "Budgets" },
+          { id: "imports", label: "Imports" },
+        ]}
       />
+
+      {workspaceTab === "transactions" ? (
+        <TransactionsWorkspaceContainer
+          editable={editable}
+          filters={filters}
+          onFiltersChange={applyFilters}
+          savedViews={savedViews.map((view) => ({ id: view.id, name: view.name }))}
+          activeSavedViewId={activeSavedViewId}
+          onSelectSavedView={handleSelectSavedView}
+          onSaveSavedView={handleSaveSavedView}
+          onDeleteSavedView={handleDeleteSavedView}
+          selectedCount={selectedIds.size}
+          deletePending={deleteTx.isPending}
+          remapPending={bulkRemap.isPending}
+          bulkRemapState={bulkRemapState}
+          onBulkRemapStateChange={setBulkRemapState}
+          onDeleteSelected={handleDeleteSelected}
+          onClearSelection={() => setSelectedIds(new Set())}
+          onRemap={handleBulkRemap}
+          total={total}
+          isFetching={query.isFetching}
+          csvBusy={csvBusy}
+          page={page}
+          pageSize={pageSize}
+          onPrevPage={() => setPage((p) => p - 1)}
+          onNextPage={() => setPage((p) => p + 1)}
+          data={data}
+          columns={columns}
+          onRowSelect={setActiveTxId}
+          onAddTransaction={() => setComposeOpen(true)}
+          activeTransaction={activeTransaction}
+          onEditTransaction={setEditingRow}
+          categoryBreakdown={categoryBreakdown}
+          categoryColors={categoryColors}
+          onSelectCategory={(category) => {
+            setFilters((prev) => ({ ...prev, category }));
+            setPage(1);
+          }}
+          importHistoryItems={importHistory.data?.items ?? []}
+          onDownloadErrors={handleDownloadImportErrors}
+        />
+      ) : null}
+
+      {workspaceTab === "budgets" ? (
+        <Panel>
+          <PanelBody className="space-y-4">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <p className="text-sm font-semibold">Budget snapshot ({budgetPeriod})</p>
+                <p className="text-xs text-muted-foreground">Direct budget management remains available on the full Budgets route.</p>
+              </div>
+              <Button asChild variant="outline">
+                <Link href="/app/budgets">Open full budgets workspace</Link>
+              </Button>
+            </div>
+            <div className="grid gap-3 md:grid-cols-3">
+              <BudgetTile label="Budget rows" value={String(budgetPreview.data?.length ?? 0)} />
+              <BudgetTile label="Current period" value={budgetPeriod} />
+              <BudgetTile label="Filtered range" value={`${filters.from} to ${filters.to}`} />
+            </div>
+          </PanelBody>
+        </Panel>
+      ) : null}
+
+      {workspaceTab === "imports" ? (
+        <Panel>
+          <PanelBody className="space-y-4">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <p className="text-sm font-semibold">Import center</p>
+                <p className="text-xs text-muted-foreground">Guided CSV flow, mapping profiles, and import issue recovery.</p>
+              </div>
+              <Button onClick={() => setImportOpen(true)}>Start import</Button>
+            </div>
+            <div className="grid gap-3 md:grid-cols-3">
+              <BudgetTile label="Latest imports" value={String(importHistory.data?.total ?? 0)} />
+              <BudgetTile label="Detected local duplicates" value={String(localDupes)} />
+              <BudgetTile label="Missing required mappings" value={String(requiredMissing.length)} />
+            </div>
+            <div className="space-y-2">
+              {(importHistory.data?.items ?? []).slice(0, 6).map((item) => (
+                <div key={item.id} className="rounded-xl border border-border/70 bg-card/70 px-3 py-2 text-sm">
+                  <p className="font-medium">{item.file_name || item.id}</p>
+                  <p className="text-xs text-muted-foreground">
+                    inserted {item.inserted_count} · status {item.status}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </PanelBody>
+        </Panel>
+      ) : null}
 
       <EditTransactionDialog
         transaction={editingRow}
@@ -628,6 +701,15 @@ export default function TransactionsPage() {
           }
         }}
       />
+    </div>
+  );
+}
+
+function BudgetTile({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-2xl border border-border/70 bg-card/70 px-4 py-3">
+      <p className="text-xs uppercase text-muted-foreground">{label}</p>
+      <p className="mt-2 text-base font-semibold">{value}</p>
     </div>
   );
 }

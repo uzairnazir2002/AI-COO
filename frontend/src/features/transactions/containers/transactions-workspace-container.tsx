@@ -5,12 +5,14 @@ import { flexRender, getCoreRowModel, useReactTable, type ColumnDef, type Visibi
 import { useVirtualizer } from "@tanstack/react-virtual";
 
 import { EmptyState } from "@/components/common/empty-state";
+import { AdvancedFiltersPanel } from "@/components/data-surface/advanced-filters-panel";
 import { ColumnVisibilityMenu } from "@/components/data-surface/column-visibility-menu";
 import { SavedViewSelector } from "@/components/data-surface/saved-view-selector";
-import { FiltersBar, type TxFilters } from "@/components/common/filters-bar";
-import { SmartDataTable } from "@/components/data-surface/smart-data-table";
+import { type TxFilters } from "@/components/common/filters-bar";
+import { SimpleDataTable } from "@/components/data-surface/simple-data-table";
 import { TableToolbar } from "@/components/data-surface/table-toolbar";
 import { VirtualizedGrid } from "@/components/data-surface/virtualized-grid";
+import { DetailDrawer } from "@/components/drawers/detail-drawer";
 import { Panel, PanelBody, PanelHeader } from "@/components/layout/panel";
 import { MutationProgressToast } from "@/components/states/mutation-progress-toast";
 import { Button } from "@/components/ui/button";
@@ -99,7 +101,7 @@ export function TransactionsWorkspaceContainer({
   onNextPage: () => void;
   data: Transaction[];
   columns: ColumnDef<Transaction, any>[];
-  onRowSelect: (txId: string) => void;
+  onRowSelect: (txId: string | null) => void;
   onAddTransaction: () => void;
   activeTransaction: Transaction | null;
   onEditTransaction: (tx: Transaction) => void;
@@ -140,7 +142,7 @@ export function TransactionsWorkspaceContainer({
       <Panel>
         <PanelHeader><h2 className="text-base font-semibold">Filter workspace</h2></PanelHeader>
         <PanelBody>
-          <FiltersBar filters={filters} onChange={onFiltersChange} />
+          <AdvancedFiltersPanel filters={filters} onChange={onFiltersChange} />
         </PanelBody>
       </Panel>
 
@@ -157,7 +159,7 @@ export function TransactionsWorkspaceContainer({
         />
       ) : null}
 
-      <SmartDataTable
+      <SimpleDataTable
         title="Transaction grid"
         description="Virtualized ledger with consistent table, drawer, and import history surfaces."
         toolbar={
@@ -244,12 +246,19 @@ export function TransactionsWorkspaceContainer({
         }
         side={
           <>
-            <SelectedTransactionPanel transaction={activeTransaction} editable={editable} onEdit={onEditTransaction} />
             <CategoryBreakdownPanel categoryBreakdown={categoryBreakdown} categoryColors={categoryColors} onSelect={onSelectCategory} />
             <ImportHistoryPanel items={importHistoryItems} onDownloadErrors={onDownloadErrors} />
           </>
         }
       />
+
+      <DetailDrawer
+        open={Boolean(activeTransaction)}
+        title="Transaction detail"
+        onClose={() => onRowSelect(null)}
+      >
+        <SelectedTransactionPanel transaction={activeTransaction} editable={editable} onEdit={onEditTransaction} inDrawer />
+      </DetailDrawer>
 
       {editable ? (
         <BulkSelectionBar

@@ -29,6 +29,7 @@ export default function AlertsPage() {
   const [activeAlertId, setActiveAlertId] = useState<string | null>(null);
   const [lastSuccess, setLastSuccess] = useState("");
   const userId = useAppStore((s) => s.user?.id ?? null);
+  const experienceTier = useAppStore((s) => s.experienceTier);
   const alerts = useAlerts(status, assigneeFilter !== "ALL" && assigneeFilter !== "UNASSIGNED" ? assigneeFilter : undefined);
   const members = useOrgMembers();
   const dismiss = useDismissAlert();
@@ -99,6 +100,7 @@ export default function AlertsPage() {
       {lastSuccess ? <SuccessStateCard title="Alert action completed" description={lastSuccess} /> : null}
 
       <AlertsWorkspaceContainer
+        experienceTier={experienceTier}
         status={status}
         onStatusChange={setStatus}
         kind={kind}

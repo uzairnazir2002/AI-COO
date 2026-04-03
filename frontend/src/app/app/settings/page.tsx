@@ -9,6 +9,7 @@ import { InlineErrorBanner } from "@/components/states/inline-error-banner";
 import { RetryCard } from "@/components/states/retry-card";
 import { SkeletonPanel } from "@/components/states/skeleton-panel";
 import { SuccessStateCard } from "@/components/states/success-state-card";
+import { Button } from "@/components/ui/button";
 import {
   useAuthReauth,
   useAuthSessions,
@@ -94,6 +95,7 @@ function ensurePlaidScript(): Promise<void> {
 
 export default function SettingsPage() {
   const selectedOrg = useAppStore((s) => s.orgs.find((o) => o.org_id === s.selectedOrgId));
+  const experienceTier = useAppStore((s) => s.experienceTier);
   const role = selectedOrg?.role;
   const toast = useToast();
   const settingsServices = useSettingsServiceAdapter();
@@ -153,6 +155,7 @@ export default function SettingsPage() {
   const [locationName, setLocationName] = useState("");
   const [locationCode, setLocationCode] = useState("");
   const [activeTab, setActiveTab] = useState("general");
+  const [showAdvancedTabs, setShowAdvancedTabs] = useState(experienceTier === "advanced");
   const [reconFrom, setReconFrom] = useState(() => new Date(Date.now() - 29 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10));
   const [reconTo, setReconTo] = useState(() => new Date().toISOString().slice(0, 10));
   const paymentReconciliation = usePaymentReconciliation({ dateFrom: reconFrom, dateTo: reconTo });
@@ -160,6 +163,17 @@ export default function SettingsPage() {
   const bankConnectionsError = bankConnections.error instanceof Error ? bankConnections.error.message : null;
   const paymentConnectionsError = paymentConnections.error instanceof Error ? paymentConnections.error.message : null;
   const paymentReconciliationError = paymentReconciliation.error instanceof Error ? paymentReconciliation.error.message : null;
+
+  useEffect(() => {
+    if (experienceTier === "advanced") setShowAdvancedTabs(true);
+  }, [experienceTier]);
+
+  useEffect(() => {
+    if (showAdvancedTabs) return;
+    if (activeTab === "compliance" || activeTab === "danger") {
+      setActiveTab("general");
+    }
+  }, [activeTab, showAdvancedTabs]);
   const tabLoading =
     activeTab === "general"
       ? settings.isLoading || locations.isLoading
@@ -251,19 +265,23 @@ export default function SettingsPage() {
       <SectionHeader
         title="Settings"
         description="Organization controls, usage visibility, member invitations, and clear RBAC behavior."
+        actions={(
+          <Button variant="outline" size="sm" onClick={() => setShowAdvancedTabs((value) => !value)}>
+            {showAdvancedTabs ? "Hide advanced tabs" : "Show advanced tabs"}
+          </Button>
+        )}
       />
 
       <TabNav
         active={activeTab}
         onChange={setActiveTab}
         items={[
-          { id: "general", label: "General" },
+          { id: "general", label: "Business" },
           { id: "team", label: "Team" },
           { id: "security", label: "Security" },
           { id: "integrations", label: "Integrations" },
           { id: "billing", label: "Billing" },
-          { id: "compliance", label: "Compliance" },
-          { id: "danger", label: "Danger Zone" },
+          ...(showAdvancedTabs ? [{ id: "compliance", label: "Compliance" }, { id: "danger", label: "Danger Zone" }] : []),
         ]}
       />
 

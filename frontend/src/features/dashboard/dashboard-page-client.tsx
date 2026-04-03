@@ -7,10 +7,10 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 import { EmptyState } from "@/components/common/empty-state";
 import { ErrorState } from "@/components/common/error-state";
+import { ProgressiveDisclosure } from "@/components/common/progressive-disclosure";
 import { SectionHeader } from "@/components/common/section-header";
 import { CalculationDrawer } from "@/components/drawers/calculation-drawer";
 import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useDashboardData } from "@/features/dashboard/hooks";
 import { AlertDetailDrawer } from "@/features/dashboard/panels/alert-detail-drawer";
 import { BenchmarkPanel } from "@/features/dashboard/panels/benchmark-panel";
@@ -30,11 +30,12 @@ export function DashboardPageClient() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const cashflowGranularity = useAppStore((s) => s.cashflowGranularity);
-  const setCashflowGranularity = useAppStore((s) => s.setCashflowGranularity);
   const setGlobalDateRange = useAppStore((s) => s.setGlobalDateRange);
   const selectedLocationId = useAppStore((s) => s.selectedLocationId);
+  const experienceTier = useAppStore((s) => s.experienceTier);
   const metricForCalc = searchParams.get("metric");
   const drillPointDate = searchParams.get("point");
+  const simpleMode = experienceTier === "simple";
 
   const updateDashboardQuery = useCallback((next: { metric?: string | null; point?: string | null }) => {
     const params = new URLSearchParams(searchParams.toString());
@@ -150,9 +151,9 @@ export function DashboardPageClient() {
   return (
     <div className="space-y-6">
       <SectionHeader
-        eyebrow="Overview"
+        eyebrow="Home"
         title="Executive dashboard"
-        description="KPIs, risk signals, cashflow movement, and AI narrative for the currently selected organization and date range."
+        description="Quick financial signal with clear next actions."
         scopeChips={[
           `${data.from} to ${data.to}`,
           selectedLocationId ? "Location scope: filtered" : "Location scope: all",
@@ -161,26 +162,6 @@ export function DashboardPageClient() {
         ]}
         actions={
           <>
-            <div className="w-36">
-              <Select
-                value={cashflowGranularity}
-                onValueChange={(value) => setCashflowGranularity(value as "day" | "week" | "month")}
-              >
-                <SelectTrigger className="h-10">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="day">Daily</SelectItem>
-                  <SelectItem value="week">Weekly</SelectItem>
-                  <SelectItem value="month">Monthly</SelectItem>
-                </SelectContent>
-                </Select>
-              </div>
-            {drillPointDate ? (
-              <Button variant="ghost" onClick={() => updateDashboardQuery({ point: null })}>
-                Clear drill
-              </Button>
-            ) : null}
             <Button asChild variant="outline">
               <Link href="/app/reports">
                 Weekly report <Download className="ml-2 h-4 w-4" />
@@ -215,47 +196,79 @@ export function DashboardPageClient() {
         budgetVariancePct={budgetVariancePct}
         hasBudgetVariance={hasBudgetVariance}
         onSelectMetric={(metric) => updateDashboardQuery({ metric })}
+        simpleMode={simpleMode}
       />
 
-      <div className="grid gap-4 xl:grid-cols-2">
-        <CashflowChartPanel
-          loading={data.loading}
-          hasData={hasData}
-          points={scopedPoints}
-          cashflowGranularity={cashflowGranularity}
-          from={data.from}
-          to={data.to}
-          domain={cashflowDomain}
-          onResetToLast90Days={resetToLast90Days}
-          selectedPointDate={drillPointDate}
-          onPointSelect={(date) => updateDashboardQuery({ point: drillPointDate === date ? null : date })}
-        />
-        <RevenueExpenseChartPanel
-          loading={data.loading}
-          hasData={hasData}
-          points={scopedPoints}
-          cashflowGranularity={cashflowGranularity}
-          from={data.from}
-          to={data.to}
-          domain={cashflowDomain}
-          onResetToLast90Days={resetToLast90Days}
-          selectedPointDate={drillPointDate}
-          onPointSelect={(date) => updateDashboardQuery({ point: drillPointDate === date ? null : date })}
-        />
-      </div>
-
-      <PriorityAlertsPanel
+      <CashflowChartPanel
         loading={data.loading}
-        alerts={data.alerts}
-        maxImpact={maxImpact}
-        onOpenAlert={setActiveAlertId}
-        budgetThresholdAlerts={data.budgetThresholdAlerts}
-        budgetThresholdPct={data.budgetThresholdPct}
-        aiSummary={data.ai?.summary_json ?? null}
-        aiFallbackUsed={data.ai?.fallback_used}
+        hasData={hasData}
+        points={scopedPoints}
+        cashflowGranularity={cashflowGranularity}
+        from={data.from}
+        to={data.to}
+        domain={cashflowDomain}
+        onResetToLast90Days={resetToLast90Days}
+        selectedPointDate={drillPointDate}
+        onPointSelect={(date) => updateDashboardQuery({ point: drillPointDate === date ? null : date })}
       />
 
-      <BenchmarkPanel from={data.from} to={data.to} rows={benchmarkRows} selectedLocationId={selectedLocationId} />
+      {simpleMode ? (
+        <ProgressiveDisclosure title="Show more insights" hideLabel="Hide extra insights">
+          <div className="grid gap-4 xl:grid-cols-2">
+            <RevenueExpenseChartPanel
+              loading={data.loading}
+              hasData={hasData}
+              points={scopedPoints}
+              cashflowGranularity={cashflowGranularity}
+              from={data.from}
+              to={data.to}
+              domain={cashflowDomain}
+              onResetToLast90Days={resetToLast90Days}
+              selectedPointDate={drillPointDate}
+              onPointSelect={(date) => updateDashboardQuery({ point: drillPointDate === date ? null : date })}
+            />
+            <BenchmarkPanel from={data.from} to={data.to} rows={benchmarkRows} selectedLocationId={selectedLocationId} />
+          </div>
+          <PriorityAlertsPanel
+            loading={data.loading}
+            alerts={data.alerts}
+            maxImpact={maxImpact}
+            onOpenAlert={setActiveAlertId}
+            budgetThresholdAlerts={data.budgetThresholdAlerts}
+            budgetThresholdPct={data.budgetThresholdPct}
+            aiSummary={data.ai?.summary_json ?? null}
+            aiFallbackUsed={data.ai?.fallback_used}
+          />
+        </ProgressiveDisclosure>
+      ) : (
+        <>
+          <div className="grid gap-4 xl:grid-cols-2">
+            <RevenueExpenseChartPanel
+              loading={data.loading}
+              hasData={hasData}
+              points={scopedPoints}
+              cashflowGranularity={cashflowGranularity}
+              from={data.from}
+              to={data.to}
+              domain={cashflowDomain}
+              onResetToLast90Days={resetToLast90Days}
+              selectedPointDate={drillPointDate}
+              onPointSelect={(date) => updateDashboardQuery({ point: drillPointDate === date ? null : date })}
+            />
+            <BenchmarkPanel from={data.from} to={data.to} rows={benchmarkRows} selectedLocationId={selectedLocationId} />
+          </div>
+          <PriorityAlertsPanel
+            loading={data.loading}
+            alerts={data.alerts}
+            maxImpact={maxImpact}
+            onOpenAlert={setActiveAlertId}
+            budgetThresholdAlerts={data.budgetThresholdAlerts}
+            budgetThresholdPct={data.budgetThresholdPct}
+            aiSummary={data.ai?.summary_json ?? null}
+            aiFallbackUsed={data.ai?.fallback_used}
+          />
+        </>
+      )}
 
       <AlertDetailDrawer alert={alertDetail} onClose={() => setActiveAlertId(null)} />
       {selectedCalculation ? (

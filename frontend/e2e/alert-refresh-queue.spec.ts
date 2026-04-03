@@ -23,7 +23,9 @@ test("transaction mutation emits alert refresh queue signal and yields persisted
   await expect(page.getByText("Alert refresh queued", { exact: true })).toBeVisible();
 
   await page.goto("/app/activity");
-  await expect(page.getByRole("heading", { name: "Activity" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Activity", exact: true })).toBeVisible();
+  await page.goto("/app/admin-console");
+  await expect(page.getByRole("heading", { name: "Admin Console", exact: true })).toBeVisible();
   await expect(page.getByText("recalc_alerts")).toBeVisible({ timeout: 30_000 });
   await page.getByRole("button", { name: "Queue analytics recompute" }).click();
   await expect(page.getByText("Analytics recompute queued")).toBeVisible();

@@ -1,6 +1,7 @@
 "use client";
 
-import { KpiCard } from "@/components/kpi/kpi-card";
+import { PrimaryKpiCard } from "@/components/kpi/primary-kpi-card";
+import { SecondaryKpiCard } from "@/components/kpi/secondary-kpi-card";
 import { formatCompactMoney, formatMoney } from "@/lib/utils/format";
 
 type SparkPoint = { label: string; value: number };
@@ -23,6 +24,7 @@ export function DashboardKpiGrid({
   budgetVariancePct,
   hasBudgetVariance,
   onSelectMetric,
+  simpleMode = false,
 }: {
   periodLabel: string;
   cashBalance?: string | number | null;
@@ -41,11 +43,12 @@ export function DashboardKpiGrid({
   budgetVariancePct: number;
   hasBudgetVariance: boolean;
   onSelectMetric: (metric: string) => void;
+  simpleMode?: boolean;
 }) {
   return (
     <>
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-        <KpiCard
+        <PrimaryKpiCard
           label="Cash balance"
           value={formatMoney(cashBalance)}
           delta={netChange >= 0 ? "improving" : "under pressure"}
@@ -54,7 +57,7 @@ export function DashboardKpiGrid({
           sparklineData={sparklineData}
           onClick={() => onSelectMetric("Cash balance")}
         />
-        <KpiCard
+        <PrimaryKpiCard
           label="Runway"
           value={`${runwayDays ?? 0} days`}
           warning={Boolean(runwayAlert)}
@@ -64,7 +67,7 @@ export function DashboardKpiGrid({
           sparklineData={sparklineData}
           onClick={() => onSelectMetric("Runway")}
         />
-        <KpiCard
+        <SecondaryKpiCard
           label="Burn rate"
           value={formatCompactMoney(burnRateMonthly)}
           delta="rolling"
@@ -72,8 +75,9 @@ export function DashboardKpiGrid({
           hint="Rolling burn estimate"
           sparklineData={burnSpark}
           onClick={() => onSelectMetric("Burn rate")}
+          className={simpleMode ? "hidden" : undefined}
         />
-        <KpiCard
+        <PrimaryKpiCard
           label="Revenue MTD"
           value={formatCompactMoney(revenueMtd)}
           delta={revenueMtd > 0 ? "active" : "no data"}
@@ -81,7 +85,7 @@ export function DashboardKpiGrid({
           hint="Recognized revenue"
           onClick={() => onSelectMetric("Revenue MTD")}
         />
-        <KpiCard
+        <PrimaryKpiCard
           label="Expense MTD"
           value={formatCompactMoney(expenseMtd)}
           delta={expenseMtd > 0 ? "active" : "no data"}
@@ -89,7 +93,7 @@ export function DashboardKpiGrid({
           hint="Recognized expenses"
           onClick={() => onSelectMetric("Expense MTD")}
         />
-        <KpiCard
+        <SecondaryKpiCard
           label="Net margin"
           value={`${netMarginPct.toFixed(1)}%`}
           warning={netMarginPct < 0}
@@ -97,23 +101,24 @@ export function DashboardKpiGrid({
           insight="Based on MTD revenue/expense"
           hint="Profitability trend"
           onClick={() => onSelectMetric("Net margin")}
+          className={simpleMode ? "hidden" : undefined}
         />
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-3">
-        <KpiCard
+      <div className={simpleMode ? "hidden" : "grid gap-4 sm:grid-cols-3"}>
+        <SecondaryKpiCard
           label="Budget planned (month)"
           value={formatMoney(budgetPlanned)}
           insight="Budget baseline"
           hint={hasBudgetVariance ? "Current month expense budget total" : "No monthly budgets configured"}
         />
-        <KpiCard
+        <SecondaryKpiCard
           label="Budget actual (month)"
           value={formatMoney(budgetActual)}
           insight="Posted actuals"
           hint={hasBudgetVariance ? "Matched against expense transactions" : "No budget variance baseline yet"}
         />
-        <KpiCard
+        <SecondaryKpiCard
           label="Budget variance (month)"
           value={formatMoney(budgetVarianceAmount)}
           warning={budgetVarianceAmount > 0}

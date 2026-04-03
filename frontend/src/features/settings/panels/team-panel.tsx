@@ -1,6 +1,7 @@
 "use client";
 
 import { Badge } from "@/components/ui/badge";
+import { PermissionState } from "@/components/states/permission-state";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -41,7 +42,7 @@ export function TeamPanel({
       <Card>
         <CardHeader><CardTitle>Members</CardTitle></CardHeader>
         <CardContent className="space-y-4">
-          {!owner ? <p className="text-sm text-muted-foreground">Only owners can view and invite members.</p> : null}
+          {!owner ? <PermissionState message="Only owners can view and invite members." /> : null}
 
           {owner ? (
             <form
@@ -89,4 +90,3 @@ export function TeamPanel({
     </section>
   );
 }
-
