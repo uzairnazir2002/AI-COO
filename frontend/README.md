@@ -73,6 +73,11 @@ npm run build
 npm run analyze
 npm run check
 npm run e2e
+npm run e2e:full
+npm run e2e:smoke
+npm run e2e:smoke:ci
+npm run e2e:sse
+npm run e2e:integrations
 npm run e2e:cookie
 npm run e2e:visual
 npm run e2e:visual:update
@@ -85,33 +90,49 @@ npm run e2e:visual:update
 - Bundle inspection is available via `npm run analyze`.
 
 ## E2E notes
-- Core flows covered:
-  - login/bootstrap -> create org -> add transaction -> dashboard/reports flow
-  - CSV import happy path
-  - report generate + download
-  - forecast overrides
-  - RBAC smoke for hidden mutation controls in viewer-style UI
-- Shared fixture: [e2e/fixtures/auth.ts](/C:/Project/AI%20COO/ai-coo/frontend/e2e/fixtures/auth.ts)
-- Default E2E env:
-  - `E2E_BASE_URL=http://localhost:3000`
-  - `E2E_API_URL=http://localhost:8000/api/v1`
+
+### What runs today
+- Full product flow, CSV import, reports, forecast, RBAC smoke, SSE/cookie/Stripe/Plaid where configured.
+- **Responsive:** `e2e/responsive-mobile.spec.ts` (narrow viewport + slide-out nav) and `e2e/responsive-smoke.spec.ts` (tablet).
+- **Onboarding:** `e2e/onboarding-workspace.spec.ts` — authenticated `/app/onboarding` shell.
+- **Auth confirm UI:** `e2e/auth-confirm-ui.spec.ts` — `/auth/confirm` form and invalid-token error (needs API).
+
+### Shared auth fixture
+- [`e2e/fixtures/auth.ts`](e2e/fixtures/auth.ts) — login/register, CSRF when the CSRF cookie is present, optional seeded user.
+- [`e2e/global-setup.ts`](e2e/global-setup.ts) — compares `E2E_AUTH_MODE` with `GET /api/v1/health` → `auth_cookie_mode` and **fails fast** on mismatch. Set `E2E_SKIP_AUTH_PREFLIGHT=1` only if you intentionally bypass this (e.g. odd local setups).
+
+### Base URL and managed server (important)
+- [`playwright.config.ts`](playwright.config.ts) defaults **`E2E_BASE_URL`** to **`http://localhost:3001`** and starts **`next build && next start`** on that host/port unless you opt out.
+- Repo or Docker docs often use **`:3000`**. If `E2E_BASE_URL` points at the wrong port, tests hit the wrong app or fail to connect.
+- **`E2E_USE_EXTERNAL_BASE_URL=1`** skips Playwright’s web server and uses whatever is already listening. Only enable it when that server is built from the **same commit** as the tests; otherwise you may run against **stale bundles** and get confusing UI failures.
+
+### Recommended local command (managed frontend)
+```bash
+cd frontend
+# Windows PowerShell example — align with playwright.config default:
+$env:E2E_BASE_URL = "http://localhost:3001"
+Remove-Item Env:E2E_USE_EXTERNAL_BASE_URL -ErrorAction SilentlyContinue
+$env:E2E_API_URL = "http://localhost:8000/api/v1"
+npx playwright test
+```
+
+### Other E2E env
+- `E2E_API_URL` — default `http://localhost:8000/api/v1`
 - `E2E_AUTH_MODE=bearer|cookie`
-- `E2E_CSRF_COOKIE_NAME`
-- `E2E_CSRF_HEADER_NAME`
-- Optional Plaid sandbox E2E:
-  - `E2E_PLAID_SANDBOX=1`
-  - `E2E_PLAID_PUBLIC_TOKEN=<sandbox public_token>`
-- Seeded confirmed user standard:
-  - Prefer a long-lived confirmed test account when the backend requires `/api/v1/auth/confirm` after registration.
-  - Set `E2E_USER_EMAIL` and `E2E_USER_PASSWORD` together.
-  - Optionally set `E2E_ORG_ID` to pin tests to a specific organization.
-  - If no seeded credentials are provided, the fixture falls back to runtime registration and login.
-  - If only one of `E2E_USER_EMAIL` or `E2E_USER_PASSWORD` is set, the fixture fails fast with a configuration error.
+- **Backend `AUTH_COOKIE_MODE` must match how you authenticate in tests.** `npm run e2e:smoke` with `E2E_AUTH_MODE=bearer` expects JSON access tokens from `/auth/login` (CI uses `.env.example`, i.e. `AUTH_COOKIE_MODE=false`). If the API runs with `AUTH_COOKIE_MODE=true`, use `E2E_AUTH_MODE=cookie` and `NEXT_PUBLIC_AUTH_MODE=cookie` on the frontend under test, or run smoke against a bearer-token API like CI.
+- `E2E_CSRF_COOKIE_NAME` / `E2E_CSRF_HEADER_NAME` (cookie mode)
+- **`E2E_FORCE_VIEWPORT=W×H`** — set by `responsive-mobile.spec.ts` via `authenticatedPage` so navigation runs at mobile width before layout mounts.
+- **`E2E_SKIP_AUTH_PREFLIGHT=1`** — skip global-setup cookie/bearer alignment check.
+- **`e2e:smoke:ci`** — CI-parity env vars + smoke list (stack must already be listening on `:3000` / `:8000`).
+- **`e2e:sse`** — runs `sse-fallback.spec.ts` with `E2E_SSE=1`.
+- **`e2e:integrations`** — Plaid + Stripe optional specs (each file self-skips without sandbox secrets / `E2E_*` flags).
+- Optional Plaid sandbox: `E2E_PLAID_SANDBOX=1`, `E2E_PLAID_PUBLIC_TOKEN=…`
+- Seeded confirmed user: set **`E2E_USER_EMAIL`** and **`E2E_USER_PASSWORD`** together; optional **`E2E_ORG_ID`**. Otherwise the fixture registers a disposable user (and may call dev confirmation helpers when the API allows).
 
 ## Architecture rules
 - Page components stay thin and rely on feature hooks for data.
-- API calls go through [src/lib/api/client.ts](/C:/Project/AI%20COO/ai-coo/frontend/src/lib/api/client.ts).
-- `/app/*` routes are protected by session bootstrap in [src/app/app/layout.tsx](/C:/Project/AI%20COO/ai-coo/frontend/src/app/app/layout.tsx).
+- API calls go through [`src/lib/api/client.ts`](src/lib/api/client.ts).
+- `/app/*` routes are protected by session bootstrap in [`src/app/app/layout.tsx`](src/app/app/layout.tsx).
 - Org context persists in Zustand plus `ai_coo_selected_org` cookie.
 - Dashboard and reports keep server-prefetch support for faster first paint.
 

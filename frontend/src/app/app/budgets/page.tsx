@@ -66,12 +66,17 @@ export default function BudgetsPage() {
       toast.toast({ title: "Category and amount are required", variant: "danger" });
       return;
     }
+    const planned = Number(newAmount);
+    if (!Number.isFinite(planned)) {
+      toast.toast({ title: "Amount must be a valid number (example: 1200 or 1200.50)", variant: "danger" });
+      return;
+    }
     try {
       const result = await createBudget.mutateAsync({
         category: newCategory.trim(),
         period_month: period,
         budget_type: newType,
-        planned_amount: String(Number(newAmount)),
+        planned_amount: String(planned),
         notes: newNotes.trim() || undefined,
       });
       setNewCategory("");
@@ -88,10 +93,15 @@ export default function BudgetsPage() {
     if (!editingBudgetId || !editAmount.trim()) {
       return;
     }
+    const planned = Number(editAmount);
+    if (!Number.isFinite(planned)) {
+      toast.toast({ title: "Amount must be a valid number (example: 1400 or 1400.00)", variant: "danger" });
+      return;
+    }
     try {
       const result = await updateBudget.mutateAsync({
         budgetId: editingBudgetId,
-        planned_amount: String(Number(editAmount)),
+        planned_amount: String(planned),
         notes: editNotes.trim() || undefined,
       });
       setEditingBudgetId(null);

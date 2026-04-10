@@ -80,12 +80,22 @@ export default function InventoryPage() {
       toast.toast({ title: "SKU and item name are required", variant: "danger" });
       return;
     }
+    const unitCost = Number(itemUnitCost || "0");
+    const reorderPoint = Number(itemReorderPoint || "0");
+    if (!Number.isFinite(unitCost) || unitCost < 0) {
+      toast.toast({ title: "Unit cost must be a valid non-negative number", variant: "danger" });
+      return;
+    }
+    if (!Number.isFinite(reorderPoint) || reorderPoint < 0) {
+      toast.toast({ title: "Reorder point must be a valid non-negative number", variant: "danger" });
+      return;
+    }
     try {
       const result = await createItem.mutateAsync({
         sku: itemSku.trim(),
         name: itemName.trim(),
-        unit_cost: String(Number(itemUnitCost || "0")),
-        reorder_point: String(Number(itemReorderPoint || "0")),
+        unit_cost: String(unitCost),
+        reorder_point: String(reorderPoint),
       });
       setItemSku("");
       setItemName("");
@@ -106,12 +116,22 @@ export default function InventoryPage() {
       toast.toast({ title: "Item and quantity are required", variant: "danger" });
       return;
     }
+    const qty = Number(eventQty);
+    if (!Number.isFinite(qty) || qty <= 0) {
+      toast.toast({ title: "Quantity must be a positive number", variant: "danger" });
+      return;
+    }
+    const unitCost = eventUnitCost.trim() ? Number(eventUnitCost) : null;
+    if (unitCost !== null && (!Number.isFinite(unitCost) || unitCost < 0)) {
+      toast.toast({ title: "Unit cost must be a valid non-negative number", variant: "danger" });
+      return;
+    }
     try {
       const result = await createStockEvent.mutateAsync({
         item_id: eventItemId,
         event_type: eventType,
-        quantity: String(Number(eventQty)),
-        unit_cost: eventUnitCost.trim() ? String(Number(eventUnitCost)) : undefined,
+        quantity: String(qty),
+        unit_cost: unitCost === null ? undefined : String(unitCost),
         reference: eventRef.trim() || undefined,
       });
       setEventQty("");
@@ -130,12 +150,22 @@ export default function InventoryPage() {
       toast.toast({ title: "Item, quantity, and expected date are required", variant: "danger" });
       return;
     }
+    const qty = Number(poQty);
+    if (!Number.isFinite(qty) || qty <= 0) {
+      toast.toast({ title: "Quantity must be a positive number", variant: "danger" });
+      return;
+    }
+    const unitCost = poUnitCost.trim() ? Number(poUnitCost) : null;
+    if (unitCost !== null && (!Number.isFinite(unitCost) || unitCost < 0)) {
+      toast.toast({ title: "Unit cost must be a valid non-negative number", variant: "danger" });
+      return;
+    }
     try {
       const result = await createPurchaseOrder.mutateAsync({
         item_id: poItemId,
-        quantity: String(Number(poQty)),
+        quantity: String(qty),
         expected_date: poExpectedDate,
-        unit_cost: poUnitCost.trim() ? String(Number(poUnitCost)) : undefined,
+        unit_cost: unitCost === null ? undefined : String(unitCost),
         external_ref: poRef.trim() || undefined,
       });
       setRecentPurchaseOrders((prev) => [result.purchaseOrder, ...prev].slice(0, 20));

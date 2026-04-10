@@ -123,6 +123,7 @@ test("forecast inline override supports dirty state, save and reset", async ({ p
   await page.goto("/app/transactions");
   await page.getByRole("button", { name: "Import CSV" }).click();
   await page.getByTestId("csv-file-input").setInputFiles(csvPath);
+  await clickCsvAction(page, "csv-preview-button");
   await clickCsvAction(page, "csv-confirm-button");
   await expect(page.getByText(/CSV imported/)).toBeVisible();
 

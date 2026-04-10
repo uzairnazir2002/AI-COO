@@ -24,6 +24,13 @@ type UpdateBudgetPayload = {
   notes?: string;
 };
 
+/** Normalize month keys like 2026-04 to 2026-04-01 for APIs that accept a calendar month. */
+export function normalizeBudgetPeriodForApi(period: string): string {
+  const p = period.trim();
+  if (/^\d{4}-\d{2}$/.test(p)) return `${p}-01`;
+  return p;
+}
+
 function buildBudgetQuery(orgId: string, period?: string, budgetType?: string, includeHistory?: boolean) {
   const qs = new URLSearchParams({ org_id: orgId });
   if (period) qs.set("period", period);
@@ -41,10 +48,16 @@ function requireOrgId(orgId: string | null): string {
 
 export function useBudgets(period: string, budgetType: "EXPENSE" | "REVENUE" | "ALL" = "ALL", includeHistory = false) {
   const orgId = useAppStore((s) => s.selectedOrgId);
+  const apiPeriod = normalizeBudgetPeriodForApi(period);
   return useQuery({
-    queryKey: qk.budgets(orgId || "", period, budgetType, includeHistory),
+    queryKey: qk.budgets(orgId || "", apiPeriod, budgetType, includeHistory),
     queryFn: async () => {
-      const qs = buildBudgetQuery(orgId || "", period, budgetType === "ALL" ? undefined : budgetType, includeHistory);
+      const qs = buildBudgetQuery(
+        orgId || "",
+        apiPeriod,
+        budgetType === "ALL" ? undefined : budgetType,
+        includeHistory,
+      );
       const out = await api<Budget[]>(`${apiPaths.budgets}?${qs}`);
       return out.map((row) => budgetSchema.parse(row));
     },
@@ -113,10 +126,11 @@ export function useUpdateBudget() {
 export function useBudgetVariance(period: string, budgetType: "EXPENSE" | "REVENUE" | "ALL" = "ALL") {
   const orgId = useAppStore((s) => s.selectedOrgId);
   const locationId = useAppStore((s) => s.selectedLocationId);
+  const apiPeriod = normalizeBudgetPeriodForApi(period);
   return useQuery({
-    queryKey: qk.budgetVariance(orgId || "", period, budgetType, locationId || ""),
+    queryKey: qk.budgetVariance(orgId || "", apiPeriod, budgetType, locationId || ""),
     queryFn: async () => {
-      const qs = new URLSearchParams({ org_id: orgId || "", period });
+      const qs = new URLSearchParams({ org_id: orgId || "", period: apiPeriod });
       if (budgetType !== "ALL") qs.set("budget_type", budgetType);
       if (locationId) qs.set("location_id", locationId);
       const out = await api<BudgetVariance>(`${apiPaths.budgetVariance}?${qs.toString()}`);

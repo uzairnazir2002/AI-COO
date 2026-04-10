@@ -3,6 +3,7 @@
 import { useCallback, useMemo, useState } from "react";
 import Link from "next/link";
 import { ArrowRight, Download } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 import { EmptyState } from "@/components/common/empty-state";
@@ -11,6 +12,7 @@ import { ProgressiveDisclosure } from "@/components/common/progressive-disclosur
 import { SectionHeader } from "@/components/common/section-header";
 import { CalculationDrawer } from "@/components/drawers/calculation-drawer";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useDashboardData } from "@/features/dashboard/hooks";
 import { AlertDetailDrawer } from "@/features/dashboard/panels/alert-detail-drawer";
 import { BenchmarkPanel } from "@/features/dashboard/panels/benchmark-panel";
@@ -25,6 +27,7 @@ import { useAppStore } from "@/store/appStore";
 
 export function DashboardPageClient() {
   const data = useDashboardData();
+  const queryClient = useQueryClient();
   const [activeAlertId, setActiveAlertId] = useState<string | null>(null);
   const router = useRouter();
   const pathname = usePathname();
@@ -64,6 +67,37 @@ export function DashboardPageClient() {
     const narrowed = points.filter((point) => point.date === drillPointDate);
     return narrowed.length > 0 ? narrowed : points;
   }, [drillPointDate, points]);
+
+  if (!data.orgId) {
+    return (
+      <EmptyState
+        eyebrow="No organization"
+        title="Select or create an organization to continue."
+        description="The dashboard is fully org-scoped. Once an organization is selected, analytics, reports, and permissions all follow that context."
+        actions={[{ label: "Go to organizations", href: "/app/orgs" }]}
+      />
+    );
+  }
+
+  if (data.error) {
+    return (
+      <ErrorState
+        description={String((data.error as Error).message || data.error)}
+        onRetry={() => {
+          void queryClient.invalidateQueries({
+            predicate: (q) =>
+              Array.isArray(q.queryKey) && q.queryKey.length > 1 && q.queryKey[1] === data.orgId,
+          });
+        }}
+      />
+    );
+  }
+
+  /** Avoid flashing zeroed KPIs while the summary (authoritative for MTD figures) is still loading. */
+  if (data.loading && data.summary === undefined) {
+    return <DashboardLoadingSkeleton />;
+  }
+
   const sparklineData = downsamplePoints(
     scopedPoints.map((point) => ({ label: point.date, value: point.net })),
     40,
@@ -73,7 +107,6 @@ export function DashboardPageClient() {
     40,
   );
 
-  const hasData = scopedPoints.length > 0;
   const resetToLast90Days = () => {
     const to = todayISO();
     const from = shiftDaysISO(to, -89);
@@ -133,20 +166,8 @@ export function DashboardPageClient() {
   };
   const selectedCalculation = metricForCalc ? calculationSpecs[metricForCalc] : null;
 
-  if (!data.orgId) {
-    return (
-      <EmptyState
-        eyebrow="No organization"
-        title="Select or create an organization to continue."
-        description="The dashboard is fully org-scoped. Once an organization is selected, analytics, reports, and permissions all follow that context."
-        actions={[{ label: "Go to organizations", href: "/app/orgs" }]}
-      />
-    );
-  }
-
-  if (data.error) {
-    return <ErrorState description={String((data.error as Error).message || data.error)} />;
-  }
+  const hasData = scopedPoints.length > 0;
+  const showEmptyRangeHint = !data.loading && !hasData;
 
   return (
     <div className="space-y-6">
@@ -177,6 +198,20 @@ export function DashboardPageClient() {
       />
 
       <HeroStrip from={data.from} to={data.to} headline={data.ai?.summary_json?.headline} />
+
+      {showEmptyRangeHint ? (
+        <div className="rounded-2xl border border-primary/20 bg-primary/5 px-4 py-3 text-sm leading-relaxed text-muted-foreground">
+          <span className="font-medium text-foreground">No cashflow points in this date range.</span> Add transactions, import a CSV,
+          or widen the global date range (header) so charts and trends can populate.{" "}
+          <Link className="text-primary underline-offset-4 hover:underline" href="/app/transactions">
+            Transactions
+          </Link>
+          {" · "}
+          <Link className="text-primary underline-offset-4 hover:underline" href="/app/onboarding">
+            Onboarding
+          </Link>
+        </div>
+      ) : null}
 
       <DashboardKpiGrid
         periodLabel={`${data.from} to ${data.to}`}
@@ -280,6 +315,29 @@ export function DashboardPageClient() {
           inputs={selectedCalculation.inputs}
         />
       ) : null}
+    </div>
+  );
+}
+
+function DashboardLoadingSkeleton() {
+  return (
+    <div className="space-y-6" aria-busy="true" aria-label="Loading dashboard">
+      <div className="space-y-2">
+        <Skeleton className="h-7 w-56" />
+        <Skeleton className="h-4 w-full max-w-xl" />
+        <div className="flex flex-wrap gap-2 pt-1">
+          <Skeleton className="h-6 w-24 rounded-full" />
+          <Skeleton className="h-6 w-28 rounded-full" />
+          <Skeleton className="h-6 w-32 rounded-full" />
+        </div>
+      </div>
+      <Skeleton className="h-36 w-full rounded-[24px]" />
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        {Array.from({ length: 6 }).map((_, i) => (
+          <Skeleton key={i} className="h-36 w-full rounded-[24px]" />
+        ))}
+      </div>
+      <Skeleton className="h-80 w-full rounded-[24px]" />
     </div>
   );
 }

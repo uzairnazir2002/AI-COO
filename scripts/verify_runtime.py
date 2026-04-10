@@ -38,6 +38,16 @@ def _npm_cmd() -> str:
     return "npm.cmd" if sys.platform.startswith("win") else "npm"
 
 
+def _resolve_python(root: Path) -> Path:
+    win = root / ".venv" / "Scripts" / "python.exe"
+    posix = root / ".venv" / "bin" / "python"
+    if sys.platform.startswith("win") and win.exists():
+        return win
+    if posix.exists():
+        return posix
+    return Path(sys.executable)
+
+
 def _cookie_mode_enabled() -> bool:
     value = os.environ.get("AUTH_COOKIE_MODE", "").strip().lower()
     return value in {"1", "true", "yes", "on"}
@@ -57,20 +67,19 @@ def main() -> None:
     backend = root / "backend"
     frontend = root / "frontend"
 
-    venv_python = root / ".venv" / "Scripts" / "python.exe"
-    if not venv_python.exists():
-        raise FileNotFoundError(f"Missing Python venv executable: {venv_python}")
+    python_exe = _resolve_python(root)
+    print(f"[info] using python: {python_exe}")
 
     health_url = f"{args.api_base_url}/health"
     _wait_for_health(health_url, args.health_timeout_sec)
 
     if not args.skip_backend_tests:
-        _run([str(venv_python), "-m", "pytest", "app/tests", "-q"], cwd=backend)
+        _run([str(python_exe), "-m", "pytest", "app/tests", "-q"], cwd=backend)
 
     # Smoke bearer
     _run(
         [
-            str(venv_python),
+            str(python_exe),
             str(root / "scripts" / "smoke_mvp.py"),
             "--base-url",
             args.api_base_url,
@@ -83,7 +92,7 @@ def main() -> None:
     if _cookie_mode_enabled():
         _run(
             [
-                str(venv_python),
+                str(python_exe),
                 str(root / "scripts" / "smoke_mvp.py"),
                 "--base-url",
                 args.api_base_url,

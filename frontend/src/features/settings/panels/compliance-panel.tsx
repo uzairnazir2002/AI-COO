@@ -4,6 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { RoleAwareDisabledHint } from "@/components/safety/role-aware-disabled-hint";
 import type { Role } from "@/types/domain";
 
 type DeletionItem = {
@@ -86,6 +87,7 @@ export function CompliancePanel({
             <p className="text-xs text-muted-foreground">
               This schedules full organization deletion. Type <code>DELETE</code> to enable the request action.
             </p>
+            {!owner ? <RoleAwareDisabledHint role={role} requiredRole="OWNER" /> : null}
             <Input
               placeholder="Optional reason for organization deletion"
               value={orgDeleteReason}

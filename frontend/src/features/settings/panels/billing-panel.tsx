@@ -13,6 +13,7 @@ export function BillingPanel({
   role,
   planUsageData,
   billingData,
+  billingDegradedMessage,
   onSaveBilling,
   onStartCheckout,
   onOpenPortal,
@@ -20,6 +21,7 @@ export function BillingPanel({
   role?: Role;
   planUsageData?: PlanUsage;
   billingData?: OrgBilling;
+  billingDegradedMessage?: string | null;
   onSaveBilling: (formData: FormData) => Promise<void>;
   onStartCheckout: () => Promise<void>;
   onOpenPortal: () => Promise<void>;
@@ -108,7 +110,15 @@ export function BillingPanel({
                 </div>
               </FormSection>
             ) : (
-              <RoleAwareDisabledHint role={role} requiredRole="OWNER" />
+              <div className="space-y-3">
+                {billingDegradedMessage ? (
+                  <div className="rounded-[22px] border border-warning/30 bg-warning/5 p-4">
+                    <p className="text-sm font-medium">Billing is unavailable</p>
+                    <p className="mt-1 text-xs text-muted-foreground">{billingDegradedMessage}</p>
+                  </div>
+                ) : null}
+                <RoleAwareDisabledHint role={role} requiredRole="OWNER" />
+              </div>
             )}
           </CardContent>
         </Card>

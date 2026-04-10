@@ -2,7 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { api } from "@/lib/api/client";
+import { ApiError, api, bootstrapSession } from "@/lib/api/client";
 import { getRefreshToken } from "@/lib/auth/tokens";
 import { apiPaths } from "@/lib/api/endpoints";
 import { billingUrlSchema, deletionRequestListSchema, paymentReconciliationSchema } from "@/lib/api/schemas";
@@ -31,6 +31,33 @@ type SensitiveAuthPayload = {
   reauthToken?: string;
 };
 
+/** Reuses the same React Query entry as `useSessionBootstrap` so MFA/session queries wait for /me. */
+function useAuthSessionReady() {
+  const me = useQuery({
+    queryKey: qk.me,
+    queryFn: bootstrapSession,
+    retry: false,
+  });
+  return Boolean(me.data);
+}
+
+function requireOrgId(orgId: string | null, message = "Select an organization before continuing."): string {
+  if (!orgId) throw new ApiError(message, 400);
+  return orgId;
+}
+
+function requireOwner(orgId: string | null, role: Role | undefined, message = "Only owners can perform this action."): string {
+  const resolved = requireOrgId(orgId);
+  if (role !== "OWNER") throw new ApiError(message, 403);
+  return resolved;
+}
+
+function requireEditor(orgId: string | null, role: Role | undefined, message = "Only editors or owners can perform this action."): string {
+  const resolved = requireOrgId(orgId);
+  if (role !== "OWNER" && role !== "EDITOR") throw new ApiError(message, 403);
+  return resolved;
+}
+
 export function useOrgMembers() {
   const orgId = useAppStore((s) => s.selectedOrgId);
   const role = useAppStore((s) => s.orgs.find((o) => o.org_id === s.selectedOrgId)?.role);
@@ -43,10 +70,11 @@ export function useOrgMembers() {
 
 export function useInviteMember() {
   const orgId = useAppStore((s) => s.selectedOrgId);
+  const role = useAppStore((s) => s.orgs.find((o) => o.org_id === s.selectedOrgId)?.role);
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (payload: { email: string; role: Role } & SensitiveAuthPayload) =>
-      api<{ ok: boolean; invite_token?: string }>(apiPaths.invite(orgId || ""), {
+      api<{ ok: boolean; invite_token?: string }>(apiPaths.invite(requireOwner(orgId, role, "Only owners can invite members.")), {
         method: "POST",
         body: JSON.stringify({ email: payload.email, role: payload.role }),
         headers: payload.reauthToken ? { "X-Reauth-Token": payload.reauthToken } : undefined,
@@ -66,10 +94,11 @@ export function useOrgSettings() {
 
 export function useUpdateOrgSettings() {
   const orgId = useAppStore((s) => s.selectedOrgId);
+  const role = useAppStore((s) => s.orgs.find((o) => o.org_id === s.selectedOrgId)?.role);
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (payload: Partial<OrgSettings> & SensitiveAuthPayload) =>
-      api<OrgSettings>(apiPaths.settings(orgId || ""), {
+      api<OrgSettings>(apiPaths.settings(requireEditor(orgId, role, "Viewer role cannot update organization settings.")), {
         method: "PUT",
         body: JSON.stringify({
           starting_cash: payload.starting_cash,
@@ -108,24 +137,26 @@ export function useBankConnections() {
 
 export function usePlaidLinkToken() {
   const orgId = useAppStore((s) => s.selectedOrgId);
+  const role = useAppStore((s) => s.orgs.find((o) => o.org_id === s.selectedOrgId)?.role);
   return useMutation({
     mutationFn: () =>
       api<PlaidLinkTokenResult>(apiPaths.plaidLinkToken, {
         method: "POST",
-        body: JSON.stringify({ org_id: orgId }),
+        body: JSON.stringify({ org_id: requireEditor(orgId, role, "Viewer role cannot create Plaid Link tokens.") }),
       }),
   });
 }
 
 export function usePlaidExchange() {
   const orgId = useAppStore((s) => s.selectedOrgId);
+  const role = useAppStore((s) => s.orgs.find((o) => o.org_id === s.selectedOrgId)?.role);
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (payload: { publicToken: string; institutionName?: string }) =>
       api<{ connection: BankConnection }>(apiPaths.plaidExchange, {
         method: "POST",
         body: JSON.stringify({
-          org_id: orgId,
+          org_id: requireEditor(orgId, role, "Viewer role cannot connect bank integrations."),
           public_token: payload.publicToken,
           institution_name: payload.institutionName,
         }),
@@ -136,11 +167,12 @@ export function usePlaidExchange() {
 
 export function useSyncBankConnection() {
   const orgId = useAppStore((s) => s.selectedOrgId);
+  const role = useAppStore((s) => s.orgs.find((o) => o.org_id === s.selectedOrgId)?.role);
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (connectionId: string) =>
       api<{ job_id: string; status: string; connection_id: string }>(
-        `${apiPaths.bankConnectionSync(connectionId)}?org_id=${orgId}`,
+        `${apiPaths.bankConnectionSync(connectionId)}?org_id=${requireEditor(orgId, role, "Viewer role cannot sync bank connections.")}`,
         { method: "POST" },
       ),
     onSuccess: () => qc.invalidateQueries({ queryKey: qk.jobs(orgId || "", {}) }),
@@ -149,10 +181,11 @@ export function useSyncBankConnection() {
 
 export function useDeleteBankConnection() {
   const orgId = useAppStore((s) => s.selectedOrgId);
+  const role = useAppStore((s) => s.orgs.find((o) => o.org_id === s.selectedOrgId)?.role);
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (connectionId: string) =>
-      api<{ ok: boolean }>(`${apiPaths.bankConnectionDelete(connectionId)}?org_id=${orgId}`, {
+      api<{ ok: boolean }>(`${apiPaths.bankConnectionDelete(connectionId)}?org_id=${requireEditor(orgId, role, "Viewer role cannot revoke bank connections.")}`, {
         method: "DELETE",
       }),
     onSuccess: () => qc.invalidateQueries({ queryKey: qk.bankConnections(orgId || "") }),
@@ -173,13 +206,14 @@ export function usePaymentConnections(provider: string = "STRIPE") {
 
 export function useStripeConnect() {
   const orgId = useAppStore((s) => s.selectedOrgId);
+  const role = useAppStore((s) => s.orgs.find((o) => o.org_id === s.selectedOrgId)?.role);
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (payload: { providerAccountId?: string; accountLabel?: string }) =>
       api<StripeConnectResult>(apiPaths.stripeConnect, {
         method: "POST",
         body: JSON.stringify({
-          org_id: orgId,
+          org_id: requireEditor(orgId, role, "Viewer role cannot connect payment integrations."),
           provider_account_id: payload.providerAccountId || null,
           account_label: payload.accountLabel || null,
         }),
@@ -226,10 +260,11 @@ export function useOrgBilling() {
 
 export function useUpdateOrgBilling() {
   const orgId = useAppStore((s) => s.selectedOrgId);
+  const role = useAppStore((s) => s.orgs.find((o) => o.org_id === s.selectedOrgId)?.role);
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (payload: Partial<OrgBilling> & SensitiveAuthPayload) =>
-      api<OrgBilling>(apiPaths.billing(orgId || ""), {
+      api<OrgBilling>(apiPaths.billing(requireOwner(orgId, role, "Only owners can update billing settings.")), {
         method: "PUT",
         body: JSON.stringify({
           billing_email: payload.billing_email,
@@ -245,9 +280,10 @@ export function useUpdateOrgBilling() {
 
 export function useBillingCheckout() {
   const orgId = useAppStore((s) => s.selectedOrgId);
+  const role = useAppStore((s) => s.orgs.find((o) => o.org_id === s.selectedOrgId)?.role);
   return useMutation({
     mutationFn: (payload: { price_id: string; success_url: string; cancel_url: string } & SensitiveAuthPayload) =>
-      api<BillingCheckoutResult>(apiPaths.billingCheckout(orgId || ""), {
+      api<BillingCheckoutResult>(apiPaths.billingCheckout(requireOwner(orgId, role, "Only owners can start checkout flows.")), {
         method: "POST",
         body: JSON.stringify({
           price_id: payload.price_id,
@@ -262,9 +298,10 @@ export function useBillingCheckout() {
 
 export function useBillingPortal() {
   const orgId = useAppStore((s) => s.selectedOrgId);
+  const role = useAppStore((s) => s.orgs.find((o) => o.org_id === s.selectedOrgId)?.role);
   return useMutation({
     mutationFn: (payload: { return_url: string } & SensitiveAuthPayload) =>
-      api<BillingPortalResult>(apiPaths.billingPortal(orgId || ""), {
+      api<BillingPortalResult>(apiPaths.billingPortal(requireOwner(orgId, role, "Only owners can access the billing portal.")), {
         method: "POST",
         body: JSON.stringify({ return_url: payload.return_url }),
         headers: payload.reauthToken ? { "X-Reauth-Token": payload.reauthToken } : undefined,
@@ -277,7 +314,7 @@ export function useAuthReauth() {
   const orgId = useAppStore((s) => s.selectedOrgId);
   return useMutation({
     mutationFn: (payload: { password: string; mfa_code?: string; mfa_recovery_code?: string }) =>
-      api<{ ok: boolean; token: string; token_type: string; expires_in: number }>(`${apiPaths.reauth}?org_id=${orgId}`, {
+      api<{ ok: boolean; token: string; token_type: string; expires_in: number }>(`${apiPaths.reauth}?org_id=${requireOrgId(orgId, "Select an organization before re-authenticating.")}`, {
         method: "POST",
         body: JSON.stringify(payload),
       }),
@@ -285,9 +322,11 @@ export function useAuthReauth() {
 }
 
 export function useMfaStatus() {
+  const sessionReady = useAuthSessionReady();
   return useQuery({
     queryKey: ["mfaStatus"],
     queryFn: () => api<MfaStatus>(apiPaths.mfaStatus),
+    enabled: sessionReady,
   });
 }
 
@@ -340,6 +379,7 @@ export function useMfaRegenerateRecoveryCodes() {
 }
 
 export function useAuthSessions() {
+  const sessionReady = useAuthSessionReady();
   return useQuery({
     queryKey: ["authSessions"],
     queryFn: async () => {
@@ -349,6 +389,7 @@ export function useAuthSessions() {
       const out = await api<{ items: AuthSession[] }>(`${apiPaths.authSessions}${query}`);
       return out.items;
     },
+    enabled: sessionReady,
   });
 }
 
@@ -390,9 +431,10 @@ export function useRequestAccountDeletion() {
 
 export function useRequestOrgDeletion() {
   const orgId = useAppStore((s) => s.selectedOrgId);
+  const role = useAppStore((s) => s.orgs.find((o) => o.org_id === s.selectedOrgId)?.role);
   return useMutation({
     mutationFn: (payload: { reason?: string } & SensitiveAuthPayload) =>
-      api<DeletionRequestResult>(apiPaths.deleteOrg(orgId || ""), {
+      api<DeletionRequestResult>(apiPaths.deleteOrg(requireOwner(orgId, role, "Only owners can request organization deletion.")), {
         method: "POST",
         body: JSON.stringify({ reason: payload.reason }),
         headers: payload.reauthToken ? { "X-Reauth-Token": payload.reauthToken } : undefined,
@@ -401,9 +443,11 @@ export function useRequestOrgDeletion() {
 }
 
 export function useMyDeletionRequests() {
+  const sessionReady = useAuthSessionReady();
   return useQuery({
     queryKey: ["myDeletionRequests"],
     queryFn: () => api<DeletionRequestList>(apiPaths.authDeleteAccountRequests, { schema: deletionRequestListSchema }),
+    enabled: sessionReady,
   });
 }
 

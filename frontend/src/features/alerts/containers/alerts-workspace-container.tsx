@@ -17,6 +17,7 @@ import type { Alert } from "@/types/domain";
 
 export function AlertsWorkspaceContainer({
   experienceTier,
+  editable,
   status,
   onStatusChange,
   kind,
@@ -41,6 +42,7 @@ export function AlertsWorkspaceContainer({
   onOpenAlert,
 }: {
   experienceTier: ExperienceTier;
+  editable: boolean;
   status: "open" | "dismissed";
   onStatusChange: (value: "open" | "dismissed") => void;
   kind: string;
@@ -72,8 +74,8 @@ export function AlertsWorkspaceContainer({
         description="Open and dismissed signals from anomaly detection, runway pressure, and profit leakage monitoring."
         scopeChips={[`Status: ${status}`, `Kind: ${kind}`, `Assignee: ${assigneeFilter}`]}
         actions={
-          <>
-            <div className="w-32">
+          <div className="flex w-full flex-wrap gap-2">
+            <div className="w-full sm:w-32">
               <Select value={status} onValueChange={(value) => onStatusChange(value as "open" | "dismissed")}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
@@ -82,7 +84,7 @@ export function AlertsWorkspaceContainer({
                 </SelectContent>
               </Select>
             </div>
-            <div className="w-44">
+            <div className="w-full sm:w-44">
               <Select value={kind} onValueChange={onKindChange}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
@@ -93,7 +95,7 @@ export function AlertsWorkspaceContainer({
                 </SelectContent>
               </Select>
             </div>
-            <div className="w-48">
+            <div className="w-full sm:w-48">
               <Select value={assigneeFilter} onValueChange={onAssigneeFilterChange}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
@@ -107,7 +109,7 @@ export function AlertsWorkspaceContainer({
                 </SelectContent>
               </Select>
             </div>
-          </>
+          </div>
         }
       />
 
@@ -148,6 +150,7 @@ export function AlertsWorkspaceContainer({
                 <AlertDetailPanel alert={activeAlert} />
                 <AlertActionPanel
                   alert={activeAlert}
+                  editable={editable}
                   userId={userId}
                   members={members}
                   assigneeSelection={assigneeSelection}
@@ -189,6 +192,7 @@ export function AlertsWorkspaceContainer({
             {activeAlert ? (
               <AlertActionPanel
                 alert={activeAlert}
+                editable={editable}
                 userId={userId}
                 members={members}
                 assigneeSelection={assigneeSelection}

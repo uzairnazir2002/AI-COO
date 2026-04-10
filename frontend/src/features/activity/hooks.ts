@@ -2,7 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { api, apiFetchRaw } from "@/lib/api/client";
+import { ApiError, api, apiFetchRaw } from "@/lib/api/client";
 import { apiPaths } from "@/lib/api/endpoints";
 import {
   deletionRequestListSchema,
@@ -22,6 +22,21 @@ import {
 import { qk } from "@/lib/query/keys";
 import { useAppStore } from "@/store/appStore";
 import type { AdminRecomputeResult, AnalyticsRecomputeResult, DeletionRequestList, PiiRotationResult } from "@/types/domain";
+
+function requireOrgId(orgId: string | null): string {
+  if (!orgId) {
+    throw new ApiError("Select an organization before using operations tooling.", 400);
+  }
+  return orgId;
+}
+
+function requireOwner(orgId: string | null, role: string | undefined): string {
+  const resolved = requireOrgId(orgId);
+  if (role !== "OWNER") {
+    throw new ApiError("Only organization owners can access admin runtime tooling.", 403);
+  }
+  return resolved;
+}
 
 export type JobFilters = {
   status?: string;
@@ -66,7 +81,7 @@ export function useAnalyticsRecompute() {
   const orgId = useAppStore((s) => s.selectedOrgId);
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: () => api<AnalyticsRecomputeResult>(`${apiPaths.recompute}?org_id=${orgId}`, { method: "POST" }),
+    mutationFn: () => api<AnalyticsRecomputeResult>(`${apiPaths.recompute}?org_id=${requireOrgId(orgId)}`, { method: "POST" }),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["jobs"] });
       await queryClient.invalidateQueries({ queryKey: ["alerts"] });
@@ -77,9 +92,10 @@ export function useAnalyticsRecompute() {
 
 export function useAdminRecompute() {
   const orgId = useAppStore((s) => s.selectedOrgId);
+  const role = useAppStore((s) => s.orgs.find((o) => o.org_id === s.selectedOrgId)?.role);
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: () => api<AdminRecomputeResult>(`${apiPaths.adminRecompute}?org_id=${orgId}`, { method: "POST" }),
+    mutationFn: () => api<AdminRecomputeResult>(`${apiPaths.adminRecompute}?org_id=${requireOwner(orgId, role)}`, { method: "POST" }),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["jobs"] });
       await queryClient.invalidateQueries({ queryKey: ["summary"] });
@@ -92,43 +108,47 @@ export function useAdminRecompute() {
 
 export function useOutbox(filters: OutboxFilters) {
   const orgId = useAppStore((s) => s.selectedOrgId);
+  const role = useAppStore((s) => s.orgs.find((o) => o.org_id === s.selectedOrgId)?.role);
   return useQuery({
     queryKey: qk.outbox(orgId || "", { ...filters, org_id: orgId || "" }),
     queryFn: () => {
       const qs = queryString({ org_id: orgId || "", ...filters });
       return api<OutboxPageResponse>(`${apiPaths.adminOutbox}?${qs}`, { schema: outboxPageSchema });
     },
-    enabled: Boolean(orgId),
+    enabled: Boolean(orgId && role === "OWNER"),
     refetchInterval: 15000,
   });
 }
 
 export function useSystemStatus() {
   const orgId = useAppStore((s) => s.selectedOrgId);
+  const role = useAppStore((s) => s.orgs.find((o) => o.org_id === s.selectedOrgId)?.role);
   return useQuery({
     queryKey: qk.systemStatus(orgId || ""),
     queryFn: () => api<SystemStatusResponse>(`${apiPaths.adminSystemStatus}?org_id=${orgId}`, { schema: systemStatusSchema }),
-    enabled: Boolean(orgId),
+    enabled: Boolean(orgId && role === "OWNER"),
     refetchInterval: 30000,
   });
 }
 
 export function useRuntimeSlos() {
   const orgId = useAppStore((s) => s.selectedOrgId);
+  const role = useAppStore((s) => s.orgs.find((o) => o.org_id === s.selectedOrgId)?.role);
   return useQuery({
     queryKey: ["runtime-slos", orgId || ""],
     queryFn: () => api<RuntimeSloResponse>(`${apiPaths.adminRuntimeSlos}?org_id=${orgId}`, { schema: runtimeSloSchema }),
-    enabled: Boolean(orgId),
+    enabled: Boolean(orgId && role === "OWNER"),
     refetchInterval: 30000,
   });
 }
 
 export function useRuntimeMetrics() {
   const orgId = useAppStore((s) => s.selectedOrgId);
+  const role = useAppStore((s) => s.orgs.find((o) => o.org_id === s.selectedOrgId)?.role);
   return useQuery({
     queryKey: ["runtime-metrics", orgId || ""],
     queryFn: () => api<RuntimeMetricsResponse>(`${apiPaths.adminRuntimeMetrics}?org_id=${orgId}`, { schema: runtimeMetricsSchema }),
-    enabled: Boolean(orgId),
+    enabled: Boolean(orgId && role === "OWNER"),
     refetchInterval: 15000,
   });
 }
@@ -142,23 +162,25 @@ export type DeadLetterFilters = {
 
 export function useDeadLetter(filters: DeadLetterFilters) {
   const orgId = useAppStore((s) => s.selectedOrgId);
+  const role = useAppStore((s) => s.orgs.find((o) => o.org_id === s.selectedOrgId)?.role);
   return useQuery({
     queryKey: ["dead-letter", orgId || "", filters],
     queryFn: () => {
       const qs = queryString({ org_id: orgId || "", ...filters });
       return api<DeadLetterPageResponse>(`${apiPaths.adminDeadLetter}?${qs}`, { schema: deadLetterPageSchema });
     },
-    enabled: Boolean(orgId),
+    enabled: Boolean(orgId && role === "OWNER"),
     refetchInterval: 15000,
   });
 }
 
 export function useRetryOutboxEvent() {
   const orgId = useAppStore((s) => s.selectedOrgId);
+  const role = useAppStore((s) => s.orgs.find((o) => o.org_id === s.selectedOrgId)?.role);
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (eventId: string) =>
-      api<{ ok: boolean; id: string; status: string }>(`${apiPaths.adminOutboxRetry(eventId)}?org_id=${orgId}`, { method: "POST" }),
+      api<{ ok: boolean; id: string; status: string }>(`${apiPaths.adminOutboxRetry(eventId)}?org_id=${requireOwner(orgId, role)}`, { method: "POST" }),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["outbox"] });
       await queryClient.invalidateQueries({ queryKey: ["system-status"] });
@@ -168,11 +190,12 @@ export function useRetryOutboxEvent() {
 
 export function useReplayDeadLetter() {
   const orgId = useAppStore((s) => s.selectedOrgId);
+  const role = useAppStore((s) => s.orgs.find((o) => o.org_id === s.selectedOrgId)?.role);
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (eventId: string) =>
       api<{ ok: boolean; id: string; status: string; replay_ref?: string }>(
-        `${apiPaths.adminDeadLetterReplay(eventId)}?org_id=${orgId}`,
+        `${apiPaths.adminDeadLetterReplay(eventId)}?org_id=${requireOwner(orgId, role)}`,
         { method: "POST" },
       ),
     onSuccess: async () => {
@@ -187,11 +210,12 @@ export function useReplayDeadLetter() {
 
 export function useDismissDeadLetter() {
   const orgId = useAppStore((s) => s.selectedOrgId);
+  const role = useAppStore((s) => s.orgs.find((o) => o.org_id === s.selectedOrgId)?.role);
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: ({ eventId, reason }: { eventId: string; reason?: string }) =>
       api<{ ok: boolean; id: string; status: string }>(
-        `${apiPaths.adminDeadLetterDismiss(eventId)}?org_id=${orgId}${reason ? `&reason=${encodeURIComponent(reason)}` : ""}`,
+        `${apiPaths.adminDeadLetterDismiss(eventId)}?org_id=${requireOwner(orgId, role)}${reason ? `&reason=${encodeURIComponent(reason)}` : ""}`,
         { method: "POST" },
       ),
     onSuccess: async () => {

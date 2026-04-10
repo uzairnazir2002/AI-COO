@@ -1,10 +1,9 @@
 import uuid
-from datetime import date
-
 from fastapi import APIRouter, Body, Depends, HTTPException, Query, Request, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user, get_org_context
+from app.api.period_month import parse_period_month_query
 from app.db.session import get_db
 from app.domain.models.user import User
 from app.domain.repos.audit_repo import AuditRepo
@@ -64,18 +63,22 @@ async def _notify_alert_recalc(
 @router.get("", response_model=list[BudgetOut])
 async def list_budgets(
     org_id: uuid.UUID = Query(...),
-    period: date | None = Query(default=None),
+    period: str | None = Query(
+        default=None,
+        description="Month as YYYY-MM or first day YYYY-MM-DD (normalized to month start).",
+    ),
     budget_type: str | None = Query(default=None),
     include_history: bool = Query(default=False),
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     await get_org_context(org_id=org_id, user=user, db=db)
+    period_month = parse_period_month_query(period)
     svc = BudgetService(BudgetRepo(db))
     try:
         rows = await svc.list_budgets(
             org_id=org_id,
-            period_month=period,
+            period_month=period_month,
             budget_type=budget_type,
             include_history=include_history,
         )

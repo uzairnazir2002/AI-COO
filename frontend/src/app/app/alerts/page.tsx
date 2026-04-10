@@ -10,6 +10,7 @@ import { SuccessStateCard } from "@/components/states/success-state-card";
 import { AlertsWorkspaceContainer } from "@/features/alerts/containers/alerts-workspace-container";
 import { useAcknowledgeAlert, useAlertHistory, useAlerts, useAssignAlert, useDismissAlert } from "@/features/alerts/hooks";
 import { useOrgMembers } from "@/features/settings/hooks";
+import { canEdit } from "@/lib/auth/rbac";
 import { alertImpactValue } from "@/lib/utils/chart";
 import { useAppStore } from "@/store/appStore";
 
@@ -30,6 +31,8 @@ export default function AlertsPage() {
   const [lastSuccess, setLastSuccess] = useState("");
   const userId = useAppStore((s) => s.user?.id ?? null);
   const experienceTier = useAppStore((s) => s.experienceTier);
+  const role = useAppStore((s) => s.orgs.find((o) => o.org_id === s.selectedOrgId)?.role);
+  const editable = canEdit(role);
   const alerts = useAlerts(status, assigneeFilter !== "ALL" && assigneeFilter !== "UNASSIGNED" ? assigneeFilter : undefined);
   const members = useOrgMembers();
   const dismiss = useDismissAlert();
@@ -101,6 +104,7 @@ export default function AlertsPage() {
 
       <AlertsWorkspaceContainer
         experienceTier={experienceTier}
+        editable={editable}
         status={status}
         onStatusChange={setStatus}
         kind={kind}

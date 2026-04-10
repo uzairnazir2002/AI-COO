@@ -31,6 +31,14 @@ export function useSessionBootstrap(required = true) {
       clearTokens();
       clearSession();
       if (required) {
+        if (typeof window !== "undefined") {
+          const path = `${window.location.pathname}${window.location.search}`;
+          if (!path.startsWith("/auth")) {
+            window.sessionStorage.setItem("ai_coo_return_to", path);
+            router.replace(`/auth/login?return_to=${encodeURIComponent(path)}`);
+            return;
+          }
+        }
         router.replace("/auth/login");
       }
     }

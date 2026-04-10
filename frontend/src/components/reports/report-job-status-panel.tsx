@@ -13,11 +13,17 @@ export function ReportJobStatusPanel({
   jobs,
   trackedJob,
   formatDate,
+  jobsLoading = false,
 }: {
   jobs: ReportJob[];
   trackedJob?: ReportJob;
   formatDate: (value: string) => string;
+  jobsLoading?: boolean;
 }) {
+  if (jobsLoading) {
+    return <p className="text-sm text-muted-foreground">Loading generation jobs…</p>;
+  }
+
   return (
     <div className="space-y-3">
       {jobs.length === 0 ? (

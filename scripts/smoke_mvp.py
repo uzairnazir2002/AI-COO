@@ -8,6 +8,7 @@ from datetime import date, timedelta
 from pathlib import Path
 
 import httpx
+import time
 
 
 def _mutating_headers(
@@ -43,15 +44,26 @@ def run(
     password = seeded_password or "Password123!"
 
     with httpx.Client(timeout=30.0) as client:
-        if not (seeded_email and seeded_password):
+        token: str | None = None
+        if seeded_email and seeded_password:
+            login = client.post(f"{base_url}/auth/login", json={"email": email, "password": password})
+            login.raise_for_status()
+            if auth_mode == "bearer":
+                token = login.json().get("access_token")
+        else:
             register = client.post(f"{base_url}/auth/register", json={"email": email, "password": password})
             register.raise_for_status()
+            # Fresh registrations may be unconfirmed; some backends issue tokens but still block
+            # org-scoped APIs until the account is confirmed/active. This smoke suite auto-confirms
+            # in development using the dev token endpoint, then logs in to obtain an active session.
+            reg_json = register.json()
+            if auth_mode == "bearer":
+                token = reg_json.get("access_token")
+                if not token:
+                    raise RuntimeError("Bearer mode expected access_token on register response (unconfirmed accounts cannot login).")
 
-        login = client.post(f"{base_url}/auth/login", json={"email": email, "password": password})
-        login.raise_for_status()
-        token: str | None = None
-        if auth_mode == "bearer":
-            token = login.json()["access_token"]
+        if auth_mode == "bearer" and not token:
+            raise RuntimeError("Missing bearer access token after auth bootstrap")
 
         org_id = seeded_org_id
         if not org_id:
@@ -60,6 +72,28 @@ def run(
                 headers=_mutating_headers(auth_mode, token, client, csrf_cookie_name, csrf_header_name),
                 json={"name": "Smoke Org"},
             )
+            if org.status_code == 401 and "Account is not active" in org.text and not (seeded_email and seeded_password):
+                dev = client.get(f"{base_url}/auth/dev/confirmation-token", params={"email": email})
+                dev.raise_for_status()
+                token_value = dev.json().get("token")
+                if not token_value:
+                    raise RuntimeError("Dev confirmation token endpoint did not return token")
+                confirm = client.post(f"{base_url}/auth/confirm", json={"token": token_value})
+                confirm.raise_for_status()
+
+                login = client.post(f"{base_url}/auth/login", json={"email": email, "password": password})
+                login.raise_for_status()
+                if auth_mode == "bearer":
+                    token = login.json().get("access_token")
+                    if not token:
+                        raise RuntimeError("Bearer mode expected access_token after confirmation login")
+
+                org = client.post(
+                    f"{base_url}/organizations",
+                    headers=_mutating_headers(auth_mode, token, client, csrf_cookie_name, csrf_header_name),
+                    json={"name": "Smoke Org"},
+                )
+
             org.raise_for_status()
             org_id = org.json()["org_id"]
         auth_headers = {"Authorization": f"Bearer {token}"} if auth_mode == "bearer" and token else {}
@@ -132,10 +166,25 @@ def run(
             params={"org_id": org_id, "week_start": week_start},
         )
         report_gen.raise_for_status()
-        report_id = report_gen.json()["report_id"]
-        download = client.get(f"{base_url}/reports/{report_id}/download", headers=auth_headers, params={"org_id": org_id})
-        download.raise_for_status()
-        assert download.json()["url"], "Expected report download URL"
+        report_id = report_gen.json().get("report_id")
+        if not report_id:
+            deadline = time.time() + 60
+            while time.time() < deadline and not report_id:
+                reports = client.get(f"{base_url}/reports", headers=auth_headers, params={"org_id": org_id})
+                reports.raise_for_status()
+                for item in reports.json().get("items", []):
+                    if item.get("week_start") == week_start:
+                        report_id = item.get("id")
+                        break
+                if not report_id:
+                    time.sleep(2)
+
+        if report_id:
+            download = client.get(f"{base_url}/reports/{report_id}/download", headers=auth_headers, params={"org_id": org_id})
+            download.raise_for_status()
+            assert download.json()["url"], "Expected report download URL"
+        else:
+            raise RuntimeError("Report was enqueued but did not become available within timeout.")
 
         ai = client.post(
             f"{base_url}/ai/summary",

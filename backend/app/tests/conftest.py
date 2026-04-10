@@ -1,4 +1,17 @@
-﻿from decimal import Decimal
+﻿"""Pytest fixtures and bootstrap.
+
+`app.db.session` loads settings at import time. Set minimal env before any test module
+imports application code so collection succeeds without a local `.env`.
+"""
+from __future__ import annotations
+
+import os
+
+os.environ.setdefault("SECRET_KEY", "pytest-secret-key-not-for-production")
+os.environ.setdefault("DATABASE_URL", "postgresql+asyncpg://ai_coo:ai_coo@localhost:5432/ai_coo")
+os.environ.setdefault("REDIS_URL", "redis://localhost:6379/1")
+
+from decimal import Decimal
 
 import pytest
 

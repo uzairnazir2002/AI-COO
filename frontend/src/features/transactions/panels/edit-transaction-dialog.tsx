@@ -34,9 +34,9 @@ export function EditTransactionDialog({
               });
             }}
           >
-            <Input name="date" type="date" defaultValue={transaction.date} />
-            <Input name="amount" defaultValue={transaction.amount} />
-            <Input name="category" defaultValue={transaction.category} />
+            <Input name="date" type="date" defaultValue={transaction.date} required />
+            <Input name="amount" defaultValue={transaction.amount} inputMode="decimal" required />
+            <Input name="category" defaultValue={transaction.category} required />
             <Input name="vendor" defaultValue={transaction.vendor || ""} />
             <Input name="notes" defaultValue={transaction.notes || ""} className="md:col-span-2" />
             <div className="flex justify-end gap-2 md:col-span-2">

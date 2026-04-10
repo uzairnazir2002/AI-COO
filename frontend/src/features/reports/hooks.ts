@@ -2,7 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { api } from "@/lib/api/client";
+import { ApiError, api } from "@/lib/api/client";
 import { apiPaths } from "@/lib/api/endpoints";
 import { reportGenerateSchema, type ReportGenerateResponse } from "@/lib/api/schemas";
 import { qk } from "@/lib/query/keys";
@@ -25,13 +25,18 @@ export function useGenerateReport() {
   const locationId = useAppStore((s) => s.selectedLocationId);
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (weekStart: string) =>
-      api<ReportGenerateResponse>(
+    mutationFn: (weekStart: string) => {
+      if (!orgId) {
+        throw new ApiError("Select an organization before generating reports.", 400);
+      }
+      return api<ReportGenerateResponse>(
         `${apiPaths.generateReport}?org_id=${orgId}&week_start=${weekStart}${locationId ? `&location_id=${locationId}` : ""}`,
         {
-        method: "POST",
-        schema: reportGenerateSchema,
-      }),
+          method: "POST",
+          schema: reportGenerateSchema,
+        },
+      );
+    },
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["reports"] });
       await queryClient.invalidateQueries({ queryKey: ["jobs"] });

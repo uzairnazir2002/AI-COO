@@ -14,6 +14,8 @@ export default function ConfirmPage() {
   const [token, setToken] = useState("");
   const [error, setError] = useState("");
   const [email, setEmail] = useState<string | null>(null);
+  /** When registration did not pass `?email=`, user can enter an address to resend. */
+  const [emailForResend, setEmailForResend] = useState("");
   const confirm = useConfirmRegistration();
   const resend = useResendConfirmation();
 
@@ -44,19 +46,31 @@ export default function ConfirmPage() {
           <p className="mt-2 text-sm text-muted-foreground">
             {email ? `A confirmation token was issued for ${email}.` : "Paste the confirmation token delivered by the email outbox workflow."}
           </p>
+          {!email ? (
+            <div className="mt-4 space-y-2">
+              <p className="text-xs font-medium text-muted-foreground">Need a new token?</p>
+              <Input
+                type="email"
+                autoComplete="email"
+                placeholder="Your account email (for resend)"
+                value={emailForResend}
+                onChange={(e) => setEmailForResend(e.target.value)}
+              />
+            </div>
+          ) : null}
           <form className="mt-8 space-y-4" onSubmit={onSubmit}>
             <Input placeholder="Confirmation token" value={token} onChange={(event) => setToken(event.target.value)} required />
             {error ? <p className="text-sm text-danger">{error}</p> : null}
             <Button className="w-full" disabled={confirm.isPending} type="submit">
               Confirm account <ArrowRight className="ml-2 h-4 w-4" />
             </Button>
-            {email ? (
+            {(email || emailForResend.trim()) ? (
               <Button
                 type="button"
                 variant="outline"
                 className="w-full"
                 disabled={resend.isPending}
-                onClick={() => void resend.mutateAsync({ email })}
+                onClick={() => void resend.mutateAsync({ email: (email || emailForResend.trim()) as string })}
               >
                 Resend confirmation token
               </Button>

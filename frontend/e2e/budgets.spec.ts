@@ -6,13 +6,14 @@ test("budgets flow: create and version update", async ({ page, authenticatedPage
 
   await expect(page.locator("h1", { hasText: "Budgets" })).toBeVisible();
 
-  await page.getByPlaceholder("Category (e.g. Ops)").fill("Ops");
+  const category = `Ops-${Date.now()}`;
+  await page.getByPlaceholder("Category (e.g. Ops)").fill(category);
   await page.getByPlaceholder("Planned amount").fill("1200");
   await page.getByRole("button", { name: "Save budget" }).click();
   await expect(page.getByText("Budget saved")).toBeVisible();
 
-  await expect(page.getByRole("cell", { name: "Ops" }).first()).toBeVisible();
-  const budgetRow = page.locator("tr", { hasText: "Ops" }).first();
+  await expect(page.getByRole("cell", { name: category }).first()).toBeVisible();
+  const budgetRow = page.locator("tr", { hasText: category }).first();
   await budgetRow.getByRole("button", { name: "New version" }).click();
   await budgetRow.getByPlaceholder("Amount").fill("1400");
   await budgetRow.getByRole("button", { name: "Save" }).click();

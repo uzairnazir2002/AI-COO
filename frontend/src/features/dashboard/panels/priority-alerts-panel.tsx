@@ -6,7 +6,6 @@ import { BellRing } from "lucide-react";
 
 import { AiBriefCard } from "@/components/ai/ai-brief-card";
 import { AlertCard } from "@/components/common/alert-card";
-import { EmptyState } from "@/components/common/empty-state";
 import { Panel, PanelBody, PanelHeader } from "@/components/layout/panel";
 import { Button } from "@/components/ui/button";
 import { formatMoney } from "@/lib/utils/format";
@@ -58,30 +57,39 @@ export function PriorityAlertsPanel({
           </Button>
         </PanelHeader>
         <PanelBody className="space-y-3">
-          {budgetThresholdAlerts.length > 0 ? (
-            <div data-testid="budget-threshold-alerts" className="rounded-2xl border border-warning/35 bg-warning/10 p-4">
-              <div className="flex items-center gap-2 text-sm font-medium text-warning">
-                <BellRing className="h-4 w-4" />
-                Budget threshold alerts ({budgetThresholdAlerts.length})
-              </div>
-              <div className="mt-2 space-y-1 text-sm">
-                {budgetThresholdAlerts.map((item) => (
-                  <p key={item.alertId}>
-                    {item.category}: {formatMoney(item.actualAmount)} actual vs {formatMoney(item.plannedAmount)} planned
-                    {" "}({item.variancePct.toFixed(1)}% over)
-                    {item.periodMonth ? ` in ${item.periodMonth}` : ""}
-                  </p>
-                ))}
-              </div>
-              <p className="mt-2 text-xs text-muted-foreground">
-                {budgetThresholdPct !== null
-                  ? `Configured threshold: ${budgetThresholdPct.toFixed(1)}% variance over planned.`
-                  : "Threshold configured in Organization Settings."}
-              </p>
+          <div data-testid="budget-threshold-alerts" className="rounded-2xl border border-warning/35 bg-warning/10 p-4">
+            <div className="flex items-center gap-2 text-sm font-medium text-warning">
+              <BellRing className="h-4 w-4" />
+              Budget threshold alerts ({budgetThresholdAlerts.length})
             </div>
-          ) : null}
-          {!loading && alerts.length === 0 && budgetThresholdAlerts.length === 0 ? (
-            <EmptyState eyebrow="All clear" title="No open alerts." description="Current monitoring did not detect active anomalies or leak signals." />
+            {budgetThresholdAlerts.length > 0 ? (
+              <>
+                <div className="mt-2 space-y-1 text-sm">
+                  {budgetThresholdAlerts.map((item) => (
+                    <p key={item.alertId}>
+                      {item.category}: {formatMoney(item.actualAmount)} actual vs {formatMoney(item.plannedAmount)} planned{" "}
+                      ({item.variancePct.toFixed(1)}% over)
+                      {item.periodMonth ? ` in ${item.periodMonth}` : ""}
+                    </p>
+                  ))}
+                </div>
+                <p className="mt-2 text-xs text-muted-foreground">
+                  {budgetThresholdPct !== null
+                    ? `Configured threshold: ${budgetThresholdPct.toFixed(1)}% variance over planned.`
+                    : "Threshold configured in Organization Settings."}
+                </p>
+              </>
+            ) : !loading ? (
+              <p className="mt-2 text-sm text-muted-foreground">
+                No categories currently exceed your budget threshold for this period. Alerts appear here when variance crosses the
+                configured limit.
+              </p>
+            ) : (
+              <p className="mt-2 text-sm text-muted-foreground">Loading budget signals…</p>
+            )}
+          </div>
+          {!loading && alerts.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No additional operational alerts in this feed.</p>
           ) : null}
           {alerts.map((alert) => (
             <button key={alert.id} type="button" className="block w-full text-left" onClick={() => onOpenAlert(alert.id)}>

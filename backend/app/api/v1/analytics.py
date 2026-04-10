@@ -7,6 +7,7 @@ from sqlalchemy import case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user, get_org_context
+from app.api.period_month import parse_period_month_query
 from app.db.session import get_db
 from app.domain.repos.audit_repo import AuditRepo
 from app.domain.repos.budget_repo import BudgetRepo
@@ -115,7 +116,10 @@ async def cashflow(
 async def budget_variance(
     org_id: uuid.UUID = Query(...),
     location_id: uuid.UUID | None = Query(default=None),
-    period: date | None = Query(default=None),
+    period: str | None = Query(
+        default=None,
+        description="Month as YYYY-MM or YYYY-MM-DD (normalized to month start). Defaults to current month.",
+    ),
     budget_type: str | None = Query(default=None),
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
@@ -131,7 +135,7 @@ async def budget_variance(
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     except NotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
-    period_month = period or date.today().replace(day=1)
+    period_month = parse_period_month_query(period) or date.today().replace(day=1)
     svc = BudgetService(BudgetRepo(db))
     try:
         out = await svc.budget_variance(

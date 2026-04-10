@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
@@ -12,6 +12,8 @@ import {
   FileText,
   Home,
   Landmark,
+  Menu,
+  X,
   LineChart,
   MessageSquare,
   Settings2,
@@ -39,6 +41,7 @@ import { useOrgEventFeed } from "@/features/notifications/hooks";
 import { logout } from "@/lib/api/client";
 import { canAccessAdvancedNav } from "@/lib/ux/experience";
 import { cn } from "@/lib/utils/cn";
+import { useIsMdUp } from "@/lib/utils/use-is-md-up";
 import { useAppStore } from "@/store/appStore";
 
 type NavItem = {
@@ -89,14 +92,22 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const showOnboardingRail =
     Boolean(onboardingProgress.orgId) && !onboardingProgress.isComplete && !pathname.startsWith("/app/onboarding");
   const reduceMotion = useReducedMotion();
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const isMdUp = useIsMdUp();
 
   const selectedOrg = orgs.find((org) => org.org_id === selectedOrgId);
   const showAdvancedNav = canAccessAdvancedNav(selectedOrg?.role, experienceTier);
+  /** When the mobile drawer is open, always show nav labels (sidebar may be icon-only when `collapsed`). */
+  const navCollapsed = collapsed && !mobileNavOpen;
 
   useEffect(() => {
     if (!selectedOrgId || typeof document === "undefined") return;
     document.cookie = `ai_coo_selected_org=${selectedOrgId}; path=/; max-age=31536000; SameSite=Lax`;
   }, [selectedOrgId]);
+
+  useEffect(() => {
+    setMobileNavOpen(false);
+  }, [pathname]);
 
   const statusItems: StatusItem[] = useMemo(() => {
     return [
@@ -125,39 +136,94 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div
-      className="min-h-screen md:grid md:h-dvh md:overflow-hidden"
-      style={{ gridTemplateColumns: collapsed ? "100px 1fr" : "300px 1fr" }}
+      className={cn("min-h-screen", isMdUp && "grid h-dvh overflow-hidden")}
+      style={
+        isMdUp ? { gridTemplateColumns: collapsed ? "100px 1fr" : "300px 1fr" } : undefined
+      }
     >
-      <aside className="border-r border-border/70 bg-card/70 px-3 py-4 backdrop-blur-md md:sticky md:top-0 md:h-dvh md:overflow-y-auto">
+      {!isMdUp ? (
+        <div className="sticky top-0 z-30 flex items-center gap-2 border-b border-border/70 bg-background/95 px-3 py-2 backdrop-blur-md">
+          <Button
+            type="button"
+            variant="outline"
+            size="icon"
+            className="shrink-0 rounded-xl"
+            aria-label="Open navigation menu"
+            aria-expanded={mobileNavOpen}
+            onClick={() => setMobileNavOpen(true)}
+          >
+            <Menu className="h-5 w-5" />
+          </Button>
+          <Link href="/app/dashboard" className="min-w-0 truncate text-sm font-semibold">
+            AI COO
+          </Link>
+        </div>
+      ) : null}
+
+      {mobileNavOpen && !isMdUp ? (
+        <button
+          type="button"
+          className="fixed inset-0 z-40 bg-background/60 backdrop-blur-sm"
+          aria-label="Close navigation menu"
+          onClick={() => setMobileNavOpen(false)}
+        />
+      ) : null}
+
+      <aside
+        className={cn(
+          "flex h-dvh flex-col border-r border-border/70 bg-card/95 px-3 py-4 backdrop-blur-md transition-transform duration-200 ease-out",
+          isMdUp
+            ? "static z-auto w-auto translate-x-0 overflow-y-auto"
+            : cn(
+                "fixed inset-y-0 left-0 z-50 w-[min(100%,320px)]",
+                mobileNavOpen ? "translate-x-0" : "-translate-x-full",
+              ),
+        )}
+      >
         <div className="flex items-center justify-between px-2">
-          <Link href="/app/dashboard" className={cn("flex items-center gap-3 rounded-2xl px-3 py-3", collapsed && "justify-center")}> 
+          <Link
+            href="/app/dashboard"
+            className={cn("flex min-w-0 items-center gap-3 rounded-2xl px-3 py-3", navCollapsed && "justify-center")}
+            onClick={() => setMobileNavOpen(false)}
+          >
             <div className="rounded-2xl bg-primary/12 p-2 text-primary">
               <Landmark className="h-5 w-5" />
             </div>
-            {!collapsed ? (
-              <div>
+            {!navCollapsed ? (
+              <div className="min-w-0">
                 <p className="text-sm font-semibold uppercase tracking-[0.22em] text-primary">AI COO</p>
                 <p className="text-xs text-muted-foreground">Executive operating system</p>
               </div>
             ) : null}
           </Link>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="hidden md:inline-flex"
-            onClick={() => setCollapsed(!collapsed)}
-            aria-label="Toggle sidebar"
-          >
-            <ChevronsLeftRightEllipsis className="h-4 w-4" />
-          </Button>
+          <div className="flex shrink-0 items-center gap-1">
+            <Button
+              variant="ghost"
+              size="icon"
+              className={cn(!isMdUp ? "inline-flex" : "hidden")}
+              onClick={() => setMobileNavOpen(false)}
+              aria-label="Close sidebar"
+            >
+              <X className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className={cn(isMdUp ? "inline-flex" : "hidden")}
+              onClick={() => setCollapsed(!collapsed)}
+              aria-label="Toggle sidebar"
+            >
+              <ChevronsLeftRightEllipsis className="h-4 w-4" />
+            </Button>
+          </div>
         </div>
 
         <div className="mt-6 space-y-5">
-          <PrimaryNav items={primaryNav} pathname={pathname} collapsed={collapsed} />
-          <SecondaryNav items={secondaryNav} pathname={pathname} collapsed={collapsed} />
+          <PrimaryNav items={primaryNav} pathname={pathname} collapsed={navCollapsed} />
+          <SecondaryNav items={secondaryNav} pathname={pathname} collapsed={navCollapsed} />
           {showAdvancedNav ? (
             <div className="space-y-1">
-              {!collapsed ? <p className="px-3 text-[11px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">Advanced</p> : null}
+              {!navCollapsed ? <p className="px-3 text-[11px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">Advanced</p> : null}
               <nav className="space-y-1">
                 {advancedNav.map((item) => {
                   const Icon = item.icon;
@@ -168,7 +234,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                       href={item.href}
                       className={cn(
                         "flex items-center gap-3 rounded-2xl px-3 py-2.5 text-sm transition",
-                        collapsed && "justify-center px-0",
+                        navCollapsed && "justify-center px-0",
                         active
                           ? "bg-primary text-primary-foreground shadow-md shadow-primary/20"
                           : "text-muted-foreground hover:bg-muted hover:text-foreground",
@@ -186,11 +252,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </div>
       </aside>
 
-      <div className="min-w-0 md:h-dvh md:overflow-y-auto">
+      <div className={cn("min-w-0", isMdUp && "h-dvh overflow-y-auto")}>
         <header className="sticky top-0 z-20 border-b border-border/70 bg-background/92 backdrop-blur-xl">
           <PageContainer className="flex flex-col gap-3 py-4">
             <TopBar>
-              <div className="min-w-[220px] flex-1 md:max-w-sm">
+              <div className={cn("min-w-[220px] flex-1", isMdUp && "max-w-sm")}>
                 <Select
                   value={selectedOrgId || orgs[0]?.org_id || "__none__"}
                   onValueChange={(value) => {
@@ -216,7 +282,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                   </SelectContent>
                 </Select>
               </div>
-              <div className="min-w-[200px] md:max-w-xs">
+              <div className={cn("min-w-[200px]", isMdUp && "max-w-xs")}>
                 <Select
                   value={selectedLocationId || "__all__"}
                   onValueChange={(value) => {

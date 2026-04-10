@@ -22,12 +22,17 @@ test("dashboard shows budget variance KPIs and threshold alerts", async ({ page,
   await page.getByRole("button", { name: "Queue analytics recompute" }).click();
   await expect(page.getByText("Analytics recompute queued")).toBeVisible();
 
-  await page.goto("/app/dashboard");
-  const showMoreInsights = page.getByRole("button", { name: "Show more insights" });
-  if (await showMoreInsights.count()) {
+  await page.goto("/app/dashboard", { waitUntil: "domcontentloaded" });
+  await expect(page.locator("h1", { hasText: /Executive dashboard|Dashboard/i })).toBeVisible({ timeout: 60_000 });
+
+  const budgetAlerts = page.getByTestId("budget-threshold-alerts");
+  if (!(await budgetAlerts.isVisible())) {
+    const showMoreInsights = page.getByRole("button", { name: "Show more insights" });
+    await expect(showMoreInsights).toBeVisible({ timeout: 30_000 });
     await showMoreInsights.click();
   }
-  await expect(page.getByTestId("budget-threshold-alerts")).toContainText("Budget threshold alerts");
+  await expect(budgetAlerts).toBeVisible({ timeout: 30_000 });
+  await expect(budgetAlerts).toContainText("Budget threshold alerts");
   const budgetPlannedKpi = page.locator("p:visible", { hasText: "Budget planned (month)" });
   if (await budgetPlannedKpi.count()) {
     await expect(budgetPlannedKpi).toBeVisible();

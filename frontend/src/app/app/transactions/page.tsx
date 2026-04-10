@@ -88,7 +88,7 @@ export default function TransactionsPage() {
   const [bulkRemapState, setBulkRemapState] = useState({ from_category: "", to_category: "", from_date: filters.from, to_date: filters.to });
 
   const pageSize = 100;
-  const budgetPeriod = filters.from.slice(0, 7);
+  const budgetPeriod = `${filters.from.slice(0, 7)}-01`;
   const query = useTransactions({ ...filters, page, page_size: pageSize });
   const budgetPreview = useBudgets(budgetPeriod, "EXPENSE", true);
   const importHistory = useImportHistory(1, 20);
@@ -196,6 +196,7 @@ export default function TransactionsPage() {
               aria-label="Select all rows"
               type="checkbox"
               checked={data.length > 0 && selectedIds.size === data.length}
+              onClick={(e) => e.stopPropagation()}
               onChange={(e) => setSelectedIds(e.target.checked ? new Set(data.map((row) => row.id)) : new Set())}
             />
           ) : null,
@@ -205,6 +206,7 @@ export default function TransactionsPage() {
               aria-label={`Select ${row.original.id}`}
               type="checkbox"
               checked={selectedIds.has(row.original.id)}
+              onClick={(e) => e.stopPropagation()}
               onChange={(e) => {
                 setSelectedIds((prev) => {
                   const next = new Set(prev);
@@ -507,6 +509,10 @@ export default function TransactionsPage() {
                 }}
                 onConfirm={async () => {
                   if (!csvFile || requiredMissing.length > 0) return;
+                  if (!csvPreview) {
+                    toast.toast({ title: "Preview required", description: "Run Preview Import before confirming.", variant: "warning" });
+                    return;
+                  }
                   setCsvBusy(true);
                   try {
                     const out = await importCsv(orgId, csvFile, selectedProfileId ? undefined : mappingToApiPayload(mapping), true, selectedProfileId || undefined);
@@ -538,6 +544,16 @@ export default function TransactionsPage() {
                 onDraftChange={setNewTx}
                 onSubmit={async () => {
                   try {
+                    const amount = Number(newTx.amount);
+                    if (!Number.isFinite(amount)) {
+                      throw new ApiError("Amount must be a valid number (example: 12.34).", 400);
+                    }
+                    if (!newTx.date) {
+                      throw new ApiError("Date is required.", 400);
+                    }
+                    if (!newTx.category.trim()) {
+                      throw new ApiError("Category is required.", 400);
+                    }
                     const result = await createTx.mutateAsync({
                       org_id: orgId,
                       location_id: selectedLocationId || null,
@@ -690,6 +706,16 @@ export default function TransactionsPage() {
         onSave={async (payload) => {
           if (!editingRow) return;
           try {
+            const amount = Number(payload.amount);
+            if (!Number.isFinite(amount)) {
+              throw new ApiError("Amount must be a valid number (example: 12.34).", 400);
+            }
+            if (!payload.date) {
+              throw new ApiError("Date is required.", 400);
+            }
+            if (!payload.category.trim()) {
+              throw new ApiError("Category is required.", 400);
+            }
             const result = await updateTx.mutateAsync({
               id: editingRow.id,
               payload,

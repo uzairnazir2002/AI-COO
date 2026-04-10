@@ -25,10 +25,12 @@ export function ReportsWorkspaceContainer({
   statusItems,
   reports,
   onGenerate,
+  editable,
   onDownload,
   previewUrl,
   jobs,
   trackedJob,
+  jobsLoading,
   formatDate,
   onSchedule,
   lastGeneration,
@@ -36,10 +38,12 @@ export function ReportsWorkspaceContainer({
   statusItems: StatusItem[];
   reports: Report[];
   onGenerate: () => void;
+  editable: boolean;
   onDownload: (reportId: string) => Promise<void>;
   previewUrl: string | null;
   jobs: ReportJobRow[];
   trackedJob?: ReportJobRow;
+  jobsLoading?: boolean;
   formatDate: (value?: string | null) => string;
   onSchedule: () => void;
   lastGeneration?: { jobId: string; status: string; reused: boolean; reportId?: string | null };
@@ -61,7 +65,7 @@ export function ReportsWorkspaceContainer({
                 eyebrow="No reports"
                 title="Generate your first report."
                 description="Weekly reports are generated against the current organization and remain idempotent when regenerated for the same week."
-                actions={[{ label: "Generate report", onClick: onGenerate }]}
+                actions={editable ? [{ label: "Generate report", onClick: onGenerate }] : []}
               />
             ) : (
               <>
@@ -107,7 +111,7 @@ export function ReportsWorkspaceContainer({
                 <h2 className="text-base font-semibold">Recent report jobs</h2>
               </PanelHeader>
               <PanelBody className="space-y-3">
-                <ReportJobStatusPanel jobs={jobs} trackedJob={trackedJob} formatDate={formatDate} />
+                <ReportJobStatusPanel jobs={jobs} trackedJob={trackedJob} formatDate={formatDate} jobsLoading={jobsLoading} />
               </PanelBody>
             </Panel>
           </ProgressiveDisclosure>

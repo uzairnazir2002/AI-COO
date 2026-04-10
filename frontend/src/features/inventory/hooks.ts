@@ -2,7 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { api, apiFetchRaw } from "@/lib/api/client";
+import { ApiError, api, apiFetchRaw } from "@/lib/api/client";
 import { apiPaths } from "@/lib/api/endpoints";
 import {
   inventoryForecastSchema,
@@ -38,6 +38,13 @@ type CreatePurchaseOrderPayload = {
   unit_cost?: string;
   external_ref?: string;
 };
+
+function requireOrgId(orgId: string | null): string {
+  if (!orgId) {
+    throw new ApiError("Select an organization before managing inventory.", 400);
+  }
+  return orgId;
+}
 
 function readAlertRecalcMetadata(headers: Headers): AlertRecalcMetadata | null {
   const taskId = headers.get("X-Alert-Recalc-Task-Id");
@@ -95,10 +102,11 @@ export function useCreateInventoryItem() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (payload: CreateItemPayload) => {
+      const resolvedOrgId = requireOrgId(orgId);
       const response = await apiFetchRaw(apiPaths.inventoryItems, {
         method: "POST",
         body: JSON.stringify({
-          org_id: orgId,
+          org_id: resolvedOrgId,
           location_id: locationId || undefined,
           ...payload,
         }),
@@ -118,10 +126,11 @@ export function useCreateInventoryStockEvent() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (payload: CreateStockEventPayload) => {
+      const resolvedOrgId = requireOrgId(orgId);
       const response = await apiFetchRaw(apiPaths.inventoryStockEvents, {
         method: "POST",
         body: JSON.stringify({
-          org_id: orgId,
+          org_id: resolvedOrgId,
           location_id: locationId || undefined,
           ...payload,
         }),
@@ -141,10 +150,11 @@ export function useCreateInventoryPurchaseOrder() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (payload: CreatePurchaseOrderPayload) => {
+      const resolvedOrgId = requireOrgId(orgId);
       const response = await apiFetchRaw(apiPaths.inventoryPurchaseOrders, {
         method: "POST",
         body: JSON.stringify({
-          org_id: orgId,
+          org_id: resolvedOrgId,
           location_id: locationId || undefined,
           ...payload,
         }),

@@ -16,12 +16,15 @@ import { Input } from "@/components/ui/input";
 import { useJobs } from "@/features/activity/hooks";
 import { ReportsWorkspaceContainer } from "@/features/reports/containers/reports-workspace-container";
 import { fetchReportDownload, useGenerateReport, useReports } from "@/features/reports/hooks";
+import { canEdit } from "@/lib/auth/rbac";
 import { formatDate, weekStartISO } from "@/lib/utils/format";
 import { useAppStore } from "@/store/appStore";
 
 export function ReportsPageClient() {
   const orgId = useAppStore((s) => s.selectedOrgId);
   const selectedLocationId = useAppStore((s) => s.selectedLocationId);
+  const role = useAppStore((s) => s.orgs.find((o) => o.org_id === s.selectedOrgId)?.role);
+  const editable = canEdit(role);
   const reports = useReports();
   const generate = useGenerateReport();
   const toast = useToast();
@@ -87,7 +90,9 @@ export function ReportsPageClient() {
             </Button>
             <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
               <DialogTrigger asChild>
-                <Button>Generate report</Button>
+                <Button disabled={!editable} title={!editable ? "Viewer role cannot generate reports" : undefined}>
+                  Generate report
+                </Button>
               </DialogTrigger>
               <DialogContent>
                 <DialogHeader>
@@ -97,26 +102,34 @@ export function ReportsPageClient() {
                   </DialogDescription>
                 </DialogHeader>
                 <div className="space-y-4">
-                  <Input type="date" value={weekStart} onChange={(e) => setWeekStart(e.target.value)} className="w-56" />
+                  <Input type="date" value={weekStart} onChange={(e) => setWeekStart(e.target.value)} className="w-full sm:w-56" />
                   <Button
-                    disabled={generate.isPending}
+                    disabled={generate.isPending || !editable}
                     onClick={async () => {
-                      const result = await generate.mutateAsync(weekStart);
-                      setLastQueuedJobId(result.job_id);
-                      setLastGeneration({
-                        jobId: result.job_id,
-                        status: result.status,
-                        reused: Boolean(result.report_id),
-                        reportId: result.report_id,
-                      });
-                      toast.toast({
-                        title: result.report_id ? "Report already available" : "Report generation requested",
-                        description: result.report_id
-                          ? `Reused existing report ${result.report_id}.`
-                          : `Job ${result.job_id} is ${result.status.toLowerCase()}.`,
-                        variant: result.report_id ? "success" : "default",
-                      });
-                      setDialogOpen(false);
+                      try {
+                        const result = await generate.mutateAsync(weekStart);
+                        setLastQueuedJobId(result.job_id);
+                        setLastGeneration({
+                          jobId: result.job_id,
+                          status: result.status,
+                          reused: Boolean(result.report_id),
+                          reportId: result.report_id,
+                        });
+                        toast.toast({
+                          title: result.report_id ? "Report already available" : "Report generation requested",
+                          description: result.report_id
+                            ? `Reused existing report ${result.report_id}.`
+                            : `Job ${result.job_id} is ${result.status.toLowerCase()}.`,
+                          variant: result.report_id ? "success" : "default",
+                        });
+                        setDialogOpen(false);
+                      } catch (error) {
+                        toast.toast({
+                          title: "Report generation failed",
+                          description: error instanceof Error ? error.message : "Request failed.",
+                          variant: "danger",
+                        });
+                      }
                     }}
                   >
                     {generate.isPending ? <LoaderCircle className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
@@ -163,6 +176,7 @@ export function ReportsPageClient() {
         statusItems={statusItems}
         reports={reports.data?.items ?? []}
         onGenerate={() => setDialogOpen(true)}
+        editable={editable}
         onDownload={async (reportId) => {
           if (!orgId) return;
           const dl = await fetchReportDownload(reportId, orgId, selectedLocationId);
@@ -176,6 +190,7 @@ export function ReportsPageClient() {
         previewUrl={previewUrl}
         jobs={reportJobRows}
         trackedJob={trackedJobRow}
+        jobsLoading={Boolean(orgId) && reportJobs.isPending}
         formatDate={(value) => formatDate(value || "")}
         onSchedule={() => toast.toast({ title: "Scheduling is coming soon", variant: "default" })}
         lastGeneration={lastGeneration ?? undefined}

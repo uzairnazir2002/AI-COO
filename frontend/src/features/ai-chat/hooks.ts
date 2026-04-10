@@ -2,7 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { api } from "@/lib/api/client";
+import { ApiError, api } from "@/lib/api/client";
 import { apiPaths } from "@/lib/api/endpoints";
 import {
   aiChatResponseSchema,
@@ -66,6 +66,9 @@ export function useCreateAiChatSession() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (payload: CreateSessionPayload) => {
+      if (!orgId) {
+        throw new ApiError("Select an organization before starting an AI chat session.", 400);
+      }
       const out = await api<AiChatSession>(apiPaths.aiChatSessions, {
         method: "POST",
         body: JSON.stringify({
@@ -86,6 +89,9 @@ export function useSendAiChatMessage() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (payload: SendMessagePayload) => {
+      if (!orgId) {
+        throw new ApiError("Select an organization before sending messages.", 400);
+      }
       const out = await api<{ session_id: string; message: AiChatMessage }>(apiPaths.aiChat, {
         method: "POST",
         body: JSON.stringify({

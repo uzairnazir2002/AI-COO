@@ -167,8 +167,10 @@ export function SecurityPanel({
             {!mfaEnabled ? (
               <>
                 <Input
-                  placeholder="Current password"
+                  placeholder="Current password (min. 8 characters)"
                   type="password"
+                  minLength={8}
+                  autoComplete="current-password"
                   value={mfaPassword}
                   onChange={(event) => setMfaPassword(event.target.value)}
                 />
@@ -195,8 +197,10 @@ export function SecurityPanel({
             ) : (
               <>
                 <Input
-                  placeholder="Current password"
+                  placeholder="Current password (min. 8 characters)"
                   type="password"
+                  minLength={8}
+                  autoComplete="current-password"
                   value={mfaPassword}
                   onChange={(event) => setMfaPassword(event.target.value)}
                 />

@@ -10,6 +10,7 @@ import { RetryCard } from "@/components/states/retry-card";
 import { SkeletonPanel } from "@/components/states/skeleton-panel";
 import { SuccessStateCard } from "@/components/states/success-state-card";
 import { Button } from "@/components/ui/button";
+import { ApiError } from "@/lib/api/client";
 import {
   useAuthReauth,
   useAuthSessions,
@@ -65,6 +66,8 @@ const roleDescriptions: Record<Role, string> = {
 
 const plaidScriptUrl = process.env.NEXT_PUBLIC_PLAID_LINK_SCRIPT_URL || "https://cdn.plaid.com/link/v2/stable/link-initialize.js";
 let plaidScriptPromise: Promise<void> | null = null;
+
+const MFA_ACTION_PASSWORD_MIN = 8;
 
 function ensurePlaidScript(): Promise<void> {
   if (typeof window === "undefined") {
@@ -149,6 +152,7 @@ export default function SettingsPage() {
   const [plaidInstitutionName, setPlaidInstitutionName] = useState("");
   const [lastLinkToken, setLastLinkToken] = useState<string | null>(null);
   const [isPlaidOpening, setIsPlaidOpening] = useState(false);
+  const [plaidDegradedMessage, setPlaidDegradedMessage] = useState<string | null>(null);
   const [bankAction, setBankAction] = useState<{ type: "sync" | "revoke"; id: string } | null>(null);
   const [stripeProviderAccountId, setStripeProviderAccountId] = useState("");
   const [stripeAccountLabel, setStripeAccountLabel] = useState("");
@@ -162,7 +166,28 @@ export default function SettingsPage() {
   const plaidHandlerRef = useRef<PlaidLinkHandler | null>(null);
   const bankConnectionsError = bankConnections.error instanceof Error ? bankConnections.error.message : null;
   const paymentConnectionsError = paymentConnections.error instanceof Error ? paymentConnections.error.message : null;
+  const paymentReconciliationErrorStatus = paymentReconciliation.error instanceof ApiError ? paymentReconciliation.error.status : null;
   const paymentReconciliationError = paymentReconciliation.error instanceof Error ? paymentReconciliation.error.message : null;
+  const billingDegradedMessage =
+    billing.error instanceof ApiError
+      ? (() => {
+          const msg = billing.error.message || "";
+          const normalized = msg.toLowerCase();
+          if (billing.error.status === 409 && normalized.includes("not configured")) {
+            return "Stripe billing is not configured on this backend. You can still view usage, but checkout/portal actions will be unavailable until Stripe keys are set.";
+          }
+          if (billing.error.status === 401) {
+            return "Your session is not authorized to load billing. Sign in again and retry.";
+          }
+          if (billing.error.status === 403) {
+            return "You do not have permission to access billing for this organization.";
+          }
+          if (billing.error.status >= 500) {
+            return "Billing is temporarily unavailable due to a backend error. Retry in a moment or check server logs.";
+          }
+          return null;
+        })()
+      : null;
 
   useEffect(() => {
     if (experienceTier === "advanced") setShowAdvancedTabs(true);
@@ -174,6 +199,42 @@ export default function SettingsPage() {
       setActiveTab("general");
     }
   }, [activeTab, showAdvancedTabs]);
+
+  useEffect(() => {
+    setPlaidDegradedMessage(null);
+  }, [selectedOrg?.org_id]);
+
+  function handleReauthRequired(err: unknown): boolean {
+    const message = err instanceof Error ? err.message : String(err || "");
+    if (!message) return false;
+    if (message.toLowerCase().includes("re-authentication is required")) {
+      setActiveTab("security");
+      toast.toast({
+        title: "Re-authentication required",
+        description: "Go to Security → Sensitive action re-auth, authorize, then retry the action.",
+        variant: "danger",
+      });
+      return true;
+    }
+    return false;
+  }
+
+  function maybeSetPlaidDegraded(err: unknown) {
+    const message = err instanceof Error ? err.message : String(err || "");
+    if (!message) return;
+    const normalized = message.toLowerCase();
+    if (normalized.includes("plaid") && normalized.includes("not configured")) {
+      setPlaidDegradedMessage(
+        "Backend Plaid credentials are not configured. Connections and syncing are unavailable until keys are set.",
+      );
+      return;
+    }
+    if (normalized.includes("plaid api error")) {
+      setPlaidDegradedMessage(
+        "Plaid returned an API error. Verify Plaid environment, products, and webhook configuration on the backend.",
+      );
+    }
+  }
   const tabLoading =
     activeTab === "general"
       ? settings.isLoading || locations.isLoading
@@ -236,8 +297,10 @@ export default function SettingsPage() {
               publicToken,
               institutionName: metadata.institution?.name || undefined,
             });
+            setPlaidDegradedMessage(null);
             toast.toast({ title: "Bank connection added", variant: "success" });
           } catch (err) {
+            maybeSetPlaidDegraded(err);
             toast.toast({ title: err instanceof Error ? err.message : "Bank connection failed", variant: "danger" });
           } finally {
             setIsPlaidOpening(false);
@@ -256,6 +319,7 @@ export default function SettingsPage() {
       plaidHandlerRef.current.open();
     } catch (err) {
       setIsPlaidOpening(false);
+      maybeSetPlaidDegraded(err);
       toast.toast({ title: err instanceof Error ? err.message : "Failed to open Plaid Link", variant: "danger" });
     }
   }
@@ -446,6 +510,13 @@ export default function SettingsPage() {
           setupUri={setupUri}
           recoveryCodes={recoveryCodes}
           onGenerateMfaSecret={async () => {
+            if (mfaPassword.length < MFA_ACTION_PASSWORD_MIN) {
+              toast.toast({
+                title: `Password must be at least ${MFA_ACTION_PASSWORD_MIN} characters.`,
+                variant: "danger",
+              });
+              return;
+            }
             try {
               const result = await mfaSetup.mutateAsync({ password: mfaPassword });
               setSetupSecret(result.secret);
@@ -468,6 +539,13 @@ export default function SettingsPage() {
             }
           }}
           onDisableMfa={async () => {
+            if (mfaPassword.length < MFA_ACTION_PASSWORD_MIN) {
+              toast.toast({
+                title: `Password must be at least ${MFA_ACTION_PASSWORD_MIN} characters.`,
+                variant: "danger",
+              });
+              return;
+            }
             try {
               await mfaDisable.mutateAsync({ password: mfaPassword, code: mfaCode });
               setMfaCode("");
@@ -477,6 +555,13 @@ export default function SettingsPage() {
             }
           }}
           onRegenerateRecoveryCodes={async () => {
+            if (mfaPassword.length < MFA_ACTION_PASSWORD_MIN) {
+              toast.toast({
+                title: `Password must be at least ${MFA_ACTION_PASSWORD_MIN} characters.`,
+                variant: "danger",
+              });
+              return;
+            }
             try {
               const result = await mfaRegenerateRecoveryCodes.mutateAsync({ password: mfaPassword, code: mfaCode });
               setRecoveryCodes(result.recovery_codes || []);
@@ -510,6 +595,7 @@ export default function SettingsPage() {
           role={role}
           planUsageData={planUsage.data}
           billingData={billing.data}
+          billingDegradedMessage={billingDegradedMessage}
           onSaveBilling={async (formData) => {
             try {
               await updateBilling.mutateAsync({
@@ -521,6 +607,7 @@ export default function SettingsPage() {
               });
               toast.toast({ title: "Billing settings updated" });
             } catch (err) {
+              if (handleReauthRequired(err)) return;
               toast.toast({ title: err instanceof Error ? err.message : "Billing update failed", variant: "danger" });
             }
           }}
@@ -535,6 +622,7 @@ export default function SettingsPage() {
               });
               window.location.href = result.url;
             } catch (err) {
+              if (handleReauthRequired(err)) return;
               toast.toast({ title: err instanceof Error ? err.message : "Checkout failed", variant: "danger" });
             }
           }}
@@ -546,6 +634,7 @@ export default function SettingsPage() {
               });
               window.location.href = result.url;
             } catch (err) {
+              if (handleReauthRequired(err)) return;
               toast.toast({ title: err instanceof Error ? err.message : "Portal failed", variant: "danger" });
             }
           }}
@@ -555,6 +644,7 @@ export default function SettingsPage() {
       {activeTab === "integrations" ? (
         <IntegrationsPanel
           role={role}
+          plaidDegradedMessage={plaidDegradedMessage}
           isPlaidOpening={isPlaidOpening}
           plaidLinkTokenPending={plaidLinkToken.isPending}
           plaidExchangePending={plaidExchange.isPending}
@@ -572,8 +662,10 @@ export default function SettingsPage() {
               });
               setPlaidPublicToken("");
               setPlaidInstitutionName("");
+              setPlaidDegradedMessage(null);
               toast.toast({ title: "Bank connection added", variant: "success" });
             } catch (err) {
+              maybeSetPlaidDegraded(err);
               toast.toast({ title: err instanceof Error ? err.message : "Bank connection failed", variant: "danger" });
             }
           }}
@@ -622,6 +714,29 @@ export default function SettingsPage() {
                 variant: "success",
               });
             } catch (err) {
+              if (handleReauthRequired(err)) return;
+              if (err instanceof ApiError) {
+                if (err.status === 401) {
+                  toast.toast({ title: "Session expired. Sign in again and retry.", variant: "danger" });
+                  return;
+                }
+                if (err.status === 403) {
+                  toast.toast({ title: "You don’t have permission to connect Stripe for this org.", variant: "danger" });
+                  return;
+                }
+                if (err.status === 0) {
+                  toast.toast({ title: "Network request failed. Check API availability and retry.", variant: "danger" });
+                  return;
+                }
+                if (err.status >= 500) {
+                  toast.toast({
+                    title: "Stripe connection failed due to a backend error.",
+                    description: "Retry in a moment or check server logs.",
+                    variant: "danger",
+                  });
+                  return;
+                }
+              }
               toast.toast({ title: err instanceof Error ? err.message : "Stripe connect failed", variant: "danger" });
             }
           }}
@@ -634,6 +749,7 @@ export default function SettingsPage() {
           setReconTo={setReconTo}
           paymentReconciliationFetching={paymentReconciliation.isFetching}
           paymentReconciliationLoading={paymentReconciliation.isLoading}
+          paymentReconciliationErrorStatus={paymentReconciliationErrorStatus}
           paymentReconciliationError={paymentReconciliationError}
           paymentReconciliationData={paymentReconciliation.data}
           onRefreshReconciliation={async () => {
@@ -651,8 +767,13 @@ export default function SettingsPage() {
           setInviteRole={setInviteRole}
           invitePending={settingsServices.invitePending}
           onInvite={async () => {
-            await settingsServices.inviteMember(email, inviteRole, reauthToken || undefined);
-            setEmail("");
+            try {
+              await settingsServices.inviteMember(email, inviteRole, reauthToken || undefined);
+              setEmail("");
+            } catch (err) {
+              if (handleReauthRequired(err)) return;
+              toast.toast({ title: err instanceof Error ? err.message : "Invite failed", variant: "danger" });
+            }
           }}
           members={members.data ?? []}
           roleDescriptions={roleDescriptions}
@@ -666,8 +787,13 @@ export default function SettingsPage() {
           setAccountDeleteReason={setAccountDeleteReason}
           requestAccountDeletionPending={settingsServices.requestAccountDeletionPending}
           onRequestAccountDeletion={async () => {
-            await settingsServices.requestAccountDeletionAction(accountDeleteReason || undefined);
-            setAccountDeleteReason("");
+            try {
+              await settingsServices.requestAccountDeletionAction(accountDeleteReason || undefined);
+              setAccountDeleteReason("");
+            } catch (err) {
+              if (handleReauthRequired(err)) return;
+              toast.toast({ title: err instanceof Error ? err.message : "Account deletion request failed", variant: "danger" });
+            }
           }}
           latestAccountDeletion={myDeletionRequests.data?.items[0]}
           orgDeleteReason={orgDeleteReason}
@@ -676,9 +802,14 @@ export default function SettingsPage() {
           setConfirmPhrase={setConfirmPhrase}
           requestOrgDeletionPending={settingsServices.requestOrgDeletionPending}
           onRequestOrgDeletion={async () => {
-            await settingsServices.requestOrgDeletionAction(orgDeleteReason || undefined, reauthToken || undefined);
-            setOrgDeleteReason("");
-            setConfirmPhrase("");
+            try {
+              await settingsServices.requestOrgDeletionAction(orgDeleteReason || undefined, reauthToken || undefined);
+              setOrgDeleteReason("");
+              setConfirmPhrase("");
+            } catch (err) {
+              if (handleReauthRequired(err)) return;
+              toast.toast({ title: err instanceof Error ? err.message : "Organization deletion request failed", variant: "danger" });
+            }
           }}
           latestOrgDeletion={orgDeletionRequests.data?.items[0]}
         />

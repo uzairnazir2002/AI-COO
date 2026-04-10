@@ -2,6 +2,7 @@
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import get_settings
 from app.db.session import get_db
 from app.infra.cache import redis_client
 
@@ -20,4 +21,11 @@ async def health(db: AsyncSession = Depends(get_db)):
         await redis_client.ping()
     except Exception:
         redis_ok = False
-    return {"ok": db_ok and redis_ok, "db": db_ok, "redis": redis_ok}
+    settings = get_settings()
+    return {
+        "ok": db_ok and redis_ok,
+        "db": db_ok,
+        "redis": redis_ok,
+        "auth_cookie_mode": settings.auth_cookie_mode,
+        "env": settings.env,
+    }

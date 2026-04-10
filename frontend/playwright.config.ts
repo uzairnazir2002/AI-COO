@@ -29,13 +29,17 @@ const e2eUrl = new URL(e2eBaseURL);
 const e2eHost = e2eUrl.hostname;
 const e2ePort = Number(e2eUrl.port || (e2eUrl.protocol === "https:" ? "443" : "80"));
 const e2eWebServerMode = process.env.E2E_WEB_SERVER_MODE || "start";
+/** When unset/false, Playwright starts `next build && next start` on `E2E_BASE_URL` (default :3001). If `E2E_USE_EXTERNAL_BASE_URL=1`, tests hit whatever is already running — it must match the current frontend build or UI tests will see stale bundles. */
 const useExternalBaseUrl = process.env.E2E_USE_EXTERNAL_BASE_URL === "1";
+/** Avoid stale Next bundles during Playwright runs (can mask UI changes in e2e). */
+const cleanNextCache = `node -e "try{require('fs').rmSync('.next',{recursive:true,force:true});}catch(e){}"`;
 const webServerCommand =
   e2eWebServerMode === "dev"
     ? `npm run dev -- --hostname ${e2eHost} --port ${e2ePort}`
-    : `npm run build && npm run start -- --hostname ${e2eHost} --port ${e2ePort}`;
+    : `${cleanNextCache} && npm run build && npm run start -- --hostname ${e2eHost} --port ${e2ePort}`;
 
 export default defineConfig({
+  globalSetup: path.join(frontendDir, "e2e", "global-setup.ts"),
   testDir: "./e2e",
   snapshotPathTemplate: "{testDir}/__screenshots__/{testFilePath}/{arg}{ext}",
   timeout: 180_000,

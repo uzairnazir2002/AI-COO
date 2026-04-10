@@ -7,15 +7,19 @@ export function BulkActionBar({
   summary,
   actions,
   className,
+  testId,
 }: {
   visible: boolean;
   summary: React.ReactNode;
   actions: React.ReactNode;
   className?: string;
+  /** Stable hook for E2E (e.g. floating bar can be covered by sticky chrome during normal clicks). */
+  testId?: string;
 }) {
   if (!visible) return null;
   return (
     <div
+      data-testid={testId}
       className={cn(
         "fixed bottom-4 left-1/2 z-40 flex w-[min(92vw,860px)] -translate-x-1/2 items-center justify-between gap-3 rounded-2xl border border-border/70 bg-background/95 px-4 py-3 shadow-xl backdrop-blur",
         className,

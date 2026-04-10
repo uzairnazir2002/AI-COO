@@ -116,6 +116,7 @@ export function InventoryWorkspaceContainer({
   );
   const selectedPurchaseOrder = recentPurchaseOrders.find((po) => po.id === selectedPurchaseOrderId) ?? null;
   const drawerOpen = Boolean(selectedItem || selectedForecastItem || selectedPurchaseOrder);
+  const itemLabelById = useMemo(() => new Map(itemOptions.map((row) => [row.id, row.label])), [itemOptions]);
 
   return (
     <>
@@ -308,9 +309,11 @@ export function InventoryWorkspaceContainer({
                         {recentPurchaseOrders.map((po) => (
                           <tr key={po.id} className="cursor-pointer border-t border-border/60 hover:bg-muted/40" onClick={() => setSelectedPurchaseOrderId(po.id)}>
                             <td className="py-2 font-medium">{po.id.slice(0, 8)}</td>
-                            <td>{po.item_id}</td>
+                          <td className="max-w-[260px] truncate" title={itemLabelById.get(po.item_id) || po.item_id}>
+                            {itemLabelById.get(po.item_id) || po.item_id}
+                          </td>
                             <td>{po.quantity}</td>
-                            <td>{po.expected_date}</td>
+                          <td className="whitespace-nowrap">{po.expected_date}</td>
                             <td>{po.status}</td>
                           </tr>
                         ))}

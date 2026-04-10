@@ -14,6 +14,7 @@ export function BulkSelectionBar({
 }) {
   return (
     <BulkActionBar
+      testId="transactions-bulk-action-bar"
       visible={selectedCount > 0}
       summary={`${selectedCount} row(s) selected`}
       actions={

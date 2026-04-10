@@ -192,13 +192,16 @@ export function TransactionsImportDialog({
                     </Button>
                     <Button
                       data-testid="csv-confirm-button"
-                      disabled={requiredMissing.length > 0 || csvBusy}
+                      disabled={requiredMissing.length > 0 || csvBusy || !csvPreview}
                       onClick={() => void onConfirm()}
                     >
                       Confirm Import
                     </Button>
                   </div>
                   {csvPreview ? <p className="text-sm text-muted-foreground">Rows: {csvPreview.rows} | Duplicates detected by backend: {csvPreview.detected_duplicates}</p> : null}
+                  {!csvPreview ? (
+                    <p className="text-sm text-muted-foreground">Run Preview Import before committing.</p>
+                  ) : null}
                   <p className="text-sm text-muted-foreground">Local duplicate hints: {localDupes}</p>
                 </div>
               </div>

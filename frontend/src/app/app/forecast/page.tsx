@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { SectionHeader } from "@/components/common/section-header";
 import { useToast } from "@/components/common/use-toast";
@@ -37,6 +37,13 @@ export default function ForecastPage() {
   const experienceTier = useAppStore((s) => s.experienceTier);
   const forecast = useForecast(months);
   const override = useForecastOverride();
+
+  // Clear draft/saved indicators when scenario or horizon changes to avoid stale UI markers.
+  // (Backend overrides are scenario-specific; horizon changes can hide months.)
+  useEffect(() => {
+    setDrafts({});
+    setSavedOverrideMonths([]);
+  }, [months, scenario]);
 
   const points = useMemo(() => {
     const arr = forecast.data?.scenarios[scenario] ?? [];
@@ -88,11 +95,27 @@ export default function ForecastPage() {
   async function saveDraft(month: string) {
     const row = drafts[month];
     if (!row) return;
+    const revenue = row.revenue.trim();
+    const expense = row.expense.trim();
+    if (revenue) {
+      const n = Number(revenue);
+      if (!Number.isFinite(n)) {
+        toast.toast({ title: "Revenue override must be a valid number", variant: "danger" });
+        return;
+      }
+    }
+    if (expense) {
+      const n = Number(expense);
+      if (!Number.isFinite(n)) {
+        toast.toast({ title: "Expense override must be a valid number", variant: "danger" });
+        return;
+      }
+    }
     await override.mutateAsync({
       month,
       scenario: scenario.toUpperCase() as "BASE" | "HIGH" | "LOW",
-      revenue_override: row.revenue.trim() ? Number(row.revenue) : undefined,
-      expense_override: row.expense.trim() ? Number(row.expense) : undefined,
+      revenue_override: revenue ? Number(revenue) : undefined,
+      expense_override: expense ? Number(expense) : undefined,
     });
     setSavedOverrideMonths((prev) => (prev.includes(month) ? prev : [...prev, month]));
     setDrafts((prev) => {

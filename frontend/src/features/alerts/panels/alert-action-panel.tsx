@@ -30,6 +30,7 @@ function formatTimelineTimestamp(iso: string) {
 
 export function AlertActionPanel({
   alert,
+  editable,
   userId,
   members,
   assigneeSelection,
@@ -43,6 +44,7 @@ export function AlertActionPanel({
   memberEmailById,
 }: {
   alert: Alert;
+  editable: boolean;
   userId: string | null;
   members: Array<{ user_id: string; email: string }>;
   assigneeSelection: string;
@@ -59,25 +61,29 @@ export function AlertActionPanel({
   const isAssignedToMe = Boolean(userId && alert.assigned_to_user_id === userId);
   const validMemberIds = useMemo(() => new Set(members.map((member) => member.user_id)), [members]);
   const recommendations = useMemo(() => getAlertRecommendations(alert, isAssignedToMe), [alert, isAssignedToMe]);
+  const canMutate = editable;
 
   return (
     <section className="space-y-4">
       <div className="rounded-2xl border border-border/70 bg-card/75 p-4">
         <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">Actions</p>
+        {!canMutate ? (
+          <p className="mt-2 text-xs text-muted-foreground">Viewer role detected. You can review alerts but cannot acknowledge, assign, or dismiss.</p>
+        ) : null}
         <div className="mt-3 flex flex-wrap gap-2">
-          <Button size="sm" variant={isAssignedToMe ? "secondary" : "outline"} onClick={() => void onAssignToMe(alert.id)}>
+          <Button size="sm" variant={isAssignedToMe ? "secondary" : "outline"} disabled={!canMutate} onClick={() => void onAssignToMe(alert.id)}>
             {isAssignedToMe ? "Assigned to you" : "Assign to me"}
           </Button>
-          <Button size="sm" variant="outline" onClick={() => void onAcknowledge(alert.id)}>
+          <Button size="sm" variant="outline" disabled={!canMutate} onClick={() => void onAcknowledge(alert.id)}>
             {alert.acknowledged_at ? "Acknowledged" : "Acknowledge"}
           </Button>
           {alert.status === "OPEN" ? (
-            <Button size="sm" variant="ghost" onClick={() => void onDismiss(alert.id)}>
+            <Button size="sm" variant="ghost" disabled={!canMutate} onClick={() => void onDismiss(alert.id)}>
               Dismiss
             </Button>
           ) : null}
           {alert.assigned_to_user_id ? (
-            <Button size="sm" variant="ghost" onClick={() => void onUnassign(alert.id)}>
+            <Button size="sm" variant="ghost" disabled={!canMutate} onClick={() => void onUnassign(alert.id)}>
               Unassign
             </Button>
           ) : null}
@@ -88,7 +94,7 @@ export function AlertActionPanel({
         <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">Assign member</p>
         <div className="mt-3 flex items-center gap-2">
           <div className="w-full">
-            <Select value={assigneeSelection} onValueChange={onAssigneeSelectionChange}>
+            <Select disabled={!canMutate} value={assigneeSelection} onValueChange={onAssigneeSelectionChange}>
               <SelectTrigger><SelectValue placeholder="Assign to member" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="UNASSIGNED_PICK">Unassigned</SelectItem>
@@ -102,6 +108,7 @@ export function AlertActionPanel({
           <Button
             size="sm"
             variant="outline"
+            disabled={!canMutate}
             onClick={() => {
               const nextAssignee = assigneeSelection === "UNASSIGNED_PICK" ? null : assigneeSelection || null;
               if (nextAssignee && !validMemberIds.has(nextAssignee)) {

@@ -47,8 +47,14 @@ export function CreateTransactionDialog({
             await onSubmit();
           }}
         >
-          <Input type="date" value={draft.date} onChange={(e) => onDraftChange({ ...draft, date: e.target.value })} />
-          <Input placeholder="Amount" value={draft.amount} onChange={(e) => onDraftChange({ ...draft, amount: e.target.value })} required />
+          <Input type="date" value={draft.date} onChange={(e) => onDraftChange({ ...draft, date: e.target.value })} required />
+          <Input
+            placeholder="Amount"
+            inputMode="decimal"
+            value={draft.amount}
+            onChange={(e) => onDraftChange({ ...draft, amount: e.target.value })}
+            required
+          />
           <Select value={draft.type} onValueChange={(value) => onDraftChange({ ...draft, type: value })}>
             <SelectTrigger><SelectValue /></SelectTrigger>
             <SelectContent>

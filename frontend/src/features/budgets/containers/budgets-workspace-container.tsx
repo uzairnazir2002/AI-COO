@@ -121,6 +121,7 @@ export function BudgetsWorkspaceContainer({
                       placeholder="Category (e.g. Ops)"
                       value={newCategory}
                       onChange={(event) => onNewCategoryChange(event.target.value)}
+                      required
                     />
                     <Select value={newType} onValueChange={(value) => onNewTypeChange(value as "EXPENSE" | "REVENUE")}>
                       <SelectTrigger>
@@ -136,6 +137,7 @@ export function BudgetsWorkspaceContainer({
                       inputMode="decimal"
                       value={newAmount}
                       onChange={(event) => onNewAmountChange(event.target.value)}
+                      required
                     />
                     <Input
                       placeholder="Notes (optional)"
@@ -197,6 +199,8 @@ export function BudgetsWorkspaceContainer({
                                     placeholder="Amount"
                                     value={editAmount}
                                     onChange={(event) => onEditAmountChange(event.target.value)}
+                                    inputMode="decimal"
+                                    required
                                   />
                                   <Input
                                     className="w-[180px]"
@@ -258,7 +262,7 @@ export function BudgetsWorkspaceContainer({
                           <td>{formatMoney(line.planned_amount)}</td>
                           <td>{formatMoney(line.actual_amount)}</td>
                           <td>{formatMoney(line.variance_amount)}</td>
-                          <td>{line.variance_pct ? formatPercent(line.variance_pct) : "-"}</td>
+                          <td>{line.variance_pct === null || line.variance_pct === undefined ? "-" : formatPercent(line.variance_pct)}</td>
                         </tr>
                       ))}
                     </tbody>

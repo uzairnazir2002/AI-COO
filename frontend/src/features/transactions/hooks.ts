@@ -2,7 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { api, apiFetchRaw } from "@/lib/api/client";
+import { ApiError, api, apiFetchRaw } from "@/lib/api/client";
 import { apiPaths } from "@/lib/api/endpoints";
 import { qk } from "@/lib/query/keys";
 import { useAppStore } from "@/store/appStore";
@@ -64,11 +64,31 @@ export function useCreateTransaction() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (payload: Omit<Transaction, "id">) => {
-      const response = await apiFetchRaw(apiPaths.transactions, { method: "POST", body: JSON.stringify(payload) });
+      const resolvedOrg = orgId || payload.org_id;
+      if (!resolvedOrg) {
+        throw new ApiError("Select an organization before creating a transaction.", 400);
+      }
+      if (orgId && payload.org_id && payload.org_id !== orgId) {
+        throw new ApiError(
+          "Transaction targets a different organization than the one selected. Refresh the page and try again.",
+          400,
+        );
+      }
+      const body: Omit<Transaction, "id"> = {
+        ...payload,
+        org_id: orgId || payload.org_id || resolvedOrg,
+      };
+      const response = await apiFetchRaw(apiPaths.transactions, { method: "POST", body: JSON.stringify(body) });
       const json = (await response.json()) as { transaction: Transaction };
       return { transaction: json.transaction, alertRecalc: readAlertRecalcMetadata(response.headers) };
     },
     onMutate: async (payload) => {
+      const resolvedOrg = orgId || payload.org_id;
+      const optimisticRow = {
+        ...payload,
+        org_id: orgId || payload.org_id || resolvedOrg || "",
+        id: `optimistic-${crypto.randomUUID()}`,
+      };
       await qc.cancelQueries({ queryKey: ["transactions"] });
       const previous = qc.getQueriesData<PaginatedTransactions>({ queryKey: ["transactions"] });
       previous.forEach(([key, value]) => {
@@ -76,7 +96,7 @@ export function useCreateTransaction() {
         qc.setQueryData<PaginatedTransactions>(key, {
           ...value,
           total: value.total + 1,
-          items: [{ ...payload, id: `optimistic-${crypto.randomUUID()}` }, ...value.items],
+          items: [optimisticRow as Transaction, ...value.items],
         });
       });
       return { previous };
@@ -101,6 +121,9 @@ export function useUpdateTransaction() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({ id, payload }: { id: string; payload: Partial<Transaction> }) => {
+      if (!orgId) {
+        throw new ApiError("Select an organization before updating a transaction.", 400);
+      }
       const response = await apiFetchRaw(`${apiPaths.transactionById(id)}?org_id=${orgId}`, {
         method: "PUT",
         body: JSON.stringify(payload),
@@ -139,6 +162,9 @@ export function useDeleteTransaction() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (id: string) => {
+      if (!orgId) {
+        throw new ApiError("Select an organization before deleting a transaction.", 400);
+      }
       const response = await apiFetchRaw(`${apiPaths.transactionById(id)}?org_id=${orgId}`, {
         method: "DELETE",
       });
@@ -256,13 +282,25 @@ export function useDeleteImportProfile() {
 }
 
 export function useBulkRemapCategory() {
+  const selectedOrgId = useAppStore((s) => s.selectedOrgId);
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (payload: { org_id: string; from_category: string; to_category: string; from_date?: string; to_date?: string }) => {
-      const qs = new URLSearchParams({ org_id: payload.org_id }).toString();
+      const canonicalOrg = selectedOrgId || payload.org_id;
+      if (!canonicalOrg) {
+        throw new ApiError("Select an organization before remapping categories.", 400);
+      }
+      if (selectedOrgId && payload.org_id && payload.org_id !== selectedOrgId) {
+        throw new ApiError(
+          "Remap must apply to the selected organization. Refresh the page if this persists.",
+          400,
+        );
+      }
+      const qs = new URLSearchParams({ org_id: canonicalOrg }).toString();
+      const body = { ...payload, org_id: canonicalOrg };
       const response = await apiFetchRaw(`${apiPaths.bulkRemap}?${qs}`, {
         method: "POST",
-        body: JSON.stringify(payload),
+        body: JSON.stringify(body),
       });
       const json = (await response.json()) as { ok: boolean; updated_count: number };
       return { ...json, alertRecalc: readAlertRecalcMetadata(response.headers) };

@@ -9,6 +9,12 @@ services:
       - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-ai_coo} -d ${POSTGRES_DB:-ai_coo}"]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+      start_period: 5s
 
   redis:
     image: redis:7
@@ -35,9 +41,12 @@ services:
     environment:
       APP_ROLE: api
     depends_on:
-      - postgres
-      - redis
-      - minio
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+      minio:
+        condition: service_started
     ports:
       - "8000:8000"
     command: sh -c "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000 --proxy-headers --forwarded-allow-ips=*"
@@ -51,9 +60,12 @@ services:
     environment:
       APP_ROLE: worker
     depends_on:
-      - postgres
-      - redis
-      - minio
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+      minio:
+        condition: service_started
     command: celery -A app.jobs.celery_app.celery_app worker --loglevel=INFO --concurrency=${WORKER_CONCURRENCY:-3} --prefetch-multiplier=${WORKER_PREFETCH_MULTIPLIER:-1}
 
   beat:
@@ -65,8 +77,10 @@ services:
     environment:
       APP_ROLE: beat
     depends_on:
-      - postgres
-      - redis
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
     command: celery -A app.jobs.celery_app.celery_app beat --loglevel=INFO
 
   frontend:

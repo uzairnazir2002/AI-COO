@@ -84,9 +84,15 @@ function nextUniqueIdentity(workerIndex: number) {
 }
 
 async function ensureRegistered(page: Page, email: string, password: string, errorPrefix = "register failed") {
-  const reg = await postWithCookieCsrf(page, `${apiBase}/auth/register`, {
+  let reg = await postWithCookieCsrf(page, `${apiBase}/auth/register`, {
     data: { email, password },
   });
+  if (reg.status() === 429) {
+    await delay(loginBackoffMaxMs);
+    reg = await postWithCookieCsrf(page, `${apiBase}/auth/register`, {
+      data: { email, password },
+    });
+  }
   if (![200, 409].includes(reg.status())) {
     throw new Error(`${errorPrefix}: ${reg.status()} ${await reg.text()}`);
   }
@@ -101,7 +107,11 @@ async function withCookieCsrfHeaders(
   page: Page,
   headers?: Record<string, string>,
 ): Promise<Record<string, string> | undefined> {
-  if (authMode !== "cookie") return headers;
+  /**
+   * When the API runs with AUTH_COOKIE_MODE, register/login set session cookies even if E2E uses
+   * bearer tokens from the JSON body. Mutating requests that carry those cookies require a matching
+   * CSRF header — so always forward the CSRF cookie when present, not only for E2E_AUTH_MODE=cookie.
+   */
   const csrfToken = await readCookieFromContext(page, csrfCookieName);
   if (!csrfToken) return headers;
   return {
@@ -320,6 +330,14 @@ export const test = base.extend<Fixtures>({
   },
 
   authenticatedPage: async ({ page, authSession }, use) => {
+    const forcedViewport = process.env.E2E_FORCE_VIEWPORT;
+    if (forcedViewport) {
+      const parts = forcedViewport.split("x").map((p) => Number.parseInt(p, 10));
+      if (parts.length === 2 && Number.isFinite(parts[0]) && Number.isFinite(parts[1])) {
+        await page.setViewportSize({ width: parts[0], height: parts[1] });
+      }
+    }
+
     let lastLoginError: string | null = null;
     for (let attempt = 1; attempt <= 4; attempt += 1) {
       await seedBrowserSessionState(page, authSession);

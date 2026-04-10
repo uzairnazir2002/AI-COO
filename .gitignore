@@ -18,6 +18,7 @@ frontend/test-results/
 # Env & secrets
 .env
 .env.production
+.env.cookie
 
 # OS/editor
 .DS_Store

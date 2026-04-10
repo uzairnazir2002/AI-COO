@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { RefreshCcw } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 
@@ -47,6 +47,7 @@ export function AdminConsolePage() {
   const searchParams = useSearchParams();
   const orgId = useAppStore((s) => s.selectedOrgId);
   const role = useAppStore((s) => s.orgs.find((org) => org.org_id === s.selectedOrgId)?.role);
+  const ownerOnly = !isOwner(role);
   const [status, setStatus] = useState("ALL");
   const [activeTab, setActiveTab] = useState(() => {
     const requested = searchParams.get("tab");
@@ -114,6 +115,12 @@ export function AdminConsolePage() {
     [jobs.data?.items],
   );
 
+  useEffect(() => {
+    if (ownerOnly && activeTab !== "jobs") {
+      setActiveTab("jobs");
+    }
+  }, [activeTab, ownerOnly]);
+
   if (!orgId) {
     return (
       <EmptyState
@@ -174,12 +181,22 @@ export function AdminConsolePage() {
         onChange={setActiveTab}
         items={[
           { id: "jobs", label: "Jobs" },
-          { id: "outbox", label: "Outbox" },
-          { id: "runtime", label: "Runtime / SLO" },
-          { id: "dead-letter", label: "Dead-letter" },
-          { id: "security", label: "Security Ops" },
+          ...(isOwner(role)
+            ? ([
+                { id: "outbox", label: "Outbox" },
+                { id: "runtime", label: "Runtime / SLO" },
+                { id: "dead-letter", label: "Dead-letter" },
+                { id: "security", label: "Security Ops" },
+              ] as const)
+            : ([] as const)),
         ]}
       />
+
+      {!isOwner(role) ? (
+        <div className="rounded-[24px] border border-border/70 bg-card/60 p-4 text-sm text-muted-foreground">
+          Owner-only admin tooling is hidden for your role. You can still review job history in the Jobs tab.
+        </div>
+      ) : null}
 
       <AdminStatusPanel title="Admin status">
         <p>Active jobs: {activeJobs}</p>

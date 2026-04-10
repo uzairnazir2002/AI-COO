@@ -71,12 +71,12 @@ export function AssistantWorkspaceContainer({
       />
 
       {activeTab === "chat" ? (
-        <section className="grid gap-4 xl:grid-cols-[320px_1fr]">
+        <section className="grid gap-4 lg:grid-cols-[320px_1fr]">
           <Panel>
             <PanelHeader>
               <h2 className="text-base font-semibold">Sessions</h2>
             </PanelHeader>
-            <PanelBody className="space-y-2">
+            <PanelBody className="max-h-[60vh] space-y-2 overflow-y-auto lg:max-h-none">
               {sessionsLoading ? <p className="text-sm text-muted-foreground">Loading sessions...</p> : null}
               {!sessionsLoading && sessionsData.length === 0 ? (
                 <p className="text-sm text-muted-foreground">No sessions yet. Start a new chat.</p>
@@ -114,7 +114,10 @@ export function AssistantWorkspaceContainer({
                 </p>
               ) : null}
 
-              <div className="max-h-[460px] space-y-3 overflow-y-auto rounded-2xl border border-border/70 bg-card/45 p-3" data-testid="ai-chat-messages">
+              <div
+                className="max-h-[60vh] space-y-3 overflow-y-auto rounded-2xl border border-border/70 bg-card/45 p-3 md:max-h-[460px]"
+                data-testid="ai-chat-messages"
+              >
                 {messages.map((message) => {
                   const isUser = message.role.toUpperCase() === "USER";
                   const isAssistant = message.role.toUpperCase() === "ASSISTANT";

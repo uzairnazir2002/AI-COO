@@ -16,6 +16,7 @@ import { DetailDrawer } from "@/components/drawers/detail-drawer";
 import { Panel, PanelBody, PanelHeader } from "@/components/layout/panel";
 import { MutationProgressToast } from "@/components/states/mutation-progress-toast";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import type { ImportHistoryItem, Transaction } from "@/types/domain";
 import { BulkRemapWorkspacePanel } from "@/features/transactions/panels/bulk-remap-workspace-panel";
 import { BulkSelectionBar } from "@/features/transactions/panels/bulk-selection-bar";
@@ -193,7 +194,25 @@ export function TransactionsWorkspaceContainer({
           />
         }
         table={
-          data.length === 0 ? (
+          data.length === 0 && isFetching ? (
+            <div className="space-y-3 rounded-[24px] border border-border/70 bg-card/60 p-4">
+              <div className="flex items-center justify-between gap-3">
+                <div className="space-y-1">
+                  <p className="text-sm font-medium">Loading transactions…</p>
+                  <p className="text-xs text-muted-foreground">Fetching the current page for the active filters.</p>
+                </div>
+                <div className="hidden gap-2 sm:flex">
+                  <Skeleton className="h-8 w-24 rounded-md" />
+                  <Skeleton className="h-8 w-28 rounded-md" />
+                </div>
+              </div>
+              <div className="space-y-2">
+                {Array.from({ length: 8 }).map((_, idx) => (
+                  <Skeleton key={idx} className="h-10 w-full rounded-xl" />
+                ))}
+              </div>
+            </div>
+          ) : data.length === 0 ? (
             <EmptyState
               eyebrow="No data"
               title="No transactions match the current filters."
