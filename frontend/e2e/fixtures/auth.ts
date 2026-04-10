@@ -132,6 +132,35 @@ async function postWithCookieCsrf(
   });
 }
 
+/** Minimal session shape for E2E calls that must work in bearer or cookie auth mode. */
+export type E2eAuthSessionSlice = {
+  authMode: "bearer" | "cookie";
+  accessToken?: string;
+};
+
+export async function e2eAuthenticatedPost(page: Page, url: string, data: unknown, session: E2eAuthSessionSlice) {
+  if (session.authMode === "bearer") {
+    const token = session.accessToken;
+    if (!token) throw new Error("E2E bearer mode requires accessToken on auth session");
+    return page.request.post(url, {
+      data,
+      headers: { Authorization: `Bearer ${token}` },
+    });
+  }
+  return postWithCookieCsrf(page, url, { data });
+}
+
+export async function e2eAuthenticatedGet(page: Page, url: string, session: E2eAuthSessionSlice) {
+  if (session.authMode === "bearer") {
+    const token = session.accessToken;
+    if (!token) throw new Error("E2E bearer mode requires accessToken on auth session");
+    return page.request.get(url, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+  }
+  return page.request.get(url);
+}
+
 async function loginWithBackoff(page: Page, email: string, password: string) {
   let last = await postWithCookieCsrf(page, `${apiBase}/auth/login`, { data: { email, password } });
   if (last.ok()) {

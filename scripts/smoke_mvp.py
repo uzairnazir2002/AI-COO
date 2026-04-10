@@ -140,6 +140,71 @@ def run(
         )
         runway.raise_for_status()
 
+        payroll_periods = client.get(
+            f"{base_url}/workforce/payroll/periods",
+            headers=auth_headers,
+            params={"org_id": org_id, "limit": 10},
+        )
+        payroll_periods.raise_for_status()
+        if not isinstance(payroll_periods.json(), list):
+            raise RuntimeError("Expected payroll periods list response")
+
+        payroll_employees = client.get(
+            f"{base_url}/workforce/employees",
+            headers=auth_headers,
+            params={"org_id": org_id, "limit": 5000},
+        )
+        payroll_employees.raise_for_status()
+        if not isinstance(payroll_employees.json(), list):
+            raise RuntimeError("Expected workforce employees list response")
+
+        leave_types = client.get(
+            f"{base_url}/workforce/leave/types",
+            headers=auth_headers,
+            params={"org_id": org_id, "include_inactive": "true"},
+        )
+        leave_types.raise_for_status()
+        if not isinstance(leave_types.json(), list):
+            raise RuntimeError("Expected workforce leave types list response")
+
+        attendance_daily = client.get(
+            f"{base_url}/workforce/attendance/daily",
+            headers=auth_headers,
+            params={"org_id": org_id, "date": today_s},
+        )
+        attendance_daily.raise_for_status()
+        ad_json = attendance_daily.json()
+        if not isinstance(ad_json, dict) or "items" not in ad_json:
+            raise RuntimeError("Expected workforce attendance daily response")
+
+        announcements = client.get(
+            f"{base_url}/workforce/announcements",
+            headers=auth_headers,
+            params={"org_id": org_id, "include_archived": "false"},
+        )
+        announcements.raise_for_status()
+        if not isinstance(announcements.json(), list):
+            raise RuntimeError("Expected workforce announcements list response")
+
+        ann_templates = client.get(
+            f"{base_url}/workforce/announcements/templates",
+            headers=auth_headers,
+            params={"org_id": org_id},
+        )
+        ann_templates.raise_for_status()
+        if not isinstance(ann_templates.json(), list):
+            raise RuntimeError("Expected workforce announcement templates list response")
+
+        ann_keys = client.get(
+            f"{base_url}/workforce/announcements/automation-keys",
+            headers=auth_headers,
+            params={"org_id": org_id},
+        )
+        ann_keys.raise_for_status()
+        ak_json = ann_keys.json()
+        if not isinstance(ak_json, dict) or "keys" not in ak_json or not isinstance(ak_json["keys"], list):
+            raise RuntimeError("Expected workforce announcement automation-keys response")
+
         forecast = client.get(
             f"{base_url}/forecast",
             headers=auth_headers,

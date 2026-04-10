@@ -167,6 +167,22 @@ jobs:
           E2E_API_URL=http://localhost:8000/api/v1 \
           E2E_AUTH_MODE=bearer \
           npm run e2e:smoke
+      - name: Run Playwright payroll workflow
+        run: |
+          cd frontend
+          E2E_USE_EXTERNAL_BASE_URL=1 \
+          E2E_BASE_URL=http://localhost:3000 \
+          E2E_API_URL=http://localhost:8000/api/v1 \
+          E2E_AUTH_MODE=bearer \
+          npm run e2e:payroll-workflow
+      - name: Run Playwright leave workflow
+        run: |
+          cd frontend
+          E2E_USE_EXTERNAL_BASE_URL=1 \
+          E2E_BASE_URL=http://localhost:3000 \
+          E2E_API_URL=http://localhost:8000/api/v1 \
+          E2E_AUTH_MODE=bearer \
+          npm run e2e:leave-workflow
       - name: Upload smoke report
         if: always()
         uses: actions/upload-artifact@v4
@@ -196,10 +212,12 @@ jobs:
           } >> .env
       - name: Start stack
         run: docker compose --env-file .env up --build -d
-      - name: Wait for health
+      - name: Wait for API and frontend
         run: |
-          for i in {1..50}; do
-            if curl -sf http://localhost:8000/api/v1/health; then exit 0; fi
+          for i in {1..60}; do
+            if curl -sf http://localhost:8000/api/v1/health && curl -sf -o /dev/null http://localhost:3000/; then
+              exit 0
+            fi
             sleep 3
           done
           exit 1
@@ -208,13 +226,14 @@ jobs:
           cd frontend
           npm ci
           npx playwright install --with-deps chromium
-      - name: Run cookie CSRF spec
+      - name: Run cookie CSRF + payroll + leave workflow
         run: |
           cd frontend
+          E2E_USE_EXTERNAL_BASE_URL=1 \
           E2E_BASE_URL=http://localhost:3000 \
           E2E_API_URL=http://localhost:8000/api/v1 \
           E2E_AUTH_MODE=cookie \
-          npx playwright test e2e/cookie-csrf.spec.ts
+          npx playwright test e2e/cookie-csrf.spec.ts e2e/workforce-payroll-workflow.spec.ts e2e/workforce-leave-workflow.spec.ts
       - name: Upload cookie lane report
         if: always()
         uses: actions/upload-artifact@v4
@@ -384,7 +403,7 @@ jobs:
       - name: Run Playwright E2E (bearer mode)
         run: |
           cd frontend
-          E2E_BASE_URL=http://localhost:3000 E2E_API_URL=http://localhost:8000/api/v1 E2E_AUTH_MODE=bearer npm run e2e
+          E2E_USE_EXTERNAL_BASE_URL=1 E2E_BASE_URL=http://localhost:3000 E2E_API_URL=http://localhost:8000/api/v1 E2E_AUTH_MODE=bearer npm run e2e
       - name: Restart stack in cookie auth mode
         run: |
           docker compose --env-file .env down -v
@@ -410,7 +429,7 @@ jobs:
       - name: Run Playwright E2E (cookie mode)
         run: |
           cd frontend
-          E2E_BASE_URL=http://localhost:3000 E2E_API_URL=http://localhost:8000/api/v1 E2E_AUTH_MODE=cookie npm run e2e
+          E2E_USE_EXTERNAL_BASE_URL=1 E2E_BASE_URL=http://localhost:3000 E2E_API_URL=http://localhost:8000/api/v1 E2E_AUTH_MODE=cookie npm run e2e
       - name: Stop stack
         if: always()
         run: docker compose --env-file .env down -v

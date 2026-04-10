@@ -37,4 +37,37 @@ export const qk = {
   notifications: (orgId: string, unreadOnly: boolean) => ["notifications", orgId, unreadOnly] as const,
   aiChatSessions: (orgId: string, mineOnly: boolean, limit: number) => ["aiChatSessions", orgId, mineOnly, limit] as const,
   aiChatSession: (orgId: string, sessionId: string) => ["aiChatSession", orgId, sessionId] as const,
+  workforceEmployees: (orgId: string, params: Record<string, string | number | boolean | undefined>) =>
+    ["workforceEmployees", orgId, params] as const,
+  workforceEmployee: (orgId: string, employeeId: string) => ["workforceEmployee", orgId, employeeId] as const,
+  workforceDepartments: (orgId: string, includeInactive: boolean) => ["workforceDepartments", orgId, includeInactive] as const,
+  workforceTitles: (orgId: string, includeInactive: boolean) => ["workforceTitles", orgId, includeInactive] as const,
+  workforceShifts: (orgId: string, includeInactive: boolean) => ["workforceShifts", orgId, includeInactive] as const,
+  workforceShiftAssignments: (orgId: string, params: Record<string, string | number | boolean | undefined>) =>
+    ["workforceShiftAssignments", orgId, params] as const,
+  workforceAttendanceDaily: (orgId: string, day: string, employeeId: string = "") =>
+    ["workforceAttendanceDaily", orgId, day, employeeId] as const,
+  workforceAttendanceCalendar: (orgId: string, month: string) => ["workforceAttendanceCalendar", orgId, month] as const,
+  workforceCorrections: (orgId: string, params: Record<string, string | number | boolean | undefined>) =>
+    ["workforceCorrections", orgId, params] as const,
+  workforceLeaveTypes: (orgId: string, includeInactive: boolean) => ["workforceLeaveTypes", orgId, includeInactive] as const,
+  workforceLeaveBalances: (orgId: string, params: Record<string, string | number | boolean | undefined>) =>
+    ["workforceLeaveBalances", orgId, params] as const,
+  workforceLeaveRequests: (orgId: string, params: Record<string, string | number | boolean | undefined>) =>
+    ["workforceLeaveRequests", orgId, params] as const,
+  workforceAnnouncements: (orgId: string, includeArchived: boolean) =>
+    ["workforceAnnouncements", orgId, includeArchived] as const,
+  workforceAnnouncement: (orgId: string, announcementId: string) =>
+    ["workforceAnnouncement", orgId, announcementId] as const,
+  workforceAnnouncementTemplates: (orgId: string) => ["workforceAnnouncementTemplates", orgId] as const,
+  workforceAnnouncementDeliveries: (
+    orgId: string,
+    announcementId: string,
+    page: number,
+    pageSize: number,
+    status: string,
+  ) => ["workforceAnnouncementDeliveries", orgId, announcementId, page, pageSize, status] as const,
+  workforcePayrollPeriods: (orgId: string) => ["workforcePayrollPeriods", orgId] as const,
+  workforcePayrollEntries: (orgId: string, periodId: string) => ["workforcePayrollEntries", orgId, periodId] as const,
+  workforcePayslipPreview: (orgId: string, entryId: string) => ["workforcePayslipPreview", orgId, entryId] as const,
 };

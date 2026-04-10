@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
 
 import { SectionHeader } from "@/components/common/section-header";
 import { useToast } from "@/components/common/use-toast";
@@ -54,6 +55,7 @@ import { IntegrationsPanel } from "@/features/settings/panels/integrations-panel
 import { SecurityPanel } from "@/features/settings/panels/security-panel";
 import { TeamPanel } from "@/features/settings/panels/team-panel";
 import { useSettingsServiceAdapter } from "@/features/settings/services/use-settings-service-adapter";
+import { WorkforceSettingsPanel } from "@/features/workforce/panels/workforce-settings-panel";
 import { useAppStore } from "@/store/appStore";
 import type { PlaidLinkHandler } from "@/types/plaid-link";
 import type { Role } from "@/types/domain";
@@ -97,6 +99,7 @@ function ensurePlaidScript(): Promise<void> {
 }
 
 export default function SettingsPage() {
+  const searchParams = useSearchParams();
   const selectedOrg = useAppStore((s) => s.orgs.find((o) => o.org_id === s.selectedOrgId));
   const experienceTier = useAppStore((s) => s.experienceTier);
   const role = selectedOrg?.role;
@@ -203,6 +206,11 @@ export default function SettingsPage() {
   useEffect(() => {
     setPlaidDegradedMessage(null);
   }, [selectedOrg?.org_id]);
+
+  useEffect(() => {
+    const tab = searchParams.get("tab");
+    if (tab) setActiveTab(tab);
+  }, [searchParams]);
 
   function handleReauthRequired(err: unknown): boolean {
     const message = err instanceof Error ? err.message : String(err || "");
@@ -341,6 +349,7 @@ export default function SettingsPage() {
         onChange={setActiveTab}
         items={[
           { id: "general", label: "Business" },
+          { id: "workforce", label: "Workforce" },
           { id: "team", label: "Team" },
           { id: "security", label: "Security" },
           { id: "integrations", label: "Integrations" },
@@ -779,6 +788,8 @@ export default function SettingsPage() {
           roleDescriptions={roleDescriptions}
         />
       ) : null}
+
+      {activeTab === "workforce" ? <WorkforceSettingsPanel role={role} /> : null}
 
       {activeTab === "compliance" ? (
         <CompliancePanel

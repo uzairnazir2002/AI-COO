@@ -100,6 +100,21 @@ class _FakeEvent:
         self.attempts = attempts
         self.max_attempts = max_attempts
         self.status = "PROCESSING"
+        self.last_error: str | None = None
+
+
+class _FakeDeliveryRepo:
+    def __init__(self, _db):
+        pass
+
+    async def mark_sent(self, **_kwargs):
+        return None
+
+    async def mark_failed(self, **_kwargs):
+        return None
+
+    async def mark_retrying(self, **_kwargs):
+        return None
 
 
 @pytest.mark.asyncio
@@ -132,12 +147,14 @@ async def test_outbox_consumer_sends_and_marks_delivered(monkeypatch):
 
         async def mark_retry_or_failed(self, ev, _error: str):
             ev.status = "FAILED"
+            ev.last_error = _error
 
     def _send_email(to: str, subject: str, _body: str):
         sent.append((to, subject))
 
     monkeypatch.setattr(outbox_tasks, "SessionLocal", lambda: fake_session)
     monkeypatch.setattr(outbox_tasks, "OutboxRepo", _FakeOutboxRepo)
+    monkeypatch.setattr(outbox_tasks, "WorkforceAnnouncementDeliveryRepo", _FakeDeliveryRepo)
     monkeypatch.setattr(outbox_tasks, "send_email", _send_email)
 
     processed = await outbox_tasks._process(100)
@@ -182,6 +199,7 @@ async def test_outbox_consumer_retries_then_fails(monkeypatch):
 
         async def mark_retry_or_failed(self, ev, _error: str):
             ev.attempts += 1
+            ev.last_error = _error
             if ev.attempts >= ev.max_attempts:
                 ev.status = "FAILED"
             else:
@@ -192,6 +210,7 @@ async def test_outbox_consumer_retries_then_fails(monkeypatch):
 
     monkeypatch.setattr(outbox_tasks, "SessionLocal", lambda: fake_session)
     monkeypatch.setattr(outbox_tasks, "OutboxRepo", _FakeOutboxRepo)
+    monkeypatch.setattr(outbox_tasks, "WorkforceAnnouncementDeliveryRepo", _FakeDeliveryRepo)
     monkeypatch.setattr(outbox_tasks, "send_email", _send_email)
 
     processed = await outbox_tasks._process(50)

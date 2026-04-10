@@ -16,6 +16,7 @@ TASK_MODULES = [
     "app.jobs.tasks.banks",
     "app.jobs.tasks.privacy",
     "app.jobs.tasks.reports",
+    "app.jobs.tasks.workforce",
 ]
 
 celery_app = Celery("ai_coo", broker=settings.redis_url, backend=settings.redis_url, include=TASK_MODULES)
@@ -40,6 +41,10 @@ celery_app.conf.update(
         "bank-sync-active-connections": {
             "task": "app.jobs.tasks.banks.sync_all_active_bank_connections",
             "schedule": crontab(minute="*/30"),
+        },
+        "workforce-announcements-scheduled-publish": {
+            "task": "app.jobs.tasks.workforce.publish_due_workforce_announcements",
+            "schedule": crontab(minute="*"),
         },
     },
 )

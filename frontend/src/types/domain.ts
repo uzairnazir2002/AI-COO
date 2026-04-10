@@ -235,6 +235,315 @@ export type Location = {
   updated_at: string;
 };
 
+export type WorkforceDepartment = {
+  id: string;
+  org_id: string;
+  created_by_user_id: string;
+  name: string;
+  code: string | null;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
+export type WorkforceTitle = {
+  id: string;
+  org_id: string;
+  created_by_user_id: string;
+  name: string;
+  level: number | null;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
+export type WorkforceEmployee = {
+  id: string;
+  org_id: string;
+  created_by_user_id: string;
+  employee_code: string | null;
+  first_name: string;
+  last_name: string;
+  email: string | null;
+  phone: string | null;
+  department_id: string | null;
+  title_id: string | null;
+  manager_employee_id: string | null;
+  location_id: string | null;
+  employment_type: string;
+  employment_status: string;
+  start_date: string | null;
+  end_date: string | null;
+  salary_type: string;
+  base_salary: string | null;
+  hourly_rate: string | null;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
+export type WorkforceShift = {
+  id: string;
+  org_id: string;
+  created_by_user_id: string;
+  name: string;
+  start_time: string;
+  end_time: string;
+  grace_minutes: number;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
+export type WorkforceShiftAssignment = {
+  id: string;
+  org_id: string;
+  created_by_user_id: string;
+  employee_id: string;
+  shift_id: string;
+  effective_from: string;
+  effective_to: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type WorkforceAttendance = {
+  id: string;
+  org_id: string;
+  employee_id: string;
+  created_by_user_id: string;
+  work_date: string;
+  status: string;
+  source: string;
+  shift_id: string | null;
+  shift_assignment_id: string | null;
+  clock_in_at: string | null;
+  clock_out_at: string | null;
+  is_late: boolean;
+  minutes_late: number;
+  missing_checkout: boolean;
+  worked_minutes: number;
+  overtime_minutes: number;
+  payable_hours: string;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type WorkforceAttendanceDaily = {
+  org_id: string;
+  date: string;
+  items: WorkforceAttendance[];
+};
+
+export type WorkforceAttendanceCalendarDay = {
+  date: string;
+  totals: Record<string, number>;
+  late_count: number;
+  missing_checkout_count: number;
+};
+
+export type WorkforceAttendanceCalendar = {
+  org_id: string;
+  month: string;
+  days: WorkforceAttendanceCalendarDay[];
+};
+
+export type WorkforceAttendanceCorrection = {
+  id: string;
+  org_id: string;
+  employee_id: string;
+  attendance_record_id: string;
+  requested_by_user_id: string;
+  reviewed_by_user_id: string | null;
+  status: string;
+  reason: string;
+  proposed_clock_in_at: string | null;
+  proposed_clock_out_at: string | null;
+  proposed_status: string | null;
+  reviewer_note: string | null;
+  reviewed_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type WorkforceAnnouncementReceipt = {
+  read_at: string | null;
+  acknowledged_at: string | null;
+};
+
+export type WorkforceAnnouncementAttachment = {
+  name: string;
+  url: string;
+};
+
+export type WorkforceAnnouncement = {
+  id: string;
+  org_id: string;
+  created_by_user_id: string;
+  template_id?: string | null;
+  title: string;
+  body: string;
+  priority: string;
+  status: string;
+  published_at: string | null;
+  scheduled_publish_at: string | null;
+  expires_at: string | null;
+  pinned: boolean;
+  acknowledgement_required: boolean;
+  audience_kind: string;
+  audience_ids?: string[] | null;
+  attachments_json?: WorkforceAnnouncementAttachment[] | null;
+  send_email_on_publish: boolean;
+  automation_dedupe_key?: string | null;
+  created_at: string;
+  updated_at: string;
+  my_receipt?: WorkforceAnnouncementReceipt | null;
+};
+
+export type WorkforceAnnouncementTemplate = {
+  id: string;
+  org_id: string;
+  created_by_user_id: string;
+  name: string;
+  code: string | null;
+  description: string | null;
+  body_template: string;
+  automation_key: string | null;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
+export type WorkforceAnnouncementDelivery = {
+  id: string;
+  org_id: string;
+  announcement_id: string;
+  channel: string;
+  user_id: string | null;
+  recipient_email: string;
+  status: string;
+  error: string | null;
+  outbox_event_id: string | null;
+  sent_at: string | null;
+  created_at: string;
+  updated_at: string;
+  outbox_status?: string | null;
+  outbox_attempts?: number | null;
+  outbox_last_error?: string | null;
+};
+
+export type WorkforceAnnouncementDeliveryList = {
+  items: WorkforceAnnouncementDelivery[];
+  total: number;
+  page: number;
+  page_size: number;
+};
+
+export type WorkforceLeaveType = {
+  id: string;
+  org_id: string;
+  created_by_user_id: string;
+  name: string;
+  code: string | null;
+  is_paid: boolean;
+  requires_approval: boolean;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
+export type WorkforceLeaveBalance = {
+  id: string;
+  org_id: string;
+  created_by_user_id: string;
+  employee_id: string;
+  leave_type_id: string;
+  year: number;
+  allocated_days: string;
+  used_days: string;
+  pending_days: string;
+  created_at: string;
+  updated_at: string;
+};
+
+export type WorkforceLeaveRequest = {
+  id: string;
+  org_id: string;
+  created_by_user_id: string;
+  employee_id: string;
+  leave_type_id: string;
+  start_date: string;
+  end_date: string;
+  days: string;
+  status: string;
+  reason: string | null;
+  reviewed_by_user_id: string | null;
+  reviewed_at: string | null;
+  reviewer_note: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type WorkforcePayrollPeriod = {
+  id: string;
+  org_id: string;
+  created_by_user_id: string;
+  start_date: string;
+  end_date: string;
+  status: string;
+  approved_by_user_id: string | null;
+  approved_at: string | null;
+  paid_by_user_id: string | null;
+  paid_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type WorkforcePayrollEntry = {
+  id: string;
+  org_id: string;
+  created_by_user_id: string;
+  payroll_period_id: string;
+  employee_id: string;
+  salary_type: string;
+  base_salary: string | null;
+  hourly_rate: string | null;
+  overtime_multiplier: string | null;
+  worked_minutes: number;
+  overtime_minutes: number;
+  payable_hours: string | null;
+  unpaid_leave_deduction: string | null;
+  gross_pay: string | null;
+  adjustments_total: string | null;
+  net_pay: string | null;
+  status: string;
+  is_locked: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
+export type WorkforcePayrollAdjustment = {
+  id: string;
+  org_id: string;
+  created_by_user_id: string;
+  payroll_period_id: string;
+  payroll_entry_id: string;
+  employee_id: string;
+  kind: string;
+  amount: string | null;
+  label: string | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type WorkforcePayslipPreview = {
+  entry: WorkforcePayrollEntry;
+  adjustments: WorkforcePayrollAdjustment[];
+  period: WorkforcePayrollPeriod;
+};
+
 export type OrgSettings = {
   org_id: string;
   starting_cash: string;

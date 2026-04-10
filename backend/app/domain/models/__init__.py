@@ -41,6 +41,23 @@ from app.domain.models.transaction import Transaction
 from app.domain.models.transaction_import import TransactionImport
 from app.domain.models.user import User
 from app.domain.models.usage_meter import UsageMeter
+from app.domain.models.workforce_department import WorkforceDepartment
+from app.domain.models.workforce_attendance_correction import WorkforceAttendanceCorrection
+from app.domain.models.workforce_attendance_record import WorkforceAttendanceRecord
+from app.domain.models.workforce_employee import WorkforceEmployee
+from app.domain.models.workforce_shift import WorkforceShift
+from app.domain.models.workforce_shift_assignment import WorkforceShiftAssignment
+from app.domain.models.workforce_title import WorkforceTitle
+from app.domain.models.workforce_leave_type import WorkforceLeaveType
+from app.domain.models.workforce_leave_balance import WorkforceLeaveBalance
+from app.domain.models.workforce_leave_request import WorkforceLeaveRequest
+from app.domain.models.workforce_payroll_period import WorkforcePayrollPeriod
+from app.domain.models.workforce_payroll_entry import WorkforcePayrollEntry
+from app.domain.models.workforce_payroll_adjustment import WorkforcePayrollAdjustment
+from app.domain.models.workforce_announcement_template import WorkforceAnnouncementTemplate
+from app.domain.models.workforce_announcement import WorkforceAnnouncement
+from app.domain.models.workforce_announcement_receipt import WorkforceAnnouncementReceipt
+from app.domain.models.workforce_announcement_delivery import WorkforceAnnouncementDelivery
 
 __all__ = [
     "User",
@@ -86,4 +103,21 @@ __all__ = [
     "ScheduleControl",
     "UsageMeter",
     "TransactionImport",
+    "WorkforceDepartment",
+    "WorkforceTitle",
+    "WorkforceEmployee",
+    "WorkforceShift",
+    "WorkforceShiftAssignment",
+    "WorkforceAttendanceRecord",
+    "WorkforceAttendanceCorrection",
+    "WorkforceLeaveType",
+    "WorkforceLeaveBalance",
+    "WorkforceLeaveRequest",
+    "WorkforcePayrollPeriod",
+    "WorkforcePayrollEntry",
+    "WorkforcePayrollAdjustment",
+    "WorkforceAnnouncement",
+    "WorkforceAnnouncementReceipt",
+    "WorkforceAnnouncementTemplate",
+    "WorkforceAnnouncementDelivery",
 ]

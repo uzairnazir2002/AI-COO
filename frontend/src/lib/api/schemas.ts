@@ -414,6 +414,326 @@ export const inventoryForecastSchema = z.object({
   high_risk_items: z.number(),
 });
 
+export const workforceDepartmentSchema = z.object({
+  id: z.string().uuid(),
+  org_id: z.string().uuid(),
+  created_by_user_id: z.string().uuid(),
+  name: z.string(),
+  code: z.string().nullable(),
+  is_active: z.boolean(),
+  created_at: z.string(),
+  updated_at: z.string(),
+});
+
+export const workforceTitleSchema = z.object({
+  id: z.string().uuid(),
+  org_id: z.string().uuid(),
+  created_by_user_id: z.string().uuid(),
+  name: z.string(),
+  level: z.number().nullable(),
+  is_active: z.boolean(),
+  created_at: z.string(),
+  updated_at: z.string(),
+});
+
+export const workforceEmployeeSchema = z.object({
+  id: z.string().uuid(),
+  org_id: z.string().uuid(),
+  created_by_user_id: z.string().uuid(),
+  employee_code: z.string().nullable(),
+  first_name: z.string(),
+  last_name: z.string(),
+  email: z.string().nullable(),
+  phone: z.string().nullable(),
+  department_id: z.string().uuid().nullable(),
+  title_id: z.string().uuid().nullable(),
+  manager_employee_id: z.string().uuid().nullable(),
+  location_id: z.string().uuid().nullable(),
+  employment_type: z.string(),
+  employment_status: z.string(),
+  start_date: z.string().nullable(),
+  end_date: z.string().nullable(),
+  salary_type: z.string(),
+  base_salary: z.string().nullable(),
+  hourly_rate: z.string().nullable(),
+  is_active: z.boolean(),
+  created_at: z.string(),
+  updated_at: z.string(),
+});
+
+export const workforceShiftSchema = z.object({
+  id: z.string().uuid(),
+  org_id: z.string().uuid(),
+  created_by_user_id: z.string().uuid(),
+  name: z.string(),
+  start_time: z.string(),
+  end_time: z.string(),
+  grace_minutes: z.number(),
+  is_active: z.boolean(),
+  created_at: z.string(),
+  updated_at: z.string(),
+});
+
+export const workforceShiftAssignmentSchema = z.object({
+  id: z.string().uuid(),
+  org_id: z.string().uuid(),
+  created_by_user_id: z.string().uuid(),
+  employee_id: z.string().uuid(),
+  shift_id: z.string().uuid(),
+  effective_from: z.string(),
+  effective_to: z.string().nullable(),
+  created_at: z.string(),
+  updated_at: z.string(),
+});
+
+export const workforceAttendanceSchema = z.object({
+  id: z.string().uuid(),
+  org_id: z.string().uuid(),
+  employee_id: z.string().uuid(),
+  created_by_user_id: z.string().uuid(),
+  work_date: z.string(),
+  status: z.string(),
+  source: z.string(),
+  shift_id: z.string().uuid().nullable(),
+  shift_assignment_id: z.string().uuid().nullable(),
+  clock_in_at: z.string().nullable(),
+  clock_out_at: z.string().nullable(),
+  is_late: z.boolean(),
+  minutes_late: z.number(),
+  missing_checkout: z.boolean(),
+  worked_minutes: z.number(),
+  overtime_minutes: z.number(),
+  payable_hours: z.string(),
+  notes: z.string().nullable(),
+  created_at: z.string(),
+  updated_at: z.string(),
+});
+
+export const workforceAttendanceDailySchema = z.object({
+  org_id: z.string().uuid(),
+  date: z.string(),
+  items: z.array(workforceAttendanceSchema),
+});
+
+export const workforceAttendanceCalendarDaySchema = z.object({
+  date: z.string(),
+  totals: z.record(z.string(), z.number()),
+  late_count: z.number(),
+  missing_checkout_count: z.number(),
+});
+
+export const workforceAttendanceCalendarSchema = z.object({
+  org_id: z.string().uuid(),
+  month: z.string(),
+  days: z.array(workforceAttendanceCalendarDaySchema),
+});
+
+export const workforceAttendanceCorrectionSchema = z.object({
+  id: z.string().uuid(),
+  org_id: z.string().uuid(),
+  employee_id: z.string().uuid(),
+  attendance_record_id: z.string().uuid(),
+  requested_by_user_id: z.string().uuid(),
+  reviewed_by_user_id: z.string().uuid().nullable(),
+  status: z.string(),
+  reason: z.string(),
+  proposed_clock_in_at: z.string().nullable(),
+  proposed_clock_out_at: z.string().nullable(),
+  proposed_status: z.string().nullable(),
+  reviewer_note: z.string().nullable(),
+  reviewed_at: z.string().nullable(),
+  created_at: z.string(),
+  updated_at: z.string(),
+});
+
+export const workforceLeaveTypeSchema = z.object({
+  id: z.string().uuid(),
+  org_id: z.string().uuid(),
+  created_by_user_id: z.string().uuid(),
+  name: z.string(),
+  code: z.string().nullable(),
+  is_paid: z.boolean(),
+  requires_approval: z.boolean(),
+  is_active: z.boolean(),
+  created_at: z.string(),
+  updated_at: z.string(),
+});
+
+export const workforceLeaveBalanceSchema = z.object({
+  id: z.string().uuid(),
+  org_id: z.string().uuid(),
+  created_by_user_id: z.string().uuid(),
+  employee_id: z.string().uuid(),
+  leave_type_id: z.string().uuid(),
+  year: z.number(),
+  allocated_days: z.string(),
+  used_days: z.string(),
+  pending_days: z.string(),
+  created_at: z.string(),
+  updated_at: z.string(),
+});
+
+export const workforceAnnouncementReceiptSchema = z.object({
+  read_at: z.string().nullable(),
+  acknowledged_at: z.string().nullable(),
+});
+
+export const workforceAnnouncementAttachmentSchema = z.object({
+  name: z.string(),
+  url: z.string(),
+});
+
+export const workforceAnnouncementSchema = z.object({
+  id: z.string().uuid(),
+  org_id: z.string().uuid(),
+  created_by_user_id: z.string().uuid(),
+  template_id: z.string().uuid().nullable().optional(),
+  title: z.string(),
+  body: z.string(),
+  priority: z.string(),
+  status: z.string(),
+  published_at: z.string().nullable(),
+  scheduled_publish_at: z.string().nullable(),
+  expires_at: z.string().nullable(),
+  pinned: z.boolean(),
+  acknowledgement_required: z.boolean(),
+  audience_kind: z.string(),
+  audience_ids: z.array(z.string()).nullable().optional(),
+  attachments_json: z.array(workforceAnnouncementAttachmentSchema).nullable().optional(),
+  send_email_on_publish: z.boolean(),
+  automation_dedupe_key: z.string().nullable().optional(),
+  created_at: z.string(),
+  updated_at: z.string(),
+  my_receipt: workforceAnnouncementReceiptSchema.nullable().optional(),
+});
+
+export const workforceAnnouncementTemplateSchema = z.object({
+  id: z.string().uuid(),
+  org_id: z.string().uuid(),
+  created_by_user_id: z.string().uuid(),
+  name: z.string(),
+  code: z.string().nullable(),
+  description: z.string().nullable(),
+  body_template: z.string(),
+  automation_key: z.string().nullable(),
+  is_active: z.boolean(),
+  created_at: z.string(),
+  updated_at: z.string(),
+});
+
+export const workforceAnnouncementDeliverySchema = z.object({
+  id: z.string().uuid(),
+  org_id: z.string().uuid(),
+  announcement_id: z.string().uuid(),
+  channel: z.string(),
+  user_id: z.string().uuid().nullable(),
+  recipient_email: z.string(),
+  status: z.string(),
+  error: z.string().nullable(),
+  outbox_event_id: z.string().uuid().nullable(),
+  sent_at: z.string().nullable(),
+  created_at: z.string(),
+  updated_at: z.string(),
+  outbox_status: z.string().nullable().optional(),
+  outbox_attempts: z.number().nullable().optional(),
+  outbox_last_error: z.string().nullable().optional(),
+});
+
+export const workforceAnnouncementDeliveryListSchema = z.object({
+  items: z.array(workforceAnnouncementDeliverySchema),
+  total: z.number(),
+  page: z.number(),
+  page_size: z.number(),
+});
+
+export const workforceAnnouncementAttachmentUploadSchema = z.object({
+  name: z.string(),
+  url: z.string(),
+  content_type: z.string(),
+  size_bytes: z.number(),
+});
+
+export const workforceAutomationKeysSchema = z.object({
+  keys: z.array(z.string()),
+});
+
+export const workforceLeaveRequestSchema = z.object({
+  id: z.string().uuid(),
+  org_id: z.string().uuid(),
+  created_by_user_id: z.string().uuid(),
+  employee_id: z.string().uuid(),
+  leave_type_id: z.string().uuid(),
+  start_date: z.string(),
+  end_date: z.string(),
+  days: z.string(),
+  status: z.string(),
+  reason: z.string().nullable(),
+  reviewed_by_user_id: z.string().uuid().nullable(),
+  reviewed_at: z.string().nullable(),
+  reviewer_note: z.string().nullable(),
+  created_at: z.string(),
+  updated_at: z.string(),
+});
+
+export const workforcePayrollPeriodSchema = z.object({
+  id: z.string().uuid(),
+  org_id: z.string().uuid(),
+  created_by_user_id: z.string().uuid(),
+  start_date: z.string(),
+  end_date: z.string(),
+  status: z.string(),
+  approved_by_user_id: z.string().uuid().nullable(),
+  approved_at: z.string().nullable(),
+  paid_by_user_id: z.string().uuid().nullable(),
+  paid_at: z.string().nullable(),
+  created_at: z.string(),
+  updated_at: z.string(),
+});
+
+export const workforcePayrollEntrySchema = z.object({
+  id: z.string().uuid(),
+  org_id: z.string().uuid(),
+  created_by_user_id: z.string().uuid(),
+  payroll_period_id: z.string().uuid(),
+  employee_id: z.string().uuid(),
+  salary_type: z.string(),
+  base_salary: z.string().nullable(),
+  hourly_rate: z.string().nullable(),
+  overtime_multiplier: z.string().nullable(),
+  worked_minutes: z.number(),
+  overtime_minutes: z.number(),
+  payable_hours: z.string().nullable(),
+  unpaid_leave_deduction: z.string().nullable(),
+  gross_pay: z.string().nullable(),
+  adjustments_total: z.string().nullable(),
+  net_pay: z.string().nullable(),
+  status: z.string(),
+  is_locked: z.boolean(),
+  created_at: z.string(),
+  updated_at: z.string(),
+});
+
+export const workforcePayrollAdjustmentSchema = z.object({
+  id: z.string().uuid(),
+  org_id: z.string().uuid(),
+  created_by_user_id: z.string().uuid(),
+  payroll_period_id: z.string().uuid(),
+  payroll_entry_id: z.string().uuid(),
+  employee_id: z.string().uuid(),
+  kind: z.string(),
+  amount: z.string().nullable(),
+  label: z.string().nullable(),
+  notes: z.string().nullable(),
+  created_at: z.string(),
+  updated_at: z.string(),
+});
+
+export const workforcePayslipPreviewSchema = z.object({
+  entry: workforcePayrollEntrySchema,
+  adjustments: z.array(workforcePayrollAdjustmentSchema),
+  period: workforcePayrollPeriodSchema,
+});
+
 export type TokenResponse = z.infer<typeof tokenSchema>;
 export type MeResponse = z.infer<typeof meSchema>;
 export type SummaryResponse = z.infer<typeof summarySchema>;
@@ -442,3 +762,20 @@ export type InventoryItemResponse = z.infer<typeof inventoryItemSchema>;
 export type InventoryStockEventResponse = z.infer<typeof inventoryStockEventSchema>;
 export type InventoryPurchaseOrderResponse = z.infer<typeof inventoryPurchaseOrderSchema>;
 export type InventoryForecastResponse = z.infer<typeof inventoryForecastSchema>;
+export type WorkforceDepartmentResponse = z.infer<typeof workforceDepartmentSchema>;
+export type WorkforceTitleResponse = z.infer<typeof workforceTitleSchema>;
+export type WorkforceEmployeeResponse = z.infer<typeof workforceEmployeeSchema>;
+export type WorkforceShiftResponse = z.infer<typeof workforceShiftSchema>;
+export type WorkforceShiftAssignmentResponse = z.infer<typeof workforceShiftAssignmentSchema>;
+export type WorkforceAttendanceResponse = z.infer<typeof workforceAttendanceSchema>;
+export type WorkforceAttendanceDailyResponse = z.infer<typeof workforceAttendanceDailySchema>;
+export type WorkforceAttendanceCalendarResponse = z.infer<typeof workforceAttendanceCalendarSchema>;
+export type WorkforceAttendanceCorrectionResponse = z.infer<typeof workforceAttendanceCorrectionSchema>;
+export type WorkforceLeaveTypeResponse = z.infer<typeof workforceLeaveTypeSchema>;
+export type WorkforceLeaveBalanceResponse = z.infer<typeof workforceLeaveBalanceSchema>;
+export type WorkforceAnnouncementResponse = z.infer<typeof workforceAnnouncementSchema>;
+export type WorkforceLeaveRequestResponse = z.infer<typeof workforceLeaveRequestSchema>;
+export type WorkforcePayrollPeriodResponse = z.infer<typeof workforcePayrollPeriodSchema>;
+export type WorkforcePayrollEntryResponse = z.infer<typeof workforcePayrollEntrySchema>;
+export type WorkforcePayrollAdjustmentResponse = z.infer<typeof workforcePayrollAdjustmentSchema>;
+export type WorkforcePayslipPreviewResponse = z.infer<typeof workforcePayslipPreviewSchema>;

@@ -18,6 +18,7 @@ import {
   MessageSquare,
   Settings2,
   ShieldCheck,
+  Users,
   Wallet,
 } from "lucide-react";
 
@@ -53,6 +54,7 @@ type NavItem = {
 const primaryNav: NavItem[] = [
   { href: "/app/dashboard", label: "Home", icon: Home },
   { href: "/app/transactions", label: "Money", icon: Wallet },
+  { href: "/app/workforce", label: "Workforce", icon: Users },
   { href: "/app/forecast", label: "Forecast", icon: LineChart },
   { href: "/app/reports", label: "Reports", icon: FileText },
   { href: "/app/assistant", label: "AI COO", icon: MessageSquare },

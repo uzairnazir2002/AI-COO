@@ -106,22 +106,19 @@ def main() -> None:
 
     if not args.skip_e2e:
         npm = _npm_cmd()
-        _run(
-            [npm, "run", "e2e"],
-            cwd=frontend,
-            env={
-                "E2E_BASE_URL": args.frontend_base_url,
-                "E2E_API_URL": args.api_base_url,
-                "E2E_AUTH_MODE": "bearer",
-            },
-        )
+        e2e_env = {
+            "E2E_USE_EXTERNAL_BASE_URL": "1",
+            "E2E_BASE_URL": args.frontend_base_url,
+            "E2E_API_URL": args.api_base_url,
+            "E2E_AUTH_MODE": "bearer",
+        }
+        _run([npm, "run", "e2e"], cwd=frontend, env=e2e_env)
         if _cookie_mode_enabled():
             _run(
                 [npm, "run", "e2e"],
                 cwd=frontend,
                 env={
-                    "E2E_BASE_URL": args.frontend_base_url,
-                    "E2E_API_URL": args.api_base_url,
+                    **e2e_env,
                     "E2E_AUTH_MODE": "cookie",
                 },
             )

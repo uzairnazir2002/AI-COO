@@ -19,6 +19,7 @@ from app.api.v1 import (
     reports,
     runway,
     transactions,
+    workforce,
 )
 
 api_router = APIRouter(prefix="/api/v1")
@@ -40,3 +41,4 @@ api_router.include_router(events.router, prefix="/events", tags=["events"])
 api_router.include_router(notifications.router, prefix="/notifications", tags=["notifications"])
 api_router.include_router(integrations.router, prefix="/integrations", tags=["integrations"])
 api_router.include_router(inventory.router, prefix="/inventory", tags=["inventory"])
+api_router.include_router(workforce.router, prefix="/workforce", tags=["workforce"])
