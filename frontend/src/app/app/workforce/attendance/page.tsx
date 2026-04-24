@@ -143,8 +143,8 @@ export default function WorkforceAttendancePage() {
         <div className="space-y-4">
           <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
             <div className="flex flex-wrap items-center gap-2">
-              <Input type="date" value={day} onChange={(e) => setDay(e.target.value)} className="h-10 w-44" />
-              <div className="w-[260px]">
+              <Input type="date" value={day} onChange={(e) => setDay(e.target.value)} className="h-10 w-full sm:w-44" />
+              <div className="w-full sm:w-[260px]">
                 <Select value={employeeFilterId} onValueChange={setEmployeeFilterId}>
                   <SelectTrigger><SelectValue placeholder="All employees" /></SelectTrigger>
                   <SelectContent>
@@ -157,7 +157,7 @@ export default function WorkforceAttendancePage() {
                   </SelectContent>
                 </Select>
               </div>
-              <p className="text-sm text-muted-foreground">
+              <p className="basis-full text-sm text-muted-foreground md:basis-auto">
                 Tip: use manual entry for absences, holidays, and remote days.
               </p>
             </div>

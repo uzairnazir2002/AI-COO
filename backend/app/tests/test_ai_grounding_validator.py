@@ -76,6 +76,26 @@ def test_grounding_validator_rejects_unsupported_causal_sentence():
     assert any(v.startswith("unsupported_causal_claim") for v in violations)
 
 
+def test_grounding_validator_accepts_workforce_numbers_when_payload_present():
+    validator = AISemanticGroundingValidator()
+    metrics = {
+        **_metrics(),
+        "workforce": {
+            "dashboard": {"present_today": 4, "pending_leave_requests": 2},
+            "reports": {"payroll": {"total_net_pay_in_range": "1234.50"}},
+        },
+    }
+    summary = AISummaryResponse(
+        headline="Weekly COO Summary",
+        highlights=["Workforce: 4 people present today; 2 pending leave requests; net pay in range 1,234.50."],
+        risks=[],
+        actions=[],
+        confidence="high",
+    )
+    violations = validator.validate(summary, metrics)
+    assert violations == []
+
+
 def test_grounding_validator_rejects_mismatched_time_window():
     validator = AISemanticGroundingValidator()
     summary = AISummaryResponse(

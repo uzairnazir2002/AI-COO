@@ -22,6 +22,7 @@ from app.domain.services.ai_service import AIService
 from app.domain.services.alerts_service import AlertsService
 from app.domain.services.analytics_service import AnalyticsService
 from app.domain.services.forecast_service import ForecastService
+from app.domain.services.workforce_intelligence_service import WorkforceIntelligenceService
 from app.infra.s3 import ensure_bucket, s3_client
 from app.utils.idempotency import report_key
 
@@ -148,10 +149,17 @@ class ReportService:
         forecast_rows = await ForecastService(ForecastRepo(db), AnalyticsRepo(db)).ensure_forecasts(org_id, 3)
         base_forecast = [f for f in forecast_rows if str(f.scenario).upper() == "BASE"][:3]
 
+        wf = WorkforceIntelligenceService(db)
+        dash = await wf.dashboard_intelligence(org_id=org_id, as_of=week_end)
+        rep = await wf.reports_summary(org_id=org_id, from_date=week_start, to_date=week_end)
         ai_payload = {
             "kpis": summary,
             "alerts": [{"title": a.title, "severity": a.severity} for a in alerts[:5]],
             "location_id": str(location_id) if location_id else None,
+            "workforce": {
+                "dashboard": dash.model_dump(mode="json"),
+                "reports": rep.model_dump(mode="json"),
+            },
         }
         ai_summary = await AIService().summary(ai_payload)
         return {

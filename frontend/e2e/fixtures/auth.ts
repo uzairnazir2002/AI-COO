@@ -22,7 +22,8 @@ type Fixtures = {
   authenticatedPage: void;
 };
 
-const apiBase = process.env.E2E_API_URL || "http://localhost:8000/api/v1";
+// Prefer IPv4 loopback by default on Windows (some setups bind the API to 127.0.0.1 but not ::1).
+const apiBase = process.env.E2E_API_URL || "http://127.0.0.1:8000/api/v1";
 const authMode = (process.env.E2E_AUTH_MODE || "bearer") as "bearer" | "cookie";
 const csrfCookieName = process.env.E2E_CSRF_COOKIE_NAME || "ai_coo_csrf_token";
 const csrfHeaderName = process.env.E2E_CSRF_HEADER_NAME || "X-CSRF-Token";

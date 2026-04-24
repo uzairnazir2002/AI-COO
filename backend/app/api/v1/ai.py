@@ -26,6 +26,7 @@ from app.domain.schemas.ai import (
 from app.domain.services.ai_chat_service import AIChatService
 from app.domain.services.ai_service import AIService
 from app.domain.services.analytics_service import AnalyticsService
+from app.domain.services.workforce_intelligence_service import WorkforceIntelligenceService
 from app.domain.services.errors import NotFoundError
 from app.domain.services.usage_service import METRIC_AI_SUMMARIES, UsageService
 from app.infra.ai_client import generate_summary_stub, get_ai_provider_health
@@ -59,7 +60,17 @@ async def ai_summary(body: AISummaryRequest, user: User = Depends(get_current_us
     await UsageService(PlanRepo(db)).consume(body.org_id, METRIC_AI_SUMMARIES, delta=1)
     summary = await AnalyticsService(AnalyticsRepo(db)).summary(body.org_id, body.from_date, body.to_date)
     alerts = await AlertRepo(db).list_alerts(body.org_id, "OPEN")
-    metrics = {"kpis": summary, "alerts": [{"title": a.title, "severity": a.severity} for a in alerts]}
+    wf = WorkforceIntelligenceService(db)
+    dash = await wf.dashboard_intelligence(org_id=body.org_id, as_of=body.to_date)
+    rep = await wf.reports_summary(org_id=body.org_id, from_date=body.from_date, to_date=body.to_date)
+    metrics = {
+        "kpis": summary,
+        "alerts": [{"title": a.title, "severity": a.severity} for a in alerts],
+        "workforce": {
+            "dashboard": dash.model_dump(mode="json"),
+            "reports": rep.model_dump(mode="json"),
+        },
+    }
     return await AIService().summary(metrics)
 
 
@@ -139,7 +150,7 @@ async def ai_chat(
 ):
     await get_org_context(org_id=body.org_id, user=user, db=db)
     await UsageService(PlanRepo(db)).consume(body.org_id, METRIC_AI_SUMMARIES, delta=1)
-    svc = AIChatService(AIChatRepo(db), AnalyticsRepo(db), AlertRepo(db))
+    svc = AIChatService(AIChatRepo(db), AnalyticsRepo(db), AlertRepo(db), db=db)
     try:
         message = await svc.chat(
             org_id=body.org_id,

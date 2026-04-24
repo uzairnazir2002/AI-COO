@@ -26,6 +26,10 @@ import {
   workforceShiftAssignmentSchema,
   workforceShiftSchema,
   workforceTitleSchema,
+  workforceChecklistItemSchema,
+  workforceDocumentSchema,
+  workforcePolicyAckSchema,
+  workforcePolicySchema,
 } from "@/lib/api/schemas";
 import { qk } from "@/lib/query/keys";
 import { useAppStore } from "@/store/appStore";
@@ -49,6 +53,10 @@ import type {
   WorkforceShift,
   WorkforceShiftAssignment,
   WorkforceTitle,
+  WorkforceChecklistItem,
+  WorkforceDocument,
+  WorkforcePolicy,
+  WorkforcePolicyAck,
 } from "@/types/domain";
 
 function requireOrgId(orgId: string | null, message = "Select an organization before continuing."): string {
@@ -1299,6 +1307,197 @@ export function useWorkforcePayslipPreview(entryId: string) {
       return workforcePayslipPreviewSchema.parse(out);
     },
     enabled: Boolean(orgId && entryId),
+  });
+}
+
+// Phase 6 — HR admin
+export function useWorkforcePolicies(includeInactive = false) {
+  const orgId = useAppStore((s) => s.selectedOrgId);
+  return useQuery({
+    queryKey: ["workforcePolicies", orgId || "", includeInactive],
+    queryFn: async () => {
+      const qs = new URLSearchParams({ org_id: orgId || "", include_inactive: includeInactive ? "true" : "false" });
+      const out = await api<WorkforcePolicy[]>(`${apiPaths.workforceHrPolicies}?${qs.toString()}`);
+      return out.map((row) => workforcePolicySchema.parse(row));
+    },
+    enabled: Boolean(orgId),
+  });
+}
+
+export function useCreateWorkforcePolicy() {
+  const orgId = useAppStore((s) => s.selectedOrgId);
+  const role = useAppStore((s) => s.orgs.find((o) => o.org_id === s.selectedOrgId)?.role);
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: { code: string; title: string; body: string; requires_ack?: boolean; publish_now?: boolean }) => {
+      const resolved = requireEditor(orgId, role, "Viewer role cannot create policies.");
+      const out = await api<WorkforcePolicy>(apiPaths.workforceHrPolicies, {
+        method: "POST",
+        body: JSON.stringify({
+          org_id: resolved,
+          code: payload.code,
+          title: payload.title,
+          body: payload.body,
+          requires_ack: payload.requires_ack ?? true,
+          publish_now: payload.publish_now ?? false,
+        }),
+      });
+      return workforcePolicySchema.parse(out);
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["workforcePolicies", orgId || ""] }),
+  });
+}
+
+export function usePublishWorkforcePolicy() {
+  const orgId = useAppStore((s) => s.selectedOrgId);
+  const role = useAppStore((s) => s.orgs.find((o) => o.org_id === s.selectedOrgId)?.role);
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (policyId: string) => {
+      const resolved = requireEditor(orgId, role, "Viewer role cannot publish policies.");
+      const out = await api<WorkforcePolicy>(apiPaths.workforceHrPolicyPublish(policyId), {
+        method: "POST",
+        body: JSON.stringify({ org_id: resolved }),
+      });
+      return workforcePolicySchema.parse(out);
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["workforcePolicies", orgId || ""] }),
+  });
+}
+
+export function useWorkforcePolicyAcks(policyId: string) {
+  const orgId = useAppStore((s) => s.selectedOrgId);
+  return useQuery({
+    queryKey: ["workforcePolicyAcks", orgId || "", policyId],
+    queryFn: async () => {
+      const out = await api<WorkforcePolicyAck[]>(`${apiPaths.workforceHrPolicyAcks(policyId)}?org_id=${orgId}`);
+      return out.map((row) => workforcePolicyAckSchema.parse(row));
+    },
+    enabled: Boolean(orgId && policyId),
+  });
+}
+
+export function useAcknowledgeWorkforcePolicy() {
+  const orgId = useAppStore((s) => s.selectedOrgId);
+  const role = useAppStore((s) => s.orgs.find((o) => o.org_id === s.selectedOrgId)?.role);
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: { policy_id: string; employee_id: string }) => {
+      const resolved = requireEditor(orgId, role, "Viewer role cannot record acknowledgements.");
+      const out = await api<WorkforcePolicyAck>(apiPaths.workforceHrPolicyAck(payload.policy_id), {
+        method: "POST",
+        body: JSON.stringify({ org_id: resolved, employee_id: payload.employee_id }),
+      });
+      return workforcePolicyAckSchema.parse(out);
+    },
+    onSuccess: (_data, vars) => qc.invalidateQueries({ queryKey: ["workforcePolicyAcks", orgId || "", vars.policy_id] }),
+  });
+}
+
+export function useWorkforceDocuments(params: { employee_id?: string; policy_id?: string; include_inactive?: boolean }) {
+  const orgId = useAppStore((s) => s.selectedOrgId);
+  return useQuery({
+    queryKey: ["workforceDocuments", orgId || "", params],
+    queryFn: async () => {
+      const qs = new URLSearchParams({ org_id: orgId || "" });
+      if (params.employee_id) qs.set("employee_id", params.employee_id);
+      if (params.policy_id) qs.set("policy_id", params.policy_id);
+      if (params.include_inactive) qs.set("include_inactive", "true");
+      const out = await api<WorkforceDocument[]>(`${apiPaths.workforceHrDocuments}?${qs.toString()}`);
+      return out.map((row) => workforceDocumentSchema.parse(row));
+    },
+    enabled: Boolean(orgId),
+  });
+}
+
+export async function uploadWorkforceHrDocument(
+  orgId: string,
+  file: File,
+  opts: { employee_id?: string; policy_id?: string },
+): Promise<WorkforceDocument> {
+  const qs = new URLSearchParams({ org_id: orgId });
+  if (opts.employee_id) qs.set("employee_id", opts.employee_id);
+  if (opts.policy_id) qs.set("policy_id", opts.policy_id);
+  const fd = new FormData();
+  fd.append("file", file);
+  const res = await apiFetchRaw(`${apiPaths.workforceHrDocumentUpload}?${qs.toString()}`, {
+    method: "POST",
+    body: fd,
+  });
+  const json = (await res.json()) as WorkforceDocument;
+  return workforceDocumentSchema.parse(json);
+}
+
+export function useDeactivateWorkforceHrDocument() {
+  const orgId = useAppStore((s) => s.selectedOrgId);
+  const role = useAppStore((s) => s.orgs.find((o) => o.org_id === s.selectedOrgId)?.role);
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (documentId: string) => {
+      const resolved = requireEditor(orgId, role, "Viewer role cannot deactivate documents.");
+      return api<{ ok: boolean }>(apiPaths.workforceHrDocumentDeactivate(documentId), {
+        method: "POST",
+        body: JSON.stringify({ org_id: resolved }),
+      });
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["workforceDocuments", orgId || ""] }),
+  });
+}
+
+export function useWorkforceChecklist(params: { employee_id?: string; kind?: string; include_done?: boolean }) {
+  const orgId = useAppStore((s) => s.selectedOrgId);
+  return useQuery({
+    queryKey: ["workforceChecklist", orgId || "", params],
+    queryFn: async () => {
+      const qs = new URLSearchParams({ org_id: orgId || "" });
+      if (params.employee_id) qs.set("employee_id", params.employee_id);
+      if (params.kind) qs.set("kind", params.kind);
+      if (params.include_done === false) qs.set("include_done", "false");
+      const out = await api<WorkforceChecklistItem[]>(`${apiPaths.workforceHrChecklist}?${qs.toString()}`);
+      return out.map((row) => workforceChecklistItemSchema.parse(row));
+    },
+    enabled: Boolean(orgId),
+  });
+}
+
+export function useCreateWorkforceChecklistItem() {
+  const orgId = useAppStore((s) => s.selectedOrgId);
+  const role = useAppStore((s) => s.orgs.find((o) => o.org_id === s.selectedOrgId)?.role);
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: { employee_id: string; kind: string; title: string; details?: string; due_date?: string }) => {
+      const resolved = requireEditor(orgId, role, "Viewer role cannot create checklist items.");
+      const out = await api<WorkforceChecklistItem>(apiPaths.workforceHrChecklist, {
+        method: "POST",
+        body: JSON.stringify({
+          org_id: resolved,
+          employee_id: payload.employee_id,
+          kind: payload.kind,
+          title: payload.title,
+          details: payload.details ?? null,
+          due_date: payload.due_date ?? null,
+        }),
+      });
+      return workforceChecklistItemSchema.parse(out);
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["workforceChecklist", orgId || ""] }),
+  });
+}
+
+export function useSetWorkforceChecklistDone() {
+  const orgId = useAppStore((s) => s.selectedOrgId);
+  const role = useAppStore((s) => s.orgs.find((o) => o.org_id === s.selectedOrgId)?.role);
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: { item_id: string; is_done: boolean }) => {
+      const resolved = requireEditor(orgId, role, "Viewer role cannot update checklist items.");
+      const out = await api<WorkforceChecklistItem>(apiPaths.workforceHrChecklistDone(payload.item_id), {
+        method: "POST",
+        body: JSON.stringify({ org_id: resolved, is_done: payload.is_done }),
+      });
+      return workforceChecklistItemSchema.parse(out);
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["workforceChecklist", orgId || ""] }),
   });
 }
 

@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { LoaderCircle, Sparkles } from "lucide-react";
+import { Download, LoaderCircle, Sparkles } from "lucide-react";
 
 import { SectionHeader } from "@/components/common/section-header";
 import { useToast } from "@/components/common/use-toast";
@@ -15,17 +15,19 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Input } from "@/components/ui/input";
 import { useJobs } from "@/features/activity/hooks";
 import { ReportsWorkspaceContainer } from "@/features/reports/containers/reports-workspace-container";
-import { fetchReportDownload, useGenerateReport, useReports } from "@/features/reports/hooks";
+import { fetchReportDownload, useGenerateReport, useReports, useWorkforceReportsSummary } from "@/features/reports/hooks";
 import { canEdit } from "@/lib/auth/rbac";
 import { formatDate, weekStartISO } from "@/lib/utils/format";
 import { useAppStore } from "@/store/appStore";
 
 export function ReportsPageClient() {
   const orgId = useAppStore((s) => s.selectedOrgId);
+  const globalDateRange = useAppStore((s) => s.globalDateRange);
   const selectedLocationId = useAppStore((s) => s.selectedLocationId);
   const role = useAppStore((s) => s.orgs.find((o) => o.org_id === s.selectedOrgId)?.role);
   const editable = canEdit(role);
   const reports = useReports();
+  const workforceSummary = useWorkforceReportsSummary(globalDateRange.from, globalDateRange.to);
   const generate = useGenerateReport();
   const toast = useToast();
   const [weekStart, setWeekStart] = useState(weekStartISO());
@@ -141,6 +143,50 @@ export function ReportsPageClient() {
           </>
         }
       />
+
+      <div id="workforce-summary" className="scroll-mt-24 space-y-3 rounded-2xl border border-border/70 bg-card p-4 shadow-sm">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Workforce intelligence</p>
+            <h2 className="text-lg font-semibold text-foreground">Org summary ({globalDateRange.from} to {globalDateRange.to})</h2>
+            <p className="text-sm text-muted-foreground">
+              Deterministic JSON from the workforce intelligence service (attendance, leave, payroll, headcount). Uses the same
+              global date range as the dashboard header.
+            </p>
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={!orgId || workforceSummary.isPending || !workforceSummary.data}
+            onClick={() => {
+              const payload = workforceSummary.data;
+              if (!payload) return;
+              const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement("a");
+              a.href = url;
+              a.download = `workforce-summary-${payload.from_date}_${payload.to_date}.json`;
+              a.click();
+              URL.revokeObjectURL(url);
+            }}
+          >
+            <Download className="mr-2 h-4 w-4" />
+            Download JSON
+          </Button>
+        </div>
+        {workforceSummary.isPending ? <SkeletonPanel rows={3} /> : null}
+        {workforceSummary.error ? (
+          <InlineErrorBanner message={String((workforceSummary.error as Error)?.message || "Unable to load workforce summary.")} />
+        ) : null}
+        {workforceSummary.data ? (
+          <ul className="list-inside list-disc space-y-1 text-sm text-muted-foreground">
+            {workforceSummary.data.summary_lines.map((line, idx) => (
+              <li key={`${idx}-${line.slice(0, 48)}`}>{line}</li>
+            ))}
+          </ul>
+        ) : null}
+      </div>
 
       {reports.isLoading && !reports.data ? <SkeletonPanel rows={5} /> : null}
 

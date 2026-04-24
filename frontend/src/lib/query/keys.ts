@@ -70,4 +70,8 @@ export const qk = {
   workforcePayrollPeriods: (orgId: string) => ["workforcePayrollPeriods", orgId] as const,
   workforcePayrollEntries: (orgId: string, periodId: string) => ["workforcePayrollEntries", orgId, periodId] as const,
   workforcePayslipPreview: (orgId: string, entryId: string) => ["workforcePayslipPreview", orgId, entryId] as const,
+  workforceIntelligenceDashboard: (orgId: string, asOf: string) =>
+    ["workforceIntelligenceDashboard", orgId, asOf] as const,
+  workforceIntelligenceReportsSummary: (orgId: string, from: string, to: string) =>
+    ["workforceIntelligenceReportsSummary", orgId, from, to] as const,
 };

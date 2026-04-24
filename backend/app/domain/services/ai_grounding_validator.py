@@ -5,6 +5,9 @@ from app.domain.schemas.ai import AISummaryResponse
 
 _NUMBER_RE = re.compile(r"(?<!\w)(\d{1,3}(?:,\d{3})*(?:\.\d+)?|\d+(?:\.\d+)?)(%?)")
 
+# JSON / API numeric strings (e.g. "1234.50") must not be tokenized by `_NUMBER_RE`, which can split them.
+_PLAIN_DECIMAL_STRING = re.compile(r"-?\d+(?:\.\d+)?\Z")
+
 # Explicitly disallow unsupported business metrics not present in current computed KPI payload.
 _UNSUPPORTED_METRIC_TERMS = (
     "ebitda",
@@ -48,6 +51,38 @@ _METRIC_KEYWORDS_BY_KPI = {
     "burn_rate_monthly": {"burn", "burn rate"},
     "alerts_count_open": {"alert", "alerts"},
 }
+
+# When `metrics["workforce"]` is present, assistant output may reference these org-scoped workforce terms.
+_WORKFORCE_METRIC_TERMS = frozenset(
+    {
+        "attendance",
+        "present",
+        "absent",
+        "late",
+        "checkout",
+        "check-out",
+        "leave",
+        "pending",
+        "approved",
+        "payroll",
+        "paid",
+        "unpaid",
+        "contract",
+        "probation",
+        "announcement",
+        "headcount",
+        "department",
+        "workforce",
+        "employee",
+        "employees",
+        "risk",
+        "risks",
+        "person-days",
+        "overlap",
+        "period",
+        "periods",
+    }
+)
 
 
 class AISemanticGroundingValidator:
@@ -112,6 +147,9 @@ class AISemanticGroundingValidator:
                 dec = self._parse_decimal(num_raw)
                 if dec is not None:
                     out.add(dec)
+        wf = metrics.get("workforce")
+        if wf:
+            out |= self._deep_collect_numbers(wf)
         return out
 
     def _collect_allowed_metric_terms(self, metrics: dict) -> set[str]:
@@ -126,7 +164,37 @@ class AISemanticGroundingValidator:
                 for term in terms:
                     if term in title:
                         allowed.add(term)
+        if metrics.get("workforce"):
+            allowed.update(_WORKFORCE_METRIC_TERMS)
         return allowed
+
+    @staticmethod
+    def _deep_collect_numbers(obj: object) -> set[Decimal]:
+        collected: set[Decimal] = set()
+        if isinstance(obj, dict):
+            for value in obj.values():
+                collected |= AISemanticGroundingValidator._deep_collect_numbers(value)
+        elif isinstance(obj, (list, tuple)):
+            for item in obj:
+                collected |= AISemanticGroundingValidator._deep_collect_numbers(item)
+        elif isinstance(obj, bool):
+            return collected
+        elif isinstance(obj, (int, float)):
+            dec = AISemanticGroundingValidator._parse_decimal(str(obj))
+            if dec is not None:
+                collected.add(dec)
+        elif isinstance(obj, str):
+            norm = obj.strip().replace(",", "")
+            if norm and _PLAIN_DECIMAL_STRING.fullmatch(norm):
+                dec = AISemanticGroundingValidator._parse_decimal(norm)
+                if dec is not None:
+                    collected.add(dec)
+            else:
+                for num_raw, _ in _NUMBER_RE.findall(obj):
+                    dec = AISemanticGroundingValidator._parse_decimal(num_raw)
+                    if dec is not None:
+                        collected.add(dec)
+        return collected
 
     @staticmethod
     def _matches_allowed_number(candidate: Decimal, allowed_numbers: set[Decimal]) -> bool:

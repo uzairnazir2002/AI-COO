@@ -62,6 +62,11 @@ test.describe("workforce payroll full workflow", () => {
     );
     await generateBtn.click({ force: true });
     const generateRes = await generateDone;
+    const periodIdFromGenerate = (() => {
+      const m = generateRes.url().match(/\/workforce\/payroll\/periods\/([^/]+)\/generate/i);
+      return m?.[1] ?? null;
+    })();
+    expect(periodIdFromGenerate, "generate response URL should include payroll period id").toBeTruthy();
     const payrollEntries = (await generateRes.json()) as Array<{ id: string; employee_id: string }>;
     const payrollEntry = payrollEntries.find((e) => e.employee_id === employee.id);
     expect(payrollEntry, "generate should return an entry for the E2E employee").toBeTruthy();
@@ -80,17 +85,16 @@ test.describe("workforce payroll full workflow", () => {
     await adjustmentDone;
     await expect(page.getByText("BONUS").first()).toBeVisible({ timeout: 30_000 });
 
-    const exportDone = page.waitForResponse(
-      (r) =>
-        r.request().method() === "GET" &&
-        r.url().includes("/workforce/payroll/periods/") &&
-        r.url().includes("/export") &&
-        r.ok(),
-      { timeout: 60_000 },
-    );
+    // UI click may trigger a browser download where Playwright's Response body is empty.
+    // Validate exported CSV bytes via an authenticated API request.
     await page.getByRole("button", { name: "Export CSV" }).click();
-    const exportRes = await exportDone;
-    const csvText = await exportRes.text();
+    const csvRes = await e2eAuthenticatedGet(
+      page,
+      `${apiBase}/workforce/payroll/periods/${encodeURIComponent(periodIdFromGenerate!)}/export?org_id=${encodeURIComponent(authSession.orgId)}`,
+      authSession,
+    );
+    expect(csvRes.ok(), await csvRes.text()).toBeTruthy();
+    const csvText = await csvRes.text();
     expect(csvText.length).toBeGreaterThan(20);
     expect(csvText).toContain(employee.id);
 

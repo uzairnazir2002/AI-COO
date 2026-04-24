@@ -33,10 +33,15 @@ const e2eWebServerMode = process.env.E2E_WEB_SERVER_MODE || "start";
 const useExternalBaseUrl = process.env.E2E_USE_EXTERNAL_BASE_URL === "1";
 /** Avoid stale Next bundles during Playwright runs (can mask UI changes in e2e). */
 const cleanNextCache = `node -e "try{require('fs').rmSync('.next',{recursive:true,force:true});}catch(e){}"`;
+/**
+ * Next.js builds can race with `.next` deletion on some Windows setups (observed missing pages-manifest.json).
+ * Allow opting out when diagnosing flaky e2e webServer startup.
+ */
+const shouldCleanNextCache = process.env.E2E_CLEAN_NEXT_CACHE !== "0";
 const webServerCommand =
   e2eWebServerMode === "dev"
     ? `npm run dev -- --hostname ${e2eHost} --port ${e2ePort}`
-    : `${cleanNextCache} && npm run build && npm run start -- --hostname ${e2eHost} --port ${e2ePort}`;
+    : `${shouldCleanNextCache ? `${cleanNextCache} && ` : ""}npm run build && npm run start -- --hostname ${e2eHost} --port ${e2ePort}`;
 
 export default defineConfig({
   globalSetup: path.join(frontendDir, "e2e", "global-setup.ts"),

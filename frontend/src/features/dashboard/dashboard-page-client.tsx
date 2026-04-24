@@ -20,6 +20,7 @@ import { CashflowChartPanel } from "@/features/dashboard/panels/cashflow-chart-p
 import { HeroStrip } from "@/features/dashboard/panels/hero-strip";
 import { DashboardKpiGrid } from "@/features/dashboard/panels/kpi-grid";
 import { PriorityAlertsPanel } from "@/features/dashboard/panels/priority-alerts-panel";
+import { WorkforceIntelligencePanel } from "@/features/dashboard/panels/workforce-intelligence-panel";
 import { RevenueExpenseChartPanel } from "@/features/dashboard/panels/revenue-expense-chart-panel";
 import { computeChartDomain, downsamplePoints, toNumber } from "@/lib/utils/chart";
 import { formatCompactMoney, formatMoney, shiftDaysISO, todayISO } from "@/lib/utils/format";
@@ -198,6 +199,13 @@ export function DashboardPageClient() {
       />
 
       <HeroStrip from={data.from} to={data.to} headline={data.ai?.summary_json?.headline} />
+
+      <WorkforceIntelligencePanel
+        loading={data.workforceDashboardLoading}
+        error={data.workforceDashboardError}
+        intel={data.workforceDashboard}
+        reportsHref="/app/reports#workforce-summary"
+      />
 
       {showEmptyRangeHint ? (
         <div className="rounded-2xl border border-primary/20 bg-primary/5 px-4 py-3 text-sm leading-relaxed text-muted-foreground">

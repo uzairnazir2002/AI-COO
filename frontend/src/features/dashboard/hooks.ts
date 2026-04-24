@@ -5,12 +5,19 @@ import { useQuery } from "@tanstack/react-query";
 
 import { api } from "@/lib/api/client";
 import { apiPaths } from "@/lib/api/endpoints";
-import { aiSummarySchema, budgetVarianceSchema, locationBenchmarkSchema, summarySchema } from "@/lib/api/schemas";
+import {
+  aiSummarySchema,
+  budgetVarianceSchema,
+  locationBenchmarkSchema,
+  summarySchema,
+  workforceDashboardIntelSchema,
+} from "@/lib/api/schemas";
 import type {
   AiSummaryResponse,
   BudgetVarianceResponse,
   LocationBenchmarkResponse,
   SummaryResponse,
+  WorkforceDashboardIntelResponse,
 } from "@/lib/api/schemas";
 import { qk } from "@/lib/query/keys";
 import { useAppStore } from "@/store/appStore";
@@ -128,6 +135,16 @@ export function useDashboardData() {
     enabled,
   });
 
+  const workforceDashboard = useQuery({
+    queryKey: qk.workforceIntelligenceDashboard(orgId || "", to),
+    queryFn: () =>
+      api<WorkforceDashboardIntelResponse>(
+        `${apiPaths.workforceIntelligenceDashboard}?org_id=${orgId}&as_of=${encodeURIComponent(to)}`,
+        { schema: workforceDashboardIntelSchema },
+      ),
+    enabled,
+  });
+
   const budgetThresholdAlerts = useMemo(() => {
     return (alerts.data?.items || [])
       .map((item) => parsePersistedBudgetThresholdAlert(item))
@@ -164,6 +181,9 @@ export function useDashboardData() {
       ai: ai.data,
       budgetVariance: budgetVariance.data,
       locationBenchmark: locationBenchmark.data,
+      workforceDashboard: workforceDashboard.data,
+      workforceDashboardLoading: workforceDashboard.isPending,
+      workforceDashboardError: workforceDashboard.error,
       budgetThresholdPct,
       budgetThresholdAlerts,
       loading,
@@ -181,6 +201,9 @@ export function useDashboardData() {
       ai.data,
       budgetVariance.data,
       locationBenchmark.data,
+      workforceDashboard.data,
+      workforceDashboard.isPending,
+      workforceDashboard.error,
       budgetThresholdPct,
       budgetThresholdAlerts,
       loading,

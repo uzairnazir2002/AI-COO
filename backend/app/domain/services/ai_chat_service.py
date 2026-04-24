@@ -3,6 +3,8 @@ from __future__ import annotations
 import uuid
 from datetime import datetime, timezone
 
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.domain.models.ai_chat_message import AIChatMessage
 from app.domain.models.ai_chat_session import AIChatSession
 from app.domain.repos.ai_chat_repo import AIChatRepo
@@ -11,6 +13,7 @@ from app.domain.repos.analytics_repo import AnalyticsRepo
 from app.domain.services.ai_service import AIService
 from app.domain.services.analytics_service import AnalyticsService
 from app.domain.services.errors import NotFoundError
+from app.domain.services.workforce_intelligence_service import WorkforceIntelligenceService
 
 
 class AIChatService:
@@ -21,11 +24,13 @@ class AIChatService:
         alerts_repo: AlertRepo,
         *,
         ai_service: AIService | None = None,
+        db: AsyncSession | None = None,
     ):
         self.chat_repo = chat_repo
         self.analytics_repo = analytics_repo
         self.alerts_repo = alerts_repo
         self.ai_service = ai_service or AIService()
+        self._db = db
 
     async def create_session(
         self,
@@ -100,10 +105,18 @@ class AIChatService:
 
         summary = await AnalyticsService(self.analytics_repo).summary(org_id=org_id, from_date=from_date, to_date=to_date)
         alerts = await self.alerts_repo.list_alerts(org_id=org_id, status="OPEN")
-        metrics = {
+        metrics: dict = {
             "kpis": summary,
             "alerts": [{"title": a.title, "severity": a.severity} for a in alerts],
         }
+        if self._db is not None:
+            wf = WorkforceIntelligenceService(self._db)
+            dash = await wf.dashboard_intelligence(org_id=org_id, as_of=to_date)
+            rep = await wf.reports_summary(org_id=org_id, from_date=from_date, to_date=to_date)
+            metrics["workforce"] = {
+                "dashboard": dash.model_dump(mode="json"),
+                "reports": rep.model_dump(mode="json"),
+            }
         ai_reply = await self.ai_service.chat(user_message=message, metrics=metrics)
         assistant_msg = await self.chat_repo.create_message(
             AIChatMessage(

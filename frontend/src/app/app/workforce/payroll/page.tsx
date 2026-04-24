@@ -100,7 +100,7 @@ export default function WorkforcePayrollPage() {
         <div className="grid gap-2">
           <p className="text-sm font-medium">Payroll period</p>
           <div className="flex flex-wrap gap-2">
-            <div className="w-[280px]">
+            <div className="w-full sm:w-[280px]">
               <Select value={activePeriodId} onValueChange={setActivePeriodId}>
                 <SelectTrigger><SelectValue placeholder="Select a period" /></SelectTrigger>
                 <SelectContent>

@@ -772,7 +772,7 @@ export default function WorkforceCommunicationsPage() {
                       <p className="text-xs font-medium">Email delivery log</p>
                       <div className="flex flex-wrap items-center gap-2">
                         <Select value={deliveryStatus} onValueChange={(v) => { setDeliveryStatus(v); setDeliveryPage(1); }}>
-                          <SelectTrigger className="h-8 w-[140px] text-xs">
+                          <SelectTrigger className="h-8 w-full sm:w-[140px] text-xs">
                             <SelectValue placeholder="Status" />
                           </SelectTrigger>
                           <SelectContent>

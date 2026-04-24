@@ -11,6 +11,8 @@
     "e2e": "playwright test",
     "e2e:full": "playwright test",
     "e2e:smoke": "playwright test e2e/responsive-mobile.spec.ts e2e/responsive-smoke.spec.ts e2e/onboarding-workspace.spec.ts e2e/auth-confirm-ui.spec.ts e2e/rbac-viewer-api.spec.ts e2e/rbac-viewer-settings-api.spec.ts e2e/stripe-reconciliation-invalid-range.spec.ts e2e/workforce-payroll.spec.ts e2e/workforce-leave.spec.ts e2e/workforce-attendance.spec.ts",
+    "e2e:workforce": "playwright test e2e/workforce-attendance.spec.ts e2e/workforce-leave.spec.ts e2e/workforce-payroll.spec.ts e2e/workforce-hr-admin.spec.ts e2e/workforce-phase7-intelligence.spec.ts",
+    "e2e:workforce:ci": "cross-env E2E_USE_EXTERNAL_BASE_URL=1 E2E_BASE_URL=http://localhost:3000 E2E_API_URL=http://localhost:8000/api/v1 E2E_AUTH_MODE=bearer npm run e2e:workforce",
     "e2e:payroll-workflow": "playwright test e2e/workforce-payroll-workflow.spec.ts",
     "e2e:leave-workflow": "playwright test e2e/workforce-leave-workflow.spec.ts",
     "e2e:smoke:ci": "cross-env E2E_USE_EXTERNAL_BASE_URL=1 E2E_BASE_URL=http://localhost:3000 E2E_API_URL=http://localhost:8000/api/v1 E2E_AUTH_MODE=bearer npm run e2e:smoke",

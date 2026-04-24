@@ -4,7 +4,7 @@ from decimal import Decimal
 from statistics import median, pstdev
 import uuid
 
-from sqlalchemy import and_, case, func, select
+from sqlalchemy import Integer, and_, case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.domain.models.alert import Alert
@@ -17,6 +17,13 @@ from app.domain.repos.audit_repo import AuditRepo
 from app.domain.repos.budget_repo import BudgetRepo
 from app.domain.repos.inventory_repo import InventoryRepo
 from app.domain.repos.location_repo import LocationRepo
+from app.domain.models.workforce_attendance_record import WorkforceAttendanceRecord
+from app.domain.models.workforce_employee import WorkforceEmployee
+from app.domain.models.workforce_leave_request import WorkforceLeaveRequest
+from app.domain.models.workforce_payroll_entry import WorkforcePayrollEntry
+from app.domain.models.workforce_payroll_period import WorkforcePayrollPeriod
+from app.domain.models.workforce_announcement import WorkforceAnnouncement
+from app.domain.models.workforce_announcement_receipt import WorkforceAnnouncementReceipt
 from app.domain.services.budget_service import BudgetService
 from app.domain.services.inventory_service import InventoryService
 
@@ -87,7 +94,213 @@ class AlertsService:
             created += await self._detect_margin_decline(org_id, location=location)
             created += await self._detect_subscription_creep(org_id, location=location)
             created += await self._detect_inventory_stockout_risk(org_id, location=location)
+            # Phase 7 — Workforce intelligence alerts (org-wide only; location ignored for now).
+            if location is None:
+                created += await self._detect_workforce_missing_checkout(org_id)
+                created += await self._detect_workforce_repeated_lateness(org_id)
+                created += await self._detect_workforce_pending_leave(org_id)
+                created += await self._detect_workforce_payroll_due(org_id)
+                created += await self._detect_workforce_contract_expiry(org_id)
+                created += await self._detect_workforce_announcement_ack(org_id)
         return created
+
+    async def _detect_workforce_missing_checkout(self, org_id: uuid.UUID) -> int:
+        today = date.today()
+        count = await self.db.scalar(
+            select(func.count()).select_from(WorkforceAttendanceRecord).where(
+                WorkforceAttendanceRecord.org_id == org_id,
+                WorkforceAttendanceRecord.work_date == today,
+                WorkforceAttendanceRecord.missing_checkout.is_(True),
+            )
+        )
+        c = int(count or 0)
+        if c <= 0:
+            return 0
+        return await self._create_if_new(
+            Alert(
+                org_id=org_id,
+                location_id=None,
+                kind="ANOMALY",
+                severity="MEDIUM" if c < 3 else "HIGH",
+                title=f"Missing check-outs detected ({c})",
+                description=f"{c} attendance records are missing a check-out for {today.isoformat()}.",
+                meta={"subkind": "WORKFORCE_MISSING_CHECKOUT", "date": today.isoformat(), "count": c, "impact": str(c)},
+            ),
+            audit_action="alert.detect.workforce_missing_checkout",
+            audit_metadata={"date": today.isoformat(), "count": c},
+        )
+
+    async def _detect_workforce_repeated_lateness(self, org_id: uuid.UUID) -> int:
+        # Flag if any employee has >= 3 late days in last 14 days.
+        end = date.today()
+        start = end - timedelta(days=13)
+        rows = await self.db.execute(
+            select(
+                WorkforceAttendanceRecord.employee_id,
+                func.sum(func.cast(WorkforceAttendanceRecord.is_late, Integer)).label("late_days"),
+            )
+            .where(
+                WorkforceAttendanceRecord.org_id == org_id,
+                WorkforceAttendanceRecord.work_date >= start,
+                WorkforceAttendanceRecord.work_date <= end,
+            )
+            .group_by(WorkforceAttendanceRecord.employee_id)
+            .having(func.sum(func.cast(WorkforceAttendanceRecord.is_late, Integer)) >= 3)
+            .limit(5)
+        )
+        top = [(str(emp_id), int(late_days or 0)) for emp_id, late_days in rows.all()]
+        if not top:
+            return 0
+        max_late = max(v for _, v in top)
+        return await self._create_if_new(
+            Alert(
+                org_id=org_id,
+                location_id=None,
+                kind="ANOMALY",
+                severity="MEDIUM" if max_late < 5 else "HIGH",
+                title="Repeated lateness risk",
+                description=f"At least {len(top)} employees have 3+ late days in the last 14 days.",
+                meta={
+                    "subkind": "WORKFORCE_REPEATED_LATENESS",
+                    "from": start.isoformat(),
+                    "to": end.isoformat(),
+                    "top": top,
+                    "impact": str(max_late),
+                },
+            ),
+            audit_action="alert.detect.workforce_repeated_lateness",
+            audit_metadata={"from": start.isoformat(), "to": end.isoformat(), "top": top},
+        )
+
+    async def _detect_workforce_pending_leave(self, org_id: uuid.UUID) -> int:
+        count = await self.db.scalar(
+            select(func.count()).select_from(WorkforceLeaveRequest).where(
+                WorkforceLeaveRequest.org_id == org_id,
+                WorkforceLeaveRequest.status == "PENDING",
+            )
+        )
+        c = int(count or 0)
+        if c <= 0:
+            return 0
+        return await self._create_if_new(
+            Alert(
+                org_id=org_id,
+                location_id=None,
+                kind="ANOMALY",
+                severity="LOW" if c < 5 else "MEDIUM",
+                title=f"Pending leave approvals ({c})",
+                description="There are pending leave requests awaiting review.",
+                meta={"subkind": "WORKFORCE_PENDING_LEAVE", "count": c, "impact": str(c)},
+            ),
+            audit_action="alert.detect.workforce_pending_leave",
+            audit_metadata={"count": c},
+        )
+
+    async def _detect_workforce_payroll_due(self, org_id: uuid.UUID) -> int:
+        today = date.today()
+        due_end = today + timedelta(days=7)
+        periods = await self.db.scalar(
+            select(func.count()).select_from(WorkforcePayrollPeriod).where(
+                WorkforcePayrollPeriod.org_id == org_id,
+                WorkforcePayrollPeriod.status != "PAID",
+                WorkforcePayrollPeriod.end_date <= due_end,
+            )
+        )
+        unpaid = await self.db.scalar(
+            select(func.count()).select_from(WorkforcePayrollEntry).where(
+                WorkforcePayrollEntry.org_id == org_id,
+                WorkforcePayrollEntry.status != "PAID",
+            )
+        )
+        p = int(periods or 0)
+        u = int(unpaid or 0)
+        if p <= 0 and u <= 0:
+            return 0
+        sev = "MEDIUM" if p > 0 else "LOW"
+        return await self._create_if_new(
+            Alert(
+                org_id=org_id,
+                location_id=None,
+                kind="RUNWAY",
+                severity=sev,
+                title="Payroll due soon",
+                description=f"{p} payroll periods end within 7 days; {u} entries are not marked paid.",
+                meta={"subkind": "WORKFORCE_PAYROLL_DUE", "due_periods": p, "unpaid_entries": u, "impact": str(max(p, u))},
+            ),
+            audit_action="alert.detect.workforce_payroll_due",
+            audit_metadata={"due_periods": p, "unpaid_entries": u},
+        )
+
+    async def _detect_workforce_contract_expiry(self, org_id: uuid.UUID) -> int:
+        today = date.today()
+        window_end = today + timedelta(days=30)
+        expiring = await self.db.scalar(
+            select(func.count()).select_from(WorkforceEmployee).where(
+                WorkforceEmployee.org_id == org_id,
+                WorkforceEmployee.is_active.is_(True),
+                WorkforceEmployee.contract_end.is_not(None),
+                WorkforceEmployee.contract_end >= today,
+                WorkforceEmployee.contract_end <= window_end,
+            )
+        )
+        c = int(expiring or 0)
+        if c <= 0:
+            return 0
+        return await self._create_if_new(
+            Alert(
+                org_id=org_id,
+                location_id=None,
+                kind="ANOMALY",
+                severity="LOW" if c < 3 else "MEDIUM",
+                title=f"Contracts expiring soon ({c})",
+                description="Some employee contracts are expiring within 30 days.",
+                meta={"subkind": "WORKFORCE_CONTRACT_EXPIRY", "count": c, "window_days": 30, "impact": str(c)},
+            ),
+            audit_action="alert.detect.workforce_contract_expiry",
+            audit_metadata={"count": c, "window_days": 30},
+        )
+
+    async def _detect_workforce_announcement_ack(self, org_id: uuid.UUID) -> int:
+        today = date.today()
+        ann_rows = await self.db.execute(
+            select(WorkforceAnnouncement.id)
+            .where(
+                WorkforceAnnouncement.org_id == org_id,
+                WorkforceAnnouncement.status == "PUBLISHED",
+                WorkforceAnnouncement.acknowledgement_required.is_(True),
+                WorkforceAnnouncement.published_at.is_not(None),
+                func.coalesce(WorkforceAnnouncement.expires_at, today) >= today,
+            )
+            .limit(200)
+        )
+        announcement_ids = [r[0] for r in ann_rows.all()]
+        if not announcement_ids:
+            return 0
+        acked = await self.db.execute(
+            select(WorkforceAnnouncementReceipt.announcement_id)
+            .where(
+                WorkforceAnnouncementReceipt.announcement_id.in_(announcement_ids),
+                WorkforceAnnouncementReceipt.acknowledged_at.is_not(None),
+            )
+            .group_by(WorkforceAnnouncementReceipt.announcement_id)
+        )
+        acked_set = {r[0] for r in acked.all()}
+        unacked = sum(1 for a_id in announcement_ids if a_id not in acked_set)
+        if unacked <= 0:
+            return 0
+        return await self._create_if_new(
+            Alert(
+                org_id=org_id,
+                location_id=None,
+                kind="ANOMALY",
+                severity="LOW" if unacked < 3 else "MEDIUM",
+                title=f"Announcements need acknowledgement ({unacked})",
+                description="Some critical announcements still need acknowledgement.",
+                meta={"subkind": "WORKFORCE_ANNOUNCEMENT_ACK", "count": unacked, "impact": str(unacked)},
+            ),
+            audit_action="alert.detect.workforce_announcement_ack",
+            audit_metadata={"count": unacked},
+        )
 
     async def _detection_contexts(self, org_id: uuid.UUID) -> list[Location | None]:
         active_locations = await LocationRepo(self.db).list_by_org(org_id=org_id, include_inactive=False)

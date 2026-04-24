@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Building2, CalendarDays, CreditCard, Megaphone, Plane, Users } from "lucide-react";
+import { BarChart3, Building2, CalendarDays, ClipboardList, CreditCard, Megaphone, Plane, Users } from "lucide-react";
 
 import { EmptyState } from "@/components/common/empty-state";
 import { SectionHeader } from "@/components/common/section-header";
@@ -31,6 +31,25 @@ export default function WorkforceLandingPage() {
       />
 
       <div className="grid gap-4 lg:grid-cols-2">
+        <Link href="/app/dashboard" className="group">
+          <Card className="h-full transition hover:border-primary/30 hover:shadow-md">
+            <CardHeader className="flex flex-row items-center gap-3">
+              <div className="rounded-2xl bg-primary/10 p-2 text-primary">
+                <BarChart3 className="h-5 w-5" />
+              </div>
+              <div className="min-w-0">
+                <CardTitle>Intelligence snapshot</CardTitle>
+                <p className="mt-1 text-sm text-muted-foreground">Cross-cutting workforce signals on the executive dashboard.</p>
+              </div>
+            </CardHeader>
+            <CardContent className="text-sm text-muted-foreground">
+              Today&apos;s attendance, leave backlog, payroll due, contract/probation windows, and announcement ack gaps—the
+              same signals the AI assistant grounds on. For a downloadable range summary, open Reports and use the Workforce
+              intelligence section (<span className="font-mono text-xs text-foreground">#workforce-summary</span>).
+            </CardContent>
+          </Card>
+        </Link>
+
         <Link href="/app/workforce/employees" className="group">
           <Card className="h-full transition hover:border-primary/30 hover:shadow-md">
             <CardHeader className="flex flex-row items-center gap-3">
@@ -129,6 +148,23 @@ export default function WorkforceLandingPage() {
             </CardHeader>
             <CardContent className="text-sm text-muted-foreground">
               Drafts from attendance, salaried unpaid-leave deduction, adjustments, CSV/PDF export, approve; owners mark paid.
+            </CardContent>
+          </Card>
+        </Link>
+
+        <Link href="/app/workforce/hr" className="group">
+          <Card className="h-full transition hover:border-primary/30 hover:shadow-md">
+            <CardHeader className="flex flex-row items-center gap-3">
+              <div className="rounded-2xl bg-primary/10 p-2 text-primary">
+                <ClipboardList className="h-5 w-5" />
+              </div>
+              <div className="min-w-0">
+                <CardTitle>HR admin</CardTitle>
+                <p className="mt-1 text-sm text-muted-foreground">Onboarding, policies, documents.</p>
+              </div>
+            </CardHeader>
+            <CardContent className="text-sm text-muted-foreground">
+              Checklists for onboarding/offboarding, policy acknowledgements, and employee documents.
             </CardContent>
           </Card>
         </Link>

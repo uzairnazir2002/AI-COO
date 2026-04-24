@@ -73,6 +73,10 @@ class WorkforceEmployeeCreateIn(BaseModel):
     start_date: date | None = None
     end_date: date | None = None
 
+    contract_start: date | None = None
+    contract_end: date | None = None
+    probation_end: date | None = None
+
     salary_type: str = Field(default="SALARIED", max_length=16)
     base_salary: Decimal | None = None
     hourly_rate: Decimal | None = None
@@ -98,6 +102,10 @@ class WorkforceEmployeeUpdateIn(BaseModel):
     start_date: date | None = None
     end_date: date | None = None
 
+    contract_start: date | None = None
+    contract_end: date | None = None
+    probation_end: date | None = None
+
     salary_type: str | None = Field(default=None, max_length=16)
     base_salary: Decimal | None = None
     hourly_rate: Decimal | None = None
@@ -122,6 +130,9 @@ class WorkforceEmployeeOut(BaseModel):
     employment_status: str
     start_date: date | None
     end_date: date | None
+    contract_start: date | None = None
+    contract_end: date | None = None
+    probation_end: date | None = None
     salary_type: str
     base_salary: Decimal | None
     hourly_rate: Decimal | None

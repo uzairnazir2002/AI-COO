@@ -70,6 +70,11 @@ class WorkforceEmployeeService:
         if start_date and end_date and end_date < start_date:
             raise ValueError("End date cannot be before start date")
 
+    @staticmethod
+    def _validate_contract(contract_start: date | None, contract_end: date | None) -> None:
+        if contract_start and contract_end and contract_end < contract_start:
+            raise ValueError("Contract end cannot be before contract start")
+
     async def list_employees(
         self,
         *,
@@ -120,6 +125,9 @@ class WorkforceEmployeeService:
         employment_status: str,
         start_date: date | None,
         end_date: date | None,
+        contract_start: date | None,
+        contract_end: date | None,
+        probation_end: date | None,
         salary_type: str,
         base_salary: Decimal | None,
         hourly_rate: Decimal | None,
@@ -142,6 +150,7 @@ class WorkforceEmployeeService:
             raise ValueError("Unsupported salary type")
 
         self._validate_dates(start_date, end_date)
+        self._validate_contract(contract_start, contract_end)
 
         normalized_base_salary = self._normalize_money(base_salary, "Base salary")
         normalized_hourly_rate = self._normalize_money(hourly_rate, "Hourly rate")
@@ -185,6 +194,9 @@ class WorkforceEmployeeService:
                 employment_status=normalized_emp_status,
                 start_date=start_date,
                 end_date=end_date,
+                contract_start=contract_start,
+                contract_end=contract_end,
+                probation_end=probation_end,
                 salary_type=normalized_salary_type,
                 base_salary=normalized_base_salary,
                 hourly_rate=normalized_hourly_rate,
@@ -211,6 +223,9 @@ class WorkforceEmployeeService:
         employment_status: str | None,
         start_date: date | None,
         end_date: date | None,
+        contract_start: date | None,
+        contract_end: date | None,
+        probation_end: date | None,
         salary_type: str | None,
         base_salary: Decimal | None,
         hourly_rate: Decimal | None,
@@ -255,6 +270,15 @@ class WorkforceEmployeeService:
         if "end_date" in fields_set:
             row.end_date = end_date
         self._validate_dates(row.start_date, row.end_date)
+
+        if "contract_start" in fields_set:
+            row.contract_start = contract_start
+        if "contract_end" in fields_set:
+            row.contract_end = contract_end
+        self._validate_contract(row.contract_start, row.contract_end)
+
+        if "probation_end" in fields_set:
+            row.probation_end = probation_end
 
         next_salary_type = row.salary_type
         if "salary_type" in fields_set and salary_type is not None:

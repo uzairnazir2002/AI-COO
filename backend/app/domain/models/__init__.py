@@ -58,6 +58,10 @@ from app.domain.models.workforce_announcement_template import WorkforceAnnouncem
 from app.domain.models.workforce_announcement import WorkforceAnnouncement
 from app.domain.models.workforce_announcement_receipt import WorkforceAnnouncementReceipt
 from app.domain.models.workforce_announcement_delivery import WorkforceAnnouncementDelivery
+from app.domain.models.workforce_policy import WorkforcePolicy
+from app.domain.models.workforce_policy_ack import WorkforcePolicyAcknowledgement
+from app.domain.models.workforce_document import WorkforceDocument
+from app.domain.models.workforce_checklist_item import WorkforceChecklistItem
 
 __all__ = [
     "User",
@@ -120,4 +124,8 @@ __all__ = [
     "WorkforceAnnouncementReceipt",
     "WorkforceAnnouncementTemplate",
     "WorkforceAnnouncementDelivery",
+    "WorkforcePolicy",
+    "WorkforcePolicyAcknowledgement",
+    "WorkforceDocument",
+    "WorkforceChecklistItem",
 ]

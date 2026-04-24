@@ -274,10 +274,68 @@ export type WorkforceEmployee = {
   employment_status: string;
   start_date: string | null;
   end_date: string | null;
+  contract_start?: string | null;
+  contract_end?: string | null;
+  probation_end?: string | null;
   salary_type: string;
   base_salary: string | null;
   hourly_rate: string | null;
   is_active: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
+export type WorkforcePolicy = {
+  id: string;
+  org_id: string;
+  created_by_user_id: string;
+  code: string;
+  title: string;
+  body: string;
+  version: number;
+  requires_ack: boolean;
+  is_active: boolean;
+  published_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type WorkforcePolicyAck = {
+  id: string;
+  org_id: string;
+  policy_id: string;
+  employee_id: string;
+  acknowledged_at: string;
+  acknowledged_by_user_id: string;
+};
+
+export type WorkforceDocument = {
+  id: string;
+  org_id: string;
+  created_by_user_id: string;
+  employee_id: string | null;
+  policy_id: string | null;
+  name: string;
+  content_type: string;
+  size_bytes: number;
+  object_key: string;
+  url: string;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
+export type WorkforceChecklistItem = {
+  id: string;
+  org_id: string;
+  employee_id: string;
+  kind: string;
+  title: string;
+  details: string | null;
+  due_date: string | null;
+  is_done: boolean;
+  completed_at: string | null;
+  completed_by_user_id: string | null;
   created_at: string;
   updated_at: string;
 };

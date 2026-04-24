@@ -4,10 +4,28 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { ApiError, api } from "@/lib/api/client";
 import { apiPaths } from "@/lib/api/endpoints";
-import { reportGenerateSchema, type ReportGenerateResponse } from "@/lib/api/schemas";
+import {
+  reportGenerateSchema,
+  workforceReportsSummarySchema,
+  type ReportGenerateResponse,
+  type WorkforceReportsSummaryResponse,
+} from "@/lib/api/schemas";
 import { qk } from "@/lib/query/keys";
 import { useAppStore } from "@/store/appStore";
 import type { Report } from "@/types/domain";
+
+export function useWorkforceReportsSummary(from: string, to: string) {
+  const orgId = useAppStore((s) => s.selectedOrgId);
+  return useQuery({
+    queryKey: qk.workforceIntelligenceReportsSummary(orgId || "", from, to),
+    queryFn: () =>
+      api<WorkforceReportsSummaryResponse>(
+        `${apiPaths.workforceIntelligenceReportsSummary}?org_id=${orgId}&from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`,
+        { schema: workforceReportsSummarySchema },
+      ),
+    enabled: Boolean(orgId && from && to),
+  });
+}
 
 export function useReports() {
   const orgId = useAppStore((s) => s.selectedOrgId);

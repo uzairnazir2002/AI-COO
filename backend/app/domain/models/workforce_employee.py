@@ -52,6 +52,10 @@ class WorkforceEmployee(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     start_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     end_date: Mapped[date | None] = mapped_column(Date, nullable=True)
 
+    contract_start: Mapped[date | None] = mapped_column(Date, nullable=True)
+    contract_end: Mapped[date | None] = mapped_column(Date, nullable=True)
+    probation_end: Mapped[date | None] = mapped_column(Date, nullable=True)
+
     salary_type: Mapped[str] = mapped_column(String(16), nullable=False, default="SALARIED")
     base_salary: Mapped[Decimal | None] = mapped_column(Numeric(14, 2), nullable=True)
     hourly_rate: Mapped[Decimal | None] = mapped_column(Numeric(14, 2), nullable=True)

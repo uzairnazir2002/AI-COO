@@ -453,10 +453,68 @@ export const workforceEmployeeSchema = z.object({
   employment_status: z.string(),
   start_date: z.string().nullable(),
   end_date: z.string().nullable(),
+  contract_start: z.string().nullable().optional(),
+  contract_end: z.string().nullable().optional(),
+  probation_end: z.string().nullable().optional(),
   salary_type: z.string(),
   base_salary: z.string().nullable(),
   hourly_rate: z.string().nullable(),
   is_active: z.boolean(),
+  created_at: z.string(),
+  updated_at: z.string(),
+});
+
+export const workforcePolicySchema = z.object({
+  id: z.string().uuid(),
+  org_id: z.string().uuid(),
+  created_by_user_id: z.string().uuid(),
+  code: z.string(),
+  title: z.string(),
+  body: z.string(),
+  version: z.number(),
+  requires_ack: z.boolean(),
+  is_active: z.boolean(),
+  published_at: z.string().nullable(),
+  created_at: z.string(),
+  updated_at: z.string(),
+});
+
+export const workforcePolicyAckSchema = z.object({
+  id: z.string().uuid(),
+  org_id: z.string().uuid(),
+  policy_id: z.string().uuid(),
+  employee_id: z.string().uuid(),
+  acknowledged_at: z.string(),
+  acknowledged_by_user_id: z.string().uuid(),
+});
+
+export const workforceDocumentSchema = z.object({
+  id: z.string().uuid(),
+  org_id: z.string().uuid(),
+  created_by_user_id: z.string().uuid(),
+  employee_id: z.string().uuid().nullable(),
+  policy_id: z.string().uuid().nullable(),
+  name: z.string(),
+  content_type: z.string(),
+  size_bytes: z.number(),
+  object_key: z.string(),
+  url: z.string(),
+  is_active: z.boolean(),
+  created_at: z.string(),
+  updated_at: z.string(),
+});
+
+export const workforceChecklistItemSchema = z.object({
+  id: z.string().uuid(),
+  org_id: z.string().uuid(),
+  employee_id: z.string().uuid(),
+  kind: z.string(),
+  title: z.string(),
+  details: z.string().nullable(),
+  due_date: z.string().nullable(),
+  is_done: z.boolean(),
+  completed_at: z.string().nullable(),
+  completed_by_user_id: z.string().uuid().nullable(),
   created_at: z.string(),
   updated_at: z.string(),
 });
@@ -734,6 +792,60 @@ export const workforcePayslipPreviewSchema = z.object({
   period: workforcePayrollPeriodSchema,
 });
 
+export const workforceDepartmentHeadcountRowSchema = z.object({
+  department_id: z.string().uuid().nullable().optional(),
+  department_name: z.string(),
+  headcount: z.number(),
+});
+
+export const workforceLaborCostPeriodRowSchema = z.object({
+  payroll_period_id: z.string().uuid(),
+  period_start: z.string(),
+  period_end: z.string(),
+  total_net_pay: z.string(),
+});
+
+export const workforceDashboardIntelSchema = z.object({
+  org_id: z.string().uuid(),
+  as_of: z.string(),
+  present_today: z.number(),
+  absent_today: z.number(),
+  late_today: z.number(),
+  missing_checkout_today: z.number(),
+  pending_leave_requests: z.number(),
+  payroll_due_periods: z.number(),
+  unpaid_payroll_entries: z.number(),
+  contract_expiring_soon: z.number(),
+  probation_ending_soon: z.number(),
+  unacknowledged_announcements: z.number(),
+  top_risks: z.array(z.string()),
+});
+
+export const workforceReportsSummarySchema = z.object({
+  org_id: z.string().uuid(),
+  from_date: z.string(),
+  to_date: z.string(),
+  attendance: z.object({
+    present_days: z.number(),
+    absent_days: z.number(),
+    late_incidents: z.number(),
+    missing_checkouts: z.number(),
+    total_records: z.number(),
+  }),
+  leave: z.object({
+    pending_requests: z.number(),
+    approved_requests_overlapping: z.number(),
+  }),
+  payroll: z.object({
+    periods_overlapping: z.number(),
+    total_net_pay_in_range: z.string(),
+    unpaid_entries_in_overlapping_periods: z.number(),
+  }),
+  department_headcount: z.array(workforceDepartmentHeadcountRowSchema),
+  labor_cost_by_period: z.array(workforceLaborCostPeriodRowSchema),
+  summary_lines: z.array(z.string()),
+});
+
 export type TokenResponse = z.infer<typeof tokenSchema>;
 export type MeResponse = z.infer<typeof meSchema>;
 export type SummaryResponse = z.infer<typeof summarySchema>;
@@ -779,3 +891,5 @@ export type WorkforcePayrollPeriodResponse = z.infer<typeof workforcePayrollPeri
 export type WorkforcePayrollEntryResponse = z.infer<typeof workforcePayrollEntrySchema>;
 export type WorkforcePayrollAdjustmentResponse = z.infer<typeof workforcePayrollAdjustmentSchema>;
 export type WorkforcePayslipPreviewResponse = z.infer<typeof workforcePayslipPreviewSchema>;
+export type WorkforceDashboardIntelResponse = z.infer<typeof workforceDashboardIntelSchema>;
+export type WorkforceReportsSummaryResponse = z.infer<typeof workforceReportsSummarySchema>;
