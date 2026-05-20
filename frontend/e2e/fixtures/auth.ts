@@ -13,7 +13,7 @@ type AuthSession = {
 
 type SessionOrg = {
   org_id: string;
-  role: "OWNER" | "EDITOR" | "VIEWER";
+  role: "OWNER" | "EDITOR" | "MANAGER" | "VIEWER";
   name: string;
 };
 
@@ -137,29 +137,34 @@ async function postWithCookieCsrf(
 export type E2eAuthSessionSlice = {
   authMode: "bearer" | "cookie";
   accessToken?: string;
+  orgId?: string;
 };
 
 export async function e2eAuthenticatedPost(page: Page, url: string, data: unknown, session: E2eAuthSessionSlice) {
+  const orgHeaders: Record<string, string> = {};
+  if (session.orgId) orgHeaders["X-Org-Id"] = session.orgId;
   if (session.authMode === "bearer") {
     const token = session.accessToken;
     if (!token) throw new Error("E2E bearer mode requires accessToken on auth session");
     return page.request.post(url, {
       data,
-      headers: { Authorization: `Bearer ${token}` },
+      headers: { Authorization: `Bearer ${token}`, ...orgHeaders },
     });
   }
-  return postWithCookieCsrf(page, url, { data });
+  return postWithCookieCsrf(page, url, { data, headers: orgHeaders });
 }
 
 export async function e2eAuthenticatedGet(page: Page, url: string, session: E2eAuthSessionSlice) {
+  const orgHeaders: Record<string, string> = {};
+  if (session.orgId) orgHeaders["X-Org-Id"] = session.orgId;
   if (session.authMode === "bearer") {
     const token = session.accessToken;
     if (!token) throw new Error("E2E bearer mode requires accessToken on auth session");
     return page.request.get(url, {
-      headers: { Authorization: `Bearer ${token}` },
+      headers: { Authorization: `Bearer ${token}`, ...orgHeaders },
     });
   }
-  return page.request.get(url);
+  return page.request.get(url, { headers: orgHeaders });
 }
 
 async function loginWithBackoff(page: Page, email: string, password: string) {

@@ -82,7 +82,7 @@ export function useWorkforceDepartments(includeInactive = true) {
     queryKey: qk.workforceDepartments(orgId || "", includeInactive),
     queryFn: async () => {
       const out = await api<WorkforceDepartment[]>(
-        `${apiPaths.workforceDepartments}?org_id=${orgId}&include_inactive=${includeInactive ? "true" : "false"}`,
+        `${apiPaths.workforceDepartments}?include_inactive=${includeInactive ? "true" : "false"}`,
       );
       return out.map((row) => workforceDepartmentSchema.parse(row));
     },
@@ -96,11 +96,10 @@ export function useCreateWorkforceDepartment() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (payload: { name: string; code?: string | null; is_active?: boolean }) => {
-      const resolved = requireEditor(orgId, role, "Viewer role cannot create departments.");
+      requireEditor(orgId, role, "Viewer role cannot create departments.");
       const out = await api<WorkforceDepartment>(apiPaths.workforceDepartments, {
         method: "POST",
         body: JSON.stringify({
-          org_id: resolved,
           name: payload.name,
           code: payload.code ?? null,
           is_active: payload.is_active ?? true,
@@ -118,11 +117,10 @@ export function useUpdateWorkforceDepartment() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (payload: { id: string; name?: string | null; code?: string | null; is_active?: boolean | null }) => {
-      const resolved = requireEditor(orgId, role, "Viewer role cannot update departments.");
+      requireEditor(orgId, role, "Viewer role cannot update departments.");
       const out = await api<WorkforceDepartment>(apiPaths.workforceDepartmentById(payload.id), {
         method: "PUT",
         body: JSON.stringify({
-          org_id: resolved,
           name: payload.name ?? null,
           code: payload.code ?? null,
           is_active: payload.is_active ?? null,
@@ -140,8 +138,8 @@ export function useDeactivateWorkforceDepartment() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (id: string) => {
-      const resolved = requireEditor(orgId, role, "Viewer role cannot deactivate departments.");
-      return api<{ ok: boolean }>(`${apiPaths.workforceDepartmentById(id)}?org_id=${resolved}`, { method: "DELETE" });
+      requireEditor(orgId, role, "Viewer role cannot deactivate departments.");
+      return api<{ ok: boolean }>(apiPaths.workforceDepartmentById(id), { method: "DELETE" });
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["workforceDepartments", orgId || ""] }),
   });
@@ -153,7 +151,7 @@ export function useWorkforceTitles(includeInactive = true) {
     queryKey: qk.workforceTitles(orgId || "", includeInactive),
     queryFn: async () => {
       const out = await api<WorkforceTitle[]>(
-        `${apiPaths.workforceTitles}?org_id=${orgId}&include_inactive=${includeInactive ? "true" : "false"}`,
+        `${apiPaths.workforceTitles}?include_inactive=${includeInactive ? "true" : "false"}`,
       );
       return out.map((row) => workforceTitleSchema.parse(row));
     },
@@ -167,11 +165,10 @@ export function useCreateWorkforceTitle() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (payload: { name: string; level?: number | null; is_active?: boolean }) => {
-      const resolved = requireEditor(orgId, role, "Viewer role cannot create titles.");
+      requireEditor(orgId, role, "Viewer role cannot create titles.");
       const out = await api<WorkforceTitle>(apiPaths.workforceTitles, {
         method: "POST",
         body: JSON.stringify({
-          org_id: resolved,
           name: payload.name,
           level: payload.level ?? null,
           is_active: payload.is_active ?? true,
@@ -189,11 +186,10 @@ export function useUpdateWorkforceTitle() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (payload: { id: string; name?: string | null; level?: number | null; is_active?: boolean | null }) => {
-      const resolved = requireEditor(orgId, role, "Viewer role cannot update titles.");
+      requireEditor(orgId, role, "Viewer role cannot update titles.");
       const out = await api<WorkforceTitle>(apiPaths.workforceTitleById(payload.id), {
         method: "PUT",
         body: JSON.stringify({
-          org_id: resolved,
           name: payload.name ?? null,
           level: payload.level ?? null,
           is_active: payload.is_active ?? null,
@@ -211,8 +207,8 @@ export function useDeactivateWorkforceTitle() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (id: string) => {
-      const resolved = requireEditor(orgId, role, "Viewer role cannot deactivate titles.");
-      return api<{ ok: boolean }>(`${apiPaths.workforceTitleById(id)}?org_id=${resolved}`, { method: "DELETE" });
+      requireEditor(orgId, role, "Viewer role cannot deactivate titles.");
+      return api<{ ok: boolean }>(apiPaths.workforceTitleById(id), { method: "DELETE" });
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["workforceTitles", orgId || ""] }),
   });
@@ -233,7 +229,7 @@ export function useWorkforceEmployees(params: EmployeeQueryParams) {
   return useQuery({
     queryKey: qk.workforceEmployees(orgId || "", params),
     queryFn: async () => {
-      const qs = new URLSearchParams({ org_id: orgId || "" });
+      const qs = new URLSearchParams();
       if (params.q) qs.set("q", params.q);
       if (params.department_id) qs.set("department_id", params.department_id);
       if (params.title_id) qs.set("title_id", params.title_id);
@@ -253,7 +249,7 @@ export function useWorkforceEmployee(employeeId: string) {
   return useQuery({
     queryKey: qk.workforceEmployee(orgId || "", employeeId),
     queryFn: async () => {
-      const out = await api<WorkforceEmployee>(`${apiPaths.workforceEmployeeById(employeeId)}?org_id=${orgId}`);
+      const out = await api<WorkforceEmployee>(apiPaths.workforceEmployeeById(employeeId));
       return workforceEmployeeSchema.parse(out);
     },
     enabled: Boolean(orgId && employeeId),
@@ -266,11 +262,10 @@ export function useCreateWorkforceEmployee() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (payload: Partial<WorkforceEmployee> & { first_name: string; last_name: string }) => {
-      const resolved = requireEditor(orgId, role, "Viewer role cannot create employees.");
+      requireEditor(orgId, role, "Viewer role cannot create employees.");
       const out = await api<WorkforceEmployee>(apiPaths.workforceEmployees, {
         method: "POST",
         body: JSON.stringify({
-          org_id: resolved,
           employee_code: payload.employee_code ?? null,
           first_name: payload.first_name,
           last_name: payload.last_name,
@@ -302,8 +297,8 @@ export function useUpdateWorkforceEmployee() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (payload: { id: string } & Partial<WorkforceEmployee>) => {
-      const resolved = requireEditor(orgId, role, "Viewer role cannot update employees.");
-      const body: Record<string, unknown> = { org_id: resolved };
+      requireEditor(orgId, role, "Viewer role cannot update employees.");
+      const body: Record<string, unknown> = {};
       for (const key of [
         "employee_code",
         "first_name",
@@ -344,8 +339,8 @@ export function useDeactivateWorkforceEmployee() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (id: string) => {
-      const resolved = requireOwner(orgId, role, "Only owners can deactivate employees.");
-      return api<{ ok: boolean }>(`${apiPaths.workforceEmployeeById(id)}?org_id=${resolved}`, { method: "DELETE" });
+      requireOwner(orgId, role, "Only owners can deactivate employees.");
+      return api<{ ok: boolean }>(apiPaths.workforceEmployeeById(id), { method: "DELETE" });
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["workforceEmployees", orgId || ""] }),
   });
@@ -357,7 +352,7 @@ export function useWorkforceShifts(includeInactive = true) {
     queryKey: qk.workforceShifts(orgId || "", includeInactive),
     queryFn: async () => {
       const out = await api<WorkforceShift[]>(
-        `${apiPaths.workforceShifts}?org_id=${orgId}&include_inactive=${includeInactive ? "true" : "false"}`,
+        `${apiPaths.workforceShifts}?include_inactive=${includeInactive ? "true" : "false"}`,
       );
       return out.map((row) => workforceShiftSchema.parse(row));
     },
@@ -371,11 +366,10 @@ export function useCreateWorkforceShift() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (payload: { name: string; start_time: string; end_time: string; grace_minutes?: number; is_active?: boolean }) => {
-      const resolved = requireEditor(orgId, role, "Viewer role cannot create shifts.");
+      requireEditor(orgId, role, "Viewer role cannot create shifts.");
       const out = await api<WorkforceShift>(apiPaths.workforceShifts, {
         method: "POST",
         body: JSON.stringify({
-          org_id: resolved,
           name: payload.name,
           start_time: payload.start_time,
           end_time: payload.end_time,
@@ -395,11 +389,10 @@ export function useUpdateWorkforceShift() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (payload: { id: string; name?: string | null; start_time?: string | null; end_time?: string | null; grace_minutes?: number | null; is_active?: boolean | null }) => {
-      const resolved = requireEditor(orgId, role, "Viewer role cannot update shifts.");
+      requireEditor(orgId, role, "Viewer role cannot update shifts.");
       const out = await api<WorkforceShift>(apiPaths.workforceShiftById(payload.id), {
         method: "PUT",
         body: JSON.stringify({
-          org_id: resolved,
           name: payload.name ?? null,
           start_time: payload.start_time ?? null,
           end_time: payload.end_time ?? null,
@@ -419,8 +412,8 @@ export function useDeactivateWorkforceShift() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (id: string) => {
-      const resolved = requireEditor(orgId, role, "Viewer role cannot deactivate shifts.");
-      return api<{ ok: boolean }>(`${apiPaths.workforceShiftById(id)}?org_id=${resolved}`, { method: "DELETE" });
+      requireEditor(orgId, role, "Viewer role cannot deactivate shifts.");
+      return api<{ ok: boolean }>(apiPaths.workforceShiftById(id), { method: "DELETE" });
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["workforceShifts", orgId || ""] }),
   });
@@ -431,7 +424,7 @@ export function useWorkforceShiftAssignments(params: { employee_id?: string; shi
   return useQuery({
     queryKey: qk.workforceShiftAssignments(orgId || "", params),
     queryFn: async () => {
-      const qs = new URLSearchParams({ org_id: orgId || "" });
+      const qs = new URLSearchParams();
       if (params.employee_id) qs.set("employee_id", params.employee_id);
       if (params.shift_id) qs.set("shift_id", params.shift_id);
       if (params.as_of) qs.set("as_of", params.as_of);
@@ -449,11 +442,10 @@ export function useCreateWorkforceShiftAssignment() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (payload: { employee_id: string; shift_id: string; effective_from: string; effective_to?: string | null }) => {
-      const resolved = requireEditor(orgId, role, "Viewer role cannot assign shifts.");
+      requireEditor(orgId, role, "Viewer role cannot assign shifts.");
       const out = await api<WorkforceShiftAssignment>(apiPaths.workforceShiftAssignments, {
         method: "POST",
         body: JSON.stringify({
-          org_id: resolved,
           employee_id: payload.employee_id,
           shift_id: payload.shift_id,
           effective_from: payload.effective_from,
@@ -471,7 +463,7 @@ export function useWorkforceAttendanceDaily(day: string, employeeId?: string) {
   return useQuery({
     queryKey: qk.workforceAttendanceDaily(orgId || "", day, employeeId || ""),
     queryFn: async () => {
-      const qs = new URLSearchParams({ org_id: orgId || "", date: day });
+      const qs = new URLSearchParams({ date: day });
       if (employeeId) qs.set("employee_id", employeeId);
       const out = await api<WorkforceAttendanceDaily>(`${apiPaths.workforceAttendanceDaily}?${qs.toString()}`, {
         schema: workforceAttendanceDailySchema,
@@ -487,7 +479,7 @@ export function useWorkforceAttendanceCalendar(month: string) {
   return useQuery({
     queryKey: qk.workforceAttendanceCalendar(orgId || "", month),
     queryFn: async () => {
-      const out = await api<WorkforceAttendanceCalendar>(`${apiPaths.workforceAttendanceCalendar}?org_id=${orgId}&month=${encodeURIComponent(month)}`, {
+      const out = await api<WorkforceAttendanceCalendar>(`${apiPaths.workforceAttendanceCalendar}?month=${encodeURIComponent(month)}`, {
         schema: workforceAttendanceCalendarSchema,
       });
       return workforceAttendanceCalendarSchema.parse(out);
@@ -502,10 +494,10 @@ export function useClockIn() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (payload: { employee_id: string; at?: string }) => {
-      const resolved = requireEditor(orgId, role, "Viewer role cannot clock in/out.");
+      requireEditor(orgId, role, "Viewer role cannot clock in/out.");
       return api(apiPaths.workforceAttendanceClockIn, {
         method: "POST",
-        body: JSON.stringify({ org_id: resolved, employee_id: payload.employee_id, at: payload.at ?? null }),
+        body: JSON.stringify({ employee_id: payload.employee_id, at: payload.at ?? null }),
       });
     },
     onSuccess: () => {
@@ -521,10 +513,10 @@ export function useClockOut() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (payload: { employee_id: string; at?: string }) => {
-      const resolved = requireEditor(orgId, role, "Viewer role cannot clock in/out.");
+      requireEditor(orgId, role, "Viewer role cannot clock in/out.");
       return api(apiPaths.workforceAttendanceClockOut, {
         method: "POST",
-        body: JSON.stringify({ org_id: resolved, employee_id: payload.employee_id, at: payload.at ?? null }),
+        body: JSON.stringify({ employee_id: payload.employee_id, at: payload.at ?? null }),
       });
     },
     onSuccess: () => {
@@ -540,11 +532,10 @@ export function useManualAttendanceEntry() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (payload: { employee_id: string; work_date: string; status: string; clock_in_at?: string | null; clock_out_at?: string | null; notes?: string | null }) => {
-      const resolved = requireEditor(orgId, role, "Viewer role cannot create attendance records.");
+      requireEditor(orgId, role, "Viewer role cannot create attendance records.");
       return api(apiPaths.workforceAttendanceManual, {
         method: "POST",
         body: JSON.stringify({
-          org_id: resolved,
           employee_id: payload.employee_id,
           work_date: payload.work_date,
           status: payload.status,
@@ -566,7 +557,7 @@ export function useWorkforceCorrections(params: { status?: string; employee_id?:
   return useQuery({
     queryKey: qk.workforceCorrections(orgId || "", params),
     queryFn: async () => {
-      const qs = new URLSearchParams({ org_id: orgId || "" });
+      const qs = new URLSearchParams();
       if (params.status) qs.set("status", params.status);
       if (params.employee_id) qs.set("employee_id", params.employee_id);
       if (params.limit) qs.set("limit", String(params.limit));
@@ -583,11 +574,10 @@ export function useRequestCorrection() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (payload: { attendance_record_id: string; reason: string; proposed_status?: string | null; proposed_clock_in_at?: string | null; proposed_clock_out_at?: string | null }) => {
-      const resolved = requireEditor(orgId, role, "Viewer role cannot request corrections.");
+      requireEditor(orgId, role, "Viewer role cannot request corrections.");
       const out = await api<WorkforceAttendanceCorrection>(apiPaths.workforceCorrections, {
         method: "POST",
         body: JSON.stringify({
-          org_id: resolved,
           attendance_record_id: payload.attendance_record_id,
           reason: payload.reason,
           proposed_status: payload.proposed_status ?? null,
@@ -607,11 +597,10 @@ export function useReviewCorrection() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (payload: { id: string; status: "APPROVED" | "REJECTED"; reviewer_note?: string | null }) => {
-      const resolved = requireEditor(orgId, role, "Viewer role cannot review corrections.");
+      requireEditor(orgId, role, "Viewer role cannot review corrections.");
       const out = await api<WorkforceAttendanceCorrection>(apiPaths.workforceCorrectionReview(payload.id), {
         method: "POST",
         body: JSON.stringify({
-          org_id: resolved,
           status: payload.status,
           reviewer_note: payload.reviewer_note ?? null,
         }),
@@ -628,7 +617,7 @@ export function useWorkforceLeaveTypes(includeInactive = true) {
     queryKey: qk.workforceLeaveTypes(orgId || "", includeInactive),
     queryFn: async () => {
       const out = await api<WorkforceLeaveType[]>(
-        `${apiPaths.workforceLeaveTypes}?org_id=${orgId}&include_inactive=${includeInactive ? "true" : "false"}`,
+        `${apiPaths.workforceLeaveTypes}?include_inactive=${includeInactive ? "true" : "false"}`,
       );
       return out.map((row) => workforceLeaveTypeSchema.parse(row));
     },
@@ -642,11 +631,10 @@ export function useCreateWorkforceLeaveType() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (payload: { name: string; code?: string | null; is_paid?: boolean; requires_approval?: boolean; is_active?: boolean }) => {
-      const resolved = requireEditor(orgId, role, "Viewer role cannot create leave types.");
+      requireEditor(orgId, role, "Viewer role cannot create leave types.");
       const out = await api<WorkforceLeaveType>(apiPaths.workforceLeaveTypes, {
         method: "POST",
         body: JSON.stringify({
-          org_id: resolved,
           name: payload.name,
           code: payload.code ?? null,
           is_paid: payload.is_paid ?? true,
@@ -666,11 +654,10 @@ export function useUpdateWorkforceLeaveType() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (payload: { id: string; name?: string | null; code?: string | null; is_paid?: boolean | null; requires_approval?: boolean | null; is_active?: boolean | null }) => {
-      const resolved = requireEditor(orgId, role, "Viewer role cannot update leave types.");
+      requireEditor(orgId, role, "Viewer role cannot update leave types.");
       const out = await api<WorkforceLeaveType>(apiPaths.workforceLeaveTypeById(payload.id), {
         method: "PUT",
         body: JSON.stringify({
-          org_id: resolved,
           name: payload.name ?? null,
           code: payload.code ?? null,
           is_paid: payload.is_paid ?? null,
@@ -690,8 +677,8 @@ export function useDeactivateWorkforceLeaveType() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (id: string) => {
-      const resolved = requireOwner(orgId, role, "Only owners can deactivate leave types.");
-      return api<{ ok: boolean }>(`${apiPaths.workforceLeaveTypeById(id)}?org_id=${resolved}`, { method: "DELETE" });
+      requireOwner(orgId, role, "Only owners can deactivate leave types.");
+      return api<{ ok: boolean }>(apiPaths.workforceLeaveTypeById(id), { method: "DELETE" });
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["workforceLeaveTypes", orgId || ""] }),
   });
@@ -702,7 +689,7 @@ export function useWorkforceLeaveBalances(params: { employee_id?: string; year?:
   return useQuery({
     queryKey: qk.workforceLeaveBalances(orgId || "", params),
     queryFn: async () => {
-      const qs = new URLSearchParams({ org_id: orgId || "" });
+      const qs = new URLSearchParams();
       if (params.employee_id) qs.set("employee_id", params.employee_id);
       if (params.year) qs.set("year", String(params.year));
       if (params.limit) qs.set("limit", String(params.limit));
@@ -719,11 +706,10 @@ export function useAllocateWorkforceLeaveBalance() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (payload: { employee_id: string; leave_type_id: string; year: number; allocated_days: string }) => {
-      const resolved = requireEditor(orgId, role, "Viewer role cannot allocate leave balances.");
+      requireEditor(orgId, role, "Viewer role cannot allocate leave balances.");
       const out = await api<WorkforceLeaveBalance>(apiPaths.workforceLeaveBalanceAllocate, {
         method: "POST",
         body: JSON.stringify({
-          org_id: resolved,
           employee_id: payload.employee_id,
           leave_type_id: payload.leave_type_id,
           year: payload.year,
@@ -741,7 +727,7 @@ export function useWorkforceLeaveRequests(params: { status?: string; employee_id
   return useQuery({
     queryKey: qk.workforceLeaveRequests(orgId || "", params),
     queryFn: async () => {
-      const qs = new URLSearchParams({ org_id: orgId || "" });
+      const qs = new URLSearchParams();
       if (params.status) qs.set("status", params.status);
       if (params.employee_id) qs.set("employee_id", params.employee_id);
       if (params.from_date) qs.set("from_date", params.from_date);
@@ -760,11 +746,10 @@ export function useCreateWorkforceLeaveRequest() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (payload: { employee_id: string; leave_type_id: string; start_date: string; end_date: string; days: string; reason?: string | null }) => {
-      const resolved = requireEditor(orgId, role, "Viewer role cannot request leave.");
+      requireEditor(orgId, role, "Viewer role cannot request leave.");
       const out = await api<WorkforceLeaveRequest>(apiPaths.workforceLeaveRequests, {
         method: "POST",
         body: JSON.stringify({
-          org_id: resolved,
           employee_id: payload.employee_id,
           leave_type_id: payload.leave_type_id,
           start_date: payload.start_date,
@@ -791,11 +776,10 @@ export function useDecideWorkforceLeaveRequest() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (payload: { id: string; status: "APPROVED" | "REJECTED" | "CANCELLED"; reviewer_note?: string | null }) => {
-      const resolved = requireEditor(orgId, role, "Viewer role cannot approve/reject leave.");
+      requireEditor(orgId, role, "Viewer role cannot approve/reject leave.");
       const out = await api<WorkforceLeaveRequest>(apiPaths.workforceLeaveRequestDecision(payload.id), {
         method: "POST",
         body: JSON.stringify({
-          org_id: resolved,
           status: payload.status,
           reviewer_note: payload.reviewer_note ?? null,
         }),
@@ -817,7 +801,6 @@ export function useWorkforceAnnouncements(includeArchived = false) {
     queryKey: qk.workforceAnnouncements(orgId || "", includeArchived),
     queryFn: async () => {
       const qs = new URLSearchParams({
-        org_id: orgId || "",
         include_archived: includeArchived ? "true" : "false",
       });
       const out = await api<WorkforceAnnouncement[]>(`${apiPaths.workforceAnnouncements}?${qs.toString()}`);
@@ -832,9 +815,7 @@ export function useWorkforceAnnouncementDetail(announcementId: string | null) {
   return useQuery({
     queryKey: qk.workforceAnnouncement(orgId || "", announcementId || ""),
     queryFn: async () => {
-      const out = await api<WorkforceAnnouncement>(
-        `${apiPaths.workforceAnnouncementById(announcementId!)}?org_id=${encodeURIComponent(orgId!)}`,
-      );
+      const out = await api<WorkforceAnnouncement>(apiPaths.workforceAnnouncementById(announcementId!));
       return workforceAnnouncementSchema.parse(out);
     },
     enabled: Boolean(orgId && announcementId),
@@ -848,9 +829,9 @@ export function useWorkforceAnnouncementTemplates() {
   return useQuery({
     queryKey: qk.workforceAnnouncementTemplates(orgId || ""),
     queryFn: async () => {
-      const resolved = requireEditor(orgId, role, "Only editors can manage announcement templates.");
+      requireEditor(orgId, role, "Only editors can manage announcement templates.");
       const out = await api<WorkforceAnnouncementTemplate[]>(
-        `${apiPaths.workforceAnnouncementTemplates}?org_id=${encodeURIComponent(resolved)}`,
+        `${apiPaths.workforceAnnouncementTemplates}`,
       );
       return out.map((row) => workforceAnnouncementTemplateSchema.parse(row));
     },
@@ -870,11 +851,10 @@ export function useCreateWorkforceAnnouncementTemplate() {
       description?: string | null;
       automation_key?: string | null;
     }) => {
-      const resolved = requireEditor(orgId, role, "Viewer role cannot create templates.");
+      requireEditor(orgId, role, "Viewer role cannot create templates.");
       const out = await api<WorkforceAnnouncementTemplate>(apiPaths.workforceAnnouncementTemplates, {
         method: "POST",
         body: JSON.stringify({
-          org_id: resolved,
           name: payload.name,
           body_template: payload.body_template,
           code: payload.code ?? null,
@@ -905,8 +885,8 @@ export function useUpdateWorkforceAnnouncementTemplate() {
       automation_clear?: boolean;
       is_active?: boolean;
     }) => {
-      const resolved = requireEditor(orgId, role, "Viewer role cannot update templates.");
-      const body: Record<string, unknown> = { org_id: resolved };
+      requireEditor(orgId, role, "Viewer role cannot update templates.");
+      const body: Record<string, unknown> = {};
       if (payload.name !== undefined) body.name = payload.name;
       if (payload.body_template !== undefined) body.body_template = payload.body_template;
       if (payload.code_clear) body.code_clear = true;
@@ -933,9 +913,9 @@ export function useWorkforceAnnouncementAutomationKeys() {
   return useQuery({
     queryKey: ["workforceAnnouncementAutomationKeys", orgId || ""],
     queryFn: async () => {
-      const resolved = requireEditor(orgId, role, "Only editors can view automation keys.");
+      requireEditor(orgId, role, "Only editors can view automation keys.");
       const out = await api<unknown>(
-        `${apiPaths.workforceAnnouncementAutomationKeys}?org_id=${encodeURIComponent(resolved)}`,
+        `${apiPaths.workforceAnnouncementAutomationKeys}`,
       );
       return workforceAutomationKeysSchema.parse(out);
     },
@@ -943,11 +923,11 @@ export function useWorkforceAnnouncementAutomationKeys() {
   });
 }
 
-export async function uploadWorkforceAnnouncementAttachment(orgId: string, file: File) {
+export async function uploadWorkforceAnnouncementAttachment(file: File) {
   const form = new FormData();
   form.append("file", file);
   const res = await apiFetchRaw(
-    `${apiPaths.workforceAnnouncementAttachmentUpload}?org_id=${encodeURIComponent(orgId)}`,
+    `${apiPaths.workforceAnnouncementAttachmentUpload}`,
     { method: "POST", body: form },
   );
   const json = await res.json();
@@ -967,9 +947,8 @@ export function useWorkforceAnnouncementDeliveries(
   return useQuery({
     queryKey: qk.workforceAnnouncementDeliveries(orgId || "", announcementId || "", page, pageSize, status),
     queryFn: async () => {
-      const resolved = requireEditor(orgId, role, "Only editors can view delivery logs.");
+      requireEditor(orgId, role, "Only editors can view delivery logs.");
       const qs = new URLSearchParams({
-        org_id: resolved,
         page: String(page),
         page_size: String(pageSize),
       });
@@ -1000,11 +979,10 @@ export function useCreateWorkforceAnnouncement() {
       send_email_on_publish?: boolean;
       template_id?: string | null;
     }) => {
-      const resolved = requireEditor(orgId, role, "Viewer role cannot create announcements.");
+      requireEditor(orgId, role, "Viewer role cannot create announcements.");
       const out = await api<WorkforceAnnouncement>(apiPaths.workforceAnnouncements, {
         method: "POST",
         body: JSON.stringify({
-          org_id: resolved,
           title: payload.title,
           body: payload.body,
           priority: payload.priority ?? "NORMAL",
@@ -1050,8 +1028,8 @@ export function useUpdateWorkforceAnnouncement() {
       template_id?: string | null;
       clear_template_id?: boolean;
     }) => {
-      const resolved = requireEditor(orgId, role, "Viewer role cannot update announcements.");
-      const body: Record<string, unknown> = { org_id: resolved };
+      requireEditor(orgId, role, "Viewer role cannot update announcements.");
+      const body: Record<string, unknown> = {};
       if (p.title !== undefined) body.title = p.title;
       if (p.body !== undefined) body.body = p.body;
       if (p.priority !== undefined) body.priority = p.priority;
@@ -1089,10 +1067,10 @@ export function usePublishWorkforceAnnouncement() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (id: string) => {
-      const resolved = requireEditor(orgId, role, "Viewer role cannot publish announcements.");
+      requireEditor(orgId, role, "Viewer role cannot publish announcements.");
       const out = await api<WorkforceAnnouncement>(apiPaths.workforceAnnouncementPublish(id), {
         method: "POST",
-        body: JSON.stringify({ org_id: resolved }),
+        body: JSON.stringify({}),
       });
       return workforceAnnouncementSchema.parse(out);
     },
@@ -1110,10 +1088,10 @@ export function useArchiveWorkforceAnnouncement() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (id: string) => {
-      const resolved = requireEditor(orgId, role, "Viewer role cannot archive announcements.");
+      requireEditor(orgId, role, "Viewer role cannot archive announcements.");
       const out = await api<WorkforceAnnouncement>(apiPaths.workforceAnnouncementArchive(id), {
         method: "POST",
-        body: JSON.stringify({ org_id: resolved }),
+        body: JSON.stringify({}),
       });
       return workforceAnnouncementSchema.parse(out);
     },
@@ -1129,10 +1107,10 @@ export function useAcknowledgeWorkforceAnnouncement() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (id: string) => {
-      const resolved = requireOrgId(orgId);
+      requireOrgId(orgId);
       const out = await api<unknown>(apiPaths.workforceAnnouncementAcknowledge(id), {
         method: "POST",
-        body: JSON.stringify({ org_id: resolved }),
+        body: JSON.stringify({}),
       });
       return workforceAnnouncementReceiptSchema.parse(out);
     },
@@ -1148,7 +1126,7 @@ export function useWorkforcePayrollPeriods() {
   return useQuery({
     queryKey: qk.workforcePayrollPeriods(orgId || ""),
     queryFn: async () => {
-      const out = await api<WorkforcePayrollPeriod[]>(`${apiPaths.workforcePayrollPeriods}?org_id=${orgId}&limit=100`);
+      const out = await api<WorkforcePayrollPeriod[]>(`${apiPaths.workforcePayrollPeriods}?limit=100`);
       return out.map((row) => workforcePayrollPeriodSchema.parse(row));
     },
     enabled: Boolean(orgId),
@@ -1161,10 +1139,10 @@ export function useCreateWorkforcePayrollPeriod() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (payload: { start_date: string; end_date: string }) => {
-      const resolved = requireEditor(orgId, role, "Viewer role cannot create payroll periods.");
+      requireEditor(orgId, role, "Viewer role cannot create payroll periods.");
       const out = await api<WorkforcePayrollPeriod>(apiPaths.workforcePayrollPeriods, {
         method: "POST",
-        body: JSON.stringify({ org_id: resolved, start_date: payload.start_date, end_date: payload.end_date }),
+        body: JSON.stringify({ start_date: payload.start_date, end_date: payload.end_date }),
       });
       return workforcePayrollPeriodSchema.parse(out);
     },
@@ -1178,11 +1156,10 @@ export function useGenerateWorkforcePayrollDraft() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (payload: { payroll_period_id: string; overtime_multiplier?: string; include_inactive_employees?: boolean }) => {
-      const resolved = requireEditor(orgId, role, "Viewer role cannot generate payroll.");
+      requireEditor(orgId, role, "Viewer role cannot generate payroll.");
       const out = await api<WorkforcePayrollEntry[]>(apiPaths.workforcePayrollGenerate(payload.payroll_period_id), {
         method: "POST",
         body: JSON.stringify({
-          org_id: resolved,
           payroll_period_id: payload.payroll_period_id,
           overtime_multiplier: payload.overtime_multiplier ?? "1.5",
           include_inactive_employees: payload.include_inactive_employees ?? false,
@@ -1201,7 +1178,7 @@ export function useWorkforcePayrollEntries(periodId: string) {
   return useQuery({
     queryKey: qk.workforcePayrollEntries(orgId || "", periodId),
     queryFn: async () => {
-      const out = await api<WorkforcePayrollEntry[]>(`${apiPaths.workforcePayrollEntries(periodId)}?org_id=${orgId}`);
+      const out = await api<WorkforcePayrollEntry[]>(apiPaths.workforcePayrollEntries(periodId));
       return out.map((row) => workforcePayrollEntrySchema.parse(row));
     },
     enabled: Boolean(orgId && periodId),
@@ -1214,10 +1191,10 @@ export function useApproveWorkforcePayrollPeriod() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (periodId: string) => {
-      const resolved = requireEditor(orgId, role, "Viewer role cannot approve payroll.");
+      requireEditor(orgId, role, "Viewer role cannot approve payroll.");
       const out = await api<WorkforcePayrollPeriod>(apiPaths.workforcePayrollApprove(periodId), {
         method: "POST",
-        body: JSON.stringify({ org_id: resolved }),
+        body: JSON.stringify({}),
       });
       return workforcePayrollPeriodSchema.parse(out);
     },
@@ -1234,10 +1211,10 @@ export function useMarkPaidWorkforcePayrollPeriod() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (periodId: string) => {
-      const resolved = requireOwner(orgId, role, "Only owners can mark payroll paid.");
+      requireOwner(orgId, role, "Only owners can mark payroll paid.");
       const out = await api<WorkforcePayrollPeriod>(apiPaths.workforcePayrollMarkPaid(periodId), {
         method: "POST",
-        body: JSON.stringify({ org_id: resolved }),
+        body: JSON.stringify({}),
       });
       return workforcePayrollPeriodSchema.parse(out);
     },
@@ -1254,11 +1231,10 @@ export function useCreateWorkforcePayrollAdjustment() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (payload: { payroll_period_id: string; payroll_entry_id: string; employee_id: string; kind: string; amount: string; label?: string | null; notes?: string | null }) => {
-      const resolved = requireEditor(orgId, role, "Viewer role cannot add adjustments.");
+      requireEditor(orgId, role, "Viewer role cannot add adjustments.");
       const out = await api<WorkforcePayrollAdjustment>(apiPaths.workforcePayrollAdjustments, {
         method: "POST",
         body: JSON.stringify({
-          org_id: resolved,
           payroll_period_id: payload.payroll_period_id,
           payroll_entry_id: payload.payroll_entry_id,
           employee_id: payload.employee_id,
@@ -1283,9 +1259,9 @@ export function useDeleteWorkforcePayrollAdjustment() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (payload: { adjustment_id: string; payroll_period_id: string; payroll_entry_id: string }) => {
-      const resolved = requireEditor(orgId, role, "Viewer role cannot delete adjustments.");
+      requireEditor(orgId, role, "Viewer role cannot delete adjustments.");
       return api<{ ok: boolean }>(
-        `${apiPaths.workforcePayrollAdjustmentById(payload.adjustment_id)}?org_id=${resolved}&payroll_period_id=${payload.payroll_period_id}`,
+        `${apiPaths.workforcePayrollAdjustmentById(payload.adjustment_id)}?payroll_period_id=${payload.payroll_period_id}`,
         { method: "DELETE" },
       );
     },
@@ -1301,7 +1277,7 @@ export function useWorkforcePayslipPreview(entryId: string) {
   return useQuery({
     queryKey: qk.workforcePayslipPreview(orgId || "", entryId),
     queryFn: async () => {
-      const out = await api<WorkforcePayslipPreview>(`${apiPaths.workforcePayrollPayslip(entryId)}?org_id=${orgId}`, {
+      const out = await api<WorkforcePayslipPreview>(apiPaths.workforcePayrollPayslip(entryId), {
         schema: workforcePayslipPreviewSchema,
       });
       return workforcePayslipPreviewSchema.parse(out);
@@ -1316,7 +1292,7 @@ export function useWorkforcePolicies(includeInactive = false) {
   return useQuery({
     queryKey: ["workforcePolicies", orgId || "", includeInactive],
     queryFn: async () => {
-      const qs = new URLSearchParams({ org_id: orgId || "", include_inactive: includeInactive ? "true" : "false" });
+      const qs = new URLSearchParams({ include_inactive: includeInactive ? "true" : "false" });
       const out = await api<WorkforcePolicy[]>(`${apiPaths.workforceHrPolicies}?${qs.toString()}`);
       return out.map((row) => workforcePolicySchema.parse(row));
     },
@@ -1330,11 +1306,10 @@ export function useCreateWorkforcePolicy() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (payload: { code: string; title: string; body: string; requires_ack?: boolean; publish_now?: boolean }) => {
-      const resolved = requireEditor(orgId, role, "Viewer role cannot create policies.");
+      requireEditor(orgId, role, "Viewer role cannot create policies.");
       const out = await api<WorkforcePolicy>(apiPaths.workforceHrPolicies, {
         method: "POST",
         body: JSON.stringify({
-          org_id: resolved,
           code: payload.code,
           title: payload.title,
           body: payload.body,
@@ -1354,10 +1329,10 @@ export function usePublishWorkforcePolicy() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (policyId: string) => {
-      const resolved = requireEditor(orgId, role, "Viewer role cannot publish policies.");
+      requireEditor(orgId, role, "Viewer role cannot publish policies.");
       const out = await api<WorkforcePolicy>(apiPaths.workforceHrPolicyPublish(policyId), {
         method: "POST",
-        body: JSON.stringify({ org_id: resolved }),
+        body: JSON.stringify({}),
       });
       return workforcePolicySchema.parse(out);
     },
@@ -1370,7 +1345,7 @@ export function useWorkforcePolicyAcks(policyId: string) {
   return useQuery({
     queryKey: ["workforcePolicyAcks", orgId || "", policyId],
     queryFn: async () => {
-      const out = await api<WorkforcePolicyAck[]>(`${apiPaths.workforceHrPolicyAcks(policyId)}?org_id=${orgId}`);
+      const out = await api<WorkforcePolicyAck[]>(`${apiPaths.workforceHrPolicyAcks(policyId)}`);
       return out.map((row) => workforcePolicyAckSchema.parse(row));
     },
     enabled: Boolean(orgId && policyId),
@@ -1383,10 +1358,10 @@ export function useAcknowledgeWorkforcePolicy() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (payload: { policy_id: string; employee_id: string }) => {
-      const resolved = requireEditor(orgId, role, "Viewer role cannot record acknowledgements.");
+      requireEditor(orgId, role, "Viewer role cannot record acknowledgements.");
       const out = await api<WorkforcePolicyAck>(apiPaths.workforceHrPolicyAck(payload.policy_id), {
         method: "POST",
-        body: JSON.stringify({ org_id: resolved, employee_id: payload.employee_id }),
+        body: JSON.stringify({ employee_id: payload.employee_id }),
       });
       return workforcePolicyAckSchema.parse(out);
     },
@@ -1399,7 +1374,7 @@ export function useWorkforceDocuments(params: { employee_id?: string; policy_id?
   return useQuery({
     queryKey: ["workforceDocuments", orgId || "", params],
     queryFn: async () => {
-      const qs = new URLSearchParams({ org_id: orgId || "" });
+      const qs = new URLSearchParams();
       if (params.employee_id) qs.set("employee_id", params.employee_id);
       if (params.policy_id) qs.set("policy_id", params.policy_id);
       if (params.include_inactive) qs.set("include_inactive", "true");
@@ -1411,11 +1386,10 @@ export function useWorkforceDocuments(params: { employee_id?: string; policy_id?
 }
 
 export async function uploadWorkforceHrDocument(
-  orgId: string,
   file: File,
   opts: { employee_id?: string; policy_id?: string },
 ): Promise<WorkforceDocument> {
-  const qs = new URLSearchParams({ org_id: orgId });
+  const qs = new URLSearchParams();
   if (opts.employee_id) qs.set("employee_id", opts.employee_id);
   if (opts.policy_id) qs.set("policy_id", opts.policy_id);
   const fd = new FormData();
@@ -1434,10 +1408,10 @@ export function useDeactivateWorkforceHrDocument() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (documentId: string) => {
-      const resolved = requireEditor(orgId, role, "Viewer role cannot deactivate documents.");
+      requireEditor(orgId, role, "Viewer role cannot deactivate documents.");
       return api<{ ok: boolean }>(apiPaths.workforceHrDocumentDeactivate(documentId), {
         method: "POST",
-        body: JSON.stringify({ org_id: resolved }),
+        body: JSON.stringify({}),
       });
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["workforceDocuments", orgId || ""] }),
@@ -1449,7 +1423,7 @@ export function useWorkforceChecklist(params: { employee_id?: string; kind?: str
   return useQuery({
     queryKey: ["workforceChecklist", orgId || "", params],
     queryFn: async () => {
-      const qs = new URLSearchParams({ org_id: orgId || "" });
+      const qs = new URLSearchParams();
       if (params.employee_id) qs.set("employee_id", params.employee_id);
       if (params.kind) qs.set("kind", params.kind);
       if (params.include_done === false) qs.set("include_done", "false");
@@ -1466,11 +1440,10 @@ export function useCreateWorkforceChecklistItem() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (payload: { employee_id: string; kind: string; title: string; details?: string; due_date?: string }) => {
-      const resolved = requireEditor(orgId, role, "Viewer role cannot create checklist items.");
+      requireEditor(orgId, role, "Viewer role cannot create checklist items.");
       const out = await api<WorkforceChecklistItem>(apiPaths.workforceHrChecklist, {
         method: "POST",
         body: JSON.stringify({
-          org_id: resolved,
           employee_id: payload.employee_id,
           kind: payload.kind,
           title: payload.title,
@@ -1490,10 +1463,10 @@ export function useSetWorkforceChecklistDone() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (payload: { item_id: string; is_done: boolean }) => {
-      const resolved = requireEditor(orgId, role, "Viewer role cannot update checklist items.");
+      requireEditor(orgId, role, "Viewer role cannot update checklist items.");
       const out = await api<WorkforceChecklistItem>(apiPaths.workforceHrChecklistDone(payload.item_id), {
         method: "POST",
-        body: JSON.stringify({ org_id: resolved, is_done: payload.is_done }),
+        body: JSON.stringify({ is_done: payload.is_done }),
       });
       return workforceChecklistItemSchema.parse(out);
     },

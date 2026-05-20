@@ -18,7 +18,7 @@ VALID_ATTENDANCE_STATUSES = {
 
 
 class WorkforceShiftCreateIn(BaseModel):
-    org_id: uuid.UUID
+    org_id: uuid.UUID | None = None
     name: str = Field(min_length=1, max_length=120)
     start_time: time
     end_time: time
@@ -27,7 +27,7 @@ class WorkforceShiftCreateIn(BaseModel):
 
 
 class WorkforceShiftUpdateIn(BaseModel):
-    org_id: uuid.UUID
+    org_id: uuid.UUID | None = None
     name: str | None = Field(default=None, min_length=1, max_length=120)
     start_time: time | None = None
     end_time: time | None = None
@@ -49,7 +49,7 @@ class WorkforceShiftOut(BaseModel):
 
 
 class WorkforceShiftAssignmentCreateIn(BaseModel):
-    org_id: uuid.UUID
+    org_id: uuid.UUID | None = None
     employee_id: uuid.UUID
     shift_id: uuid.UUID
     effective_from: date
@@ -69,19 +69,19 @@ class WorkforceShiftAssignmentOut(BaseModel):
 
 
 class WorkforceAttendanceClockInIn(BaseModel):
-    org_id: uuid.UUID
+    org_id: uuid.UUID | None = None
     employee_id: uuid.UUID
     at: datetime | None = None
 
 
 class WorkforceAttendanceClockOutIn(BaseModel):
-    org_id: uuid.UUID
+    org_id: uuid.UUID | None = None
     employee_id: uuid.UUID
     at: datetime | None = None
 
 
 class WorkforceAttendanceManualIn(BaseModel):
-    org_id: uuid.UUID
+    org_id: uuid.UUID | None = None
     employee_id: uuid.UUID
     work_date: date
     status: str = Field(default="PRESENT", max_length=16)
@@ -133,7 +133,7 @@ class WorkforceAttendanceCalendarOut(BaseModel):
 
 
 class WorkforceAttendanceCorrectionRequestIn(BaseModel):
-    org_id: uuid.UUID
+    org_id: uuid.UUID | None = None
     attendance_record_id: uuid.UUID
     reason: str = Field(min_length=3, max_length=500)
     proposed_clock_in_at: datetime | None = None
@@ -142,7 +142,7 @@ class WorkforceAttendanceCorrectionRequestIn(BaseModel):
 
 
 class WorkforceAttendanceCorrectionReviewIn(BaseModel):
-    org_id: uuid.UUID
+    org_id: uuid.UUID | None = None
     status: str = Field(..., max_length=16)  # APPROVED / REJECTED
     reviewer_note: str | None = Field(default=None, max_length=500)
 

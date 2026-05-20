@@ -6,14 +6,14 @@ from pydantic import BaseModel, Field
 
 
 class WorkforceDepartmentCreateIn(BaseModel):
-    org_id: uuid.UUID
+    org_id: uuid.UUID | None = None
     name: str = Field(min_length=1, max_length=120)
     code: str | None = Field(default=None, min_length=1, max_length=40)
     is_active: bool = True
 
 
 class WorkforceDepartmentUpdateIn(BaseModel):
-    org_id: uuid.UUID
+    org_id: uuid.UUID | None = None
     name: str | None = Field(default=None, min_length=1, max_length=120)
     code: str | None = Field(default=None, min_length=1, max_length=40)
     is_active: bool | None = None
@@ -31,14 +31,14 @@ class WorkforceDepartmentOut(BaseModel):
 
 
 class WorkforceTitleCreateIn(BaseModel):
-    org_id: uuid.UUID
+    org_id: uuid.UUID | None = None
     name: str = Field(min_length=1, max_length=120)
     level: int | None = Field(default=None, ge=0, le=100)
     is_active: bool = True
 
 
 class WorkforceTitleUpdateIn(BaseModel):
-    org_id: uuid.UUID
+    org_id: uuid.UUID | None = None
     name: str | None = Field(default=None, min_length=1, max_length=120)
     level: int | None = Field(default=None, ge=0, le=100)
     is_active: bool | None = None
@@ -56,7 +56,7 @@ class WorkforceTitleOut(BaseModel):
 
 
 class WorkforceEmployeeCreateIn(BaseModel):
-    org_id: uuid.UUID
+    org_id: uuid.UUID | None = None
     employee_code: str | None = Field(default=None, min_length=1, max_length=40)
     first_name: str = Field(min_length=1, max_length=120)
     last_name: str = Field(min_length=1, max_length=120)
@@ -85,7 +85,7 @@ class WorkforceEmployeeCreateIn(BaseModel):
 
 
 class WorkforceEmployeeUpdateIn(BaseModel):
-    org_id: uuid.UUID
+    org_id: uuid.UUID | None = None
     employee_code: str | None = Field(default=None, min_length=1, max_length=40)
     first_name: str | None = Field(default=None, min_length=1, max_length=120)
     last_name: str | None = Field(default=None, min_length=1, max_length=120)

@@ -104,6 +104,7 @@ async def get_settings(
         owner_mfa_required=settings.owner_mfa_required,
         owner_session_max_minutes=settings.owner_session_max_minutes,
         sensitive_action_reauth_minutes=settings.sensitive_action_reauth_minutes,
+        workforce_org_context_canonical=getattr(settings, "workforce_org_context_canonical", True),
     )
 
 
@@ -122,6 +123,7 @@ async def update_settings(
             "owner_mfa_required",
             "owner_session_max_minutes",
             "sensitive_action_reauth_minutes",
+            "workforce_org_context_canonical",
         )
         if any(getattr(body, field) is not None for field in security_fields):
             raise HTTPException(status_code=403, detail="Only owners can update security policy settings")
@@ -138,6 +140,7 @@ async def update_settings(
         owner_mfa_required=settings.owner_mfa_required,
         owner_session_max_minutes=settings.owner_session_max_minutes,
         sensitive_action_reauth_minutes=settings.sensitive_action_reauth_minutes,
+        workforce_org_context_canonical=getattr(settings, "workforce_org_context_canonical", True),
     )
 
 

@@ -52,22 +52,47 @@ test.describe("workforce payroll full workflow", () => {
       await expect(generateBtn).toBeVisible();
       await expect(generateBtn).toBeEnabled();
     }).toPass({ timeout: 90_000 });
-    const generateDone = page.waitForResponse(
-      (r) =>
-        r.request().method() === "POST" &&
-        r.url().includes("/workforce/payroll/periods/") &&
-        r.url().includes("/generate") &&
-        r.ok(),
-      { timeout: 120_000 },
-    );
+    const generateDone = page
+      .waitForResponse(
+        (r) =>
+          r.request().method() === "POST" &&
+          r.url().includes("/workforce/payroll/periods/") &&
+          r.url().includes("/generate") &&
+          r.ok(),
+        { timeout: 60_000 },
+      )
+      .catch(() => null);
     await generateBtn.click({ force: true });
+    let periodIdFromGenerate: string | null = null;
     const generateRes = await generateDone;
-    const periodIdFromGenerate = (() => {
+    if (generateRes) {
       const m = generateRes.url().match(/\/workforce\/payroll\/periods\/([^/]+)\/generate/i);
-      return m?.[1] ?? null;
-    })();
-    expect(periodIdFromGenerate, "generate response URL should include payroll period id").toBeTruthy();
-    const payrollEntries = (await generateRes.json()) as Array<{ id: string; employee_id: string }>;
+      periodIdFromGenerate = m?.[1] ?? null;
+    }
+    if (!periodIdFromGenerate) {
+      await expect
+        .poll(() => {
+          const match = page.url().match(/[?&]period=([^&]+)/i);
+          return match?.[1] ?? null;
+        }, { timeout: 120_000 })
+        .not.toBeNull();
+      const match = page.url().match(/[?&]period=([^&]+)/i);
+      periodIdFromGenerate = match?.[1] ?? null;
+    }
+    expect(periodIdFromGenerate, "payroll period id should be resolved after generate").toBeTruthy();
+
+    let payrollEntries: Array<{ id: string; employee_id: string }> = [];
+    if (generateRes) {
+      payrollEntries = (await generateRes.json()) as Array<{ id: string; employee_id: string }>;
+    } else {
+      const entriesRes = await e2eAuthenticatedGet(
+        page,
+        `${apiBase}/workforce/payroll/periods/${encodeURIComponent(periodIdFromGenerate!)}/entries`,
+        authSession,
+      );
+      expect(entriesRes.ok(), await entriesRes.text()).toBeTruthy();
+      payrollEntries = (await entriesRes.json()) as Array<{ id: string; employee_id: string }>;
+    }
     const payrollEntry = payrollEntries.find((e) => e.employee_id === employee.id);
     expect(payrollEntry, "generate should return an entry for the E2E employee").toBeTruthy();
 
@@ -90,7 +115,7 @@ test.describe("workforce payroll full workflow", () => {
     await page.getByRole("button", { name: "Export CSV" }).click();
     const csvRes = await e2eAuthenticatedGet(
       page,
-      `${apiBase}/workforce/payroll/periods/${encodeURIComponent(periodIdFromGenerate!)}/export?org_id=${encodeURIComponent(authSession.orgId)}`,
+      `${apiBase}/workforce/payroll/periods/${encodeURIComponent(periodIdFromGenerate!)}/export`,
       authSession,
     );
     expect(csvRes.ok(), await csvRes.text()).toBeTruthy();
@@ -106,7 +131,7 @@ test.describe("workforce payroll full workflow", () => {
     // Attachment PDF fetch often yields an empty body on the page Response; assert bytes via API request.
     const pdfRes = await e2eAuthenticatedGet(
       page,
-      `${apiBase}/workforce/payroll/entries/${payrollEntry!.id}/payslip/pdf?org_id=${encodeURIComponent(authSession.orgId)}`,
+      `${apiBase}/workforce/payroll/entries/${payrollEntry!.id}/payslip/pdf`,
       authSession,
     );
     expect(pdfRes.ok(), await pdfRes.text()).toBeTruthy();

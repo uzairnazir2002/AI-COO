@@ -1,4 +1,4 @@
-export type Role = "OWNER" | "EDITOR" | "VIEWER";
+export type Role = "OWNER" | "EDITOR" | "MANAGER" | "VIEWER";
 
 export type Org = { org_id: string; name: string; role?: Role };
 export type Member = { user_id: string; email: string; role: Role };
@@ -613,6 +613,7 @@ export type OrgSettings = {
   owner_mfa_required: boolean;
   owner_session_max_minutes: number;
   sensitive_action_reauth_minutes: number;
+  workforce_org_context_canonical?: boolean;
 };
 
 export type OrgBilling = {

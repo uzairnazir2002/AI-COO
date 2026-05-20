@@ -16,7 +16,7 @@ export const meSchema = z.object({
   orgs: z.array(
     z.object({
       org_id: z.string().uuid(),
-      role: z.enum(["OWNER", "EDITOR", "VIEWER"]),
+      role: z.enum(["OWNER", "EDITOR", "MANAGER", "VIEWER"]),
       name: z.string(),
     }),
   ),

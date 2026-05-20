@@ -1,9 +1,9 @@
 import uuid
 
-from fastapi import APIRouter, Body, Depends, HTTPException, Query
+from fastapi import APIRouter, Body, Depends, HTTPException, Query, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_current_user, get_org_context
+from app.api.deps import get_current_user, get_org_context, require_sensitive_reauth, resolve_workforce_org_id_from_request
 from app.db.session import get_db
 from app.domain.models.user import User
 from app.domain.repos.audit_repo import AuditRepo
@@ -18,13 +18,14 @@ from app.domain.schemas.workforce import (
 )
 from app.domain.services.errors import NotFoundError
 from app.domain.services.location_service import LocationService
+from app.domain.services.workforce_access_policy import build_workforce_access_scope
 from app.domain.services.workforce_employee_service import WorkforceEmployeeService
 
 router = APIRouter()
 
 
 def _assert_mutation_role(role: str) -> None:
-    if role not in {"OWNER", "EDITOR"}:
+    if role not in {"OWNER", "EDITOR", "MANAGER"}:
         raise HTTPException(status_code=403, detail="Forbidden")
 
 
@@ -41,7 +42,8 @@ def _redact_employee_for_role(row: WorkforceEmployeeOut, role: str) -> Workforce
 
 @router.get("", response_model=list[WorkforceEmployeeOut])
 async def list_employees(
-    org_id: uuid.UUID = Query(...),
+    request: Request,
+    org_id: uuid.UUID | None = Query(default=None),
     q: str | None = Query(default=None),
     department_id: uuid.UUID | None = Query(default=None),
     title_id: uuid.UUID | None = Query(default=None),
@@ -52,7 +54,11 @@ async def list_employees(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    ctx = await get_org_context(org_id=org_id, user=user, db=db)
+    resolved_org_id = await resolve_workforce_org_id_from_request(org_id, request, db)
+    ctx = await get_org_context(org_id=resolved_org_id, user=user, db=db)
+    access = await build_workforce_access_scope(
+        db=db, org_id=resolved_org_id, role=ctx.role, actor_user_id=user.id, actor_email=user.email
+    )
     svc = WorkforceEmployeeService(
         employee_repo=WorkforceEmployeeRepo(db),
         department_repo=WorkforceDepartmentRepo(db),
@@ -60,7 +66,7 @@ async def list_employees(
     )
     try:
         rows = await svc.list_employees(
-            org_id=org_id,
+            org_id=resolved_org_id,
             include_inactive=include_inactive,
             q=q,
             department_id=department_id,
@@ -72,40 +78,52 @@ async def list_employees(
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     out = [WorkforceEmployeeOut.model_validate(row, from_attributes=True) for row in rows]
-    return [_redact_employee_for_role(row, ctx.role) for row in out]
+    visible = [row for row in out if access.can_access_employee(row.id)]
+    return [_redact_employee_for_role(row, access.role) for row in visible]
 
 
 @router.get("/{employee_id}", response_model=WorkforceEmployeeOut)
 async def get_employee(
+    request: Request,
     employee_id: uuid.UUID,
-    org_id: uuid.UUID = Query(...),
+    org_id: uuid.UUID | None = Query(default=None),
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    ctx = await get_org_context(org_id=org_id, user=user, db=db)
+    resolved_org_id = await resolve_workforce_org_id_from_request(org_id, request, db)
+    ctx = await get_org_context(org_id=resolved_org_id, user=user, db=db)
+    access = await build_workforce_access_scope(
+        db=db, org_id=resolved_org_id, role=ctx.role, actor_user_id=user.id, actor_email=user.email
+    )
     svc = WorkforceEmployeeService(
         employee_repo=WorkforceEmployeeRepo(db),
         department_repo=WorkforceDepartmentRepo(db),
         title_repo=WorkforceTitleRepo(db),
     )
     try:
-        row = await svc.get_employee(org_id=org_id, employee_id=employee_id)
+        row = await svc.get_employee(org_id=resolved_org_id, employee_id=employee_id)
     except NotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     out = WorkforceEmployeeOut.model_validate(row, from_attributes=True)
-    return _redact_employee_for_role(out, ctx.role)
+    if not access.can_access_employee(out.id):
+        raise HTTPException(status_code=403, detail="Forbidden")
+    return _redact_employee_for_role(out, access.role)
 
 
 @router.post("", response_model=WorkforceEmployeeOut)
 async def create_employee(
+    request: Request,
     body: WorkforceEmployeeCreateIn = Body(...),
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    ctx = await get_org_context(org_id=body.org_id, user=user, db=db)
+    resolved_org_id = await resolve_workforce_org_id_from_request(body.org_id, request, db)
+    ctx = await get_org_context(org_id=resolved_org_id, user=user, db=db)
     _assert_mutation_role(ctx.role)
+    if ctx.role == "MANAGER":
+        raise HTTPException(status_code=403, detail="Managers cannot create employees")
     if body.location_id is not None:
-        await LocationService(LocationRepo(db)).ensure_org_location(org_id=body.org_id, location_id=body.location_id)
+        await LocationService(LocationRepo(db)).ensure_org_location(org_id=resolved_org_id, location_id=body.location_id)
     svc = WorkforceEmployeeService(
         employee_repo=WorkforceEmployeeRepo(db),
         department_repo=WorkforceDepartmentRepo(db),
@@ -113,7 +131,7 @@ async def create_employee(
     )
     try:
         row = await svc.create_employee(
-            org_id=body.org_id,
+            org_id=resolved_org_id,
             actor_user_id=user.id,
             employee_code=body.employee_code,
             first_name=body.first_name,
@@ -140,7 +158,7 @@ async def create_employee(
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     await AuditRepo(db).log(
         user.id,
-        body.org_id,
+        resolved_org_id,
         "workforce.employee.create",
         "workforce_employee",
         str(row.id),
@@ -153,18 +171,23 @@ async def create_employee(
 
 @router.put("/{employee_id}", response_model=WorkforceEmployeeOut)
 async def update_employee(
+    request: Request,
     employee_id: uuid.UUID,
     body: WorkforceEmployeeUpdateIn = Body(...),
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    ctx = await get_org_context(org_id=body.org_id, user=user, db=db)
+    resolved_org_id = await resolve_workforce_org_id_from_request(body.org_id, request, db)
+    ctx = await get_org_context(org_id=resolved_org_id, user=user, db=db)
     _assert_mutation_role(ctx.role)
+    access = await build_workforce_access_scope(
+        db=db, org_id=resolved_org_id, role=ctx.role, actor_user_id=user.id, actor_email=user.email
+    )
     fields_set = set(body.model_fields_set)
     if "location_id" in fields_set:
         if body.location_id is not None:
             await LocationService(LocationRepo(db)).ensure_org_location(
-                org_id=body.org_id, location_id=body.location_id
+                org_id=resolved_org_id, location_id=body.location_id
             )
     svc = WorkforceEmployeeService(
         employee_repo=WorkforceEmployeeRepo(db),
@@ -173,7 +196,7 @@ async def update_employee(
     )
     try:
         row = await svc.update_employee(
-            org_id=body.org_id,
+            org_id=resolved_org_id,
             employee_id=employee_id,
             fields_set=fields_set,
             employee_code=body.employee_code,
@@ -201,9 +224,11 @@ async def update_employee(
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
+    if access.is_manager and not access.can_access_employee(row.id):
+        raise HTTPException(status_code=403, detail="Forbidden")
     await AuditRepo(db).log(
         user.id,
-        body.org_id,
+        resolved_org_id,
         "workforce.employee.update",
         "workforce_employee",
         str(row.id),
@@ -211,17 +236,20 @@ async def update_employee(
     )
     await db.commit()
     out = WorkforceEmployeeOut.model_validate(row, from_attributes=True)
-    return _redact_employee_for_role(out, ctx.role)
+    return _redact_employee_for_role(out, access.role)
 
 
 @router.delete("/{employee_id}")
 async def delete_employee(
+    request: Request,
     employee_id: uuid.UUID,
-    org_id: uuid.UUID = Query(...),
+    org_id: uuid.UUID | None = Query(default=None),
+    _reauth: None = Depends(require_sensitive_reauth()),
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    ctx = await get_org_context(org_id=org_id, user=user, db=db)
+    resolved_org_id = await resolve_workforce_org_id_from_request(org_id, request, db)
+    ctx = await get_org_context(org_id=resolved_org_id, user=user, db=db)
     _assert_owner(ctx.role)
     svc = WorkforceEmployeeService(
         employee_repo=WorkforceEmployeeRepo(db),
@@ -229,12 +257,12 @@ async def delete_employee(
         title_repo=WorkforceTitleRepo(db),
     )
     try:
-        row = await svc.deactivate_employee(org_id=org_id, employee_id=employee_id)
+        row = await svc.deactivate_employee(org_id=resolved_org_id, employee_id=employee_id)
     except NotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     await AuditRepo(db).log(
         user.id,
-        org_id,
+        resolved_org_id,
         "workforce.employee.deactivate",
         "workforce_employee",
         str(row.id),

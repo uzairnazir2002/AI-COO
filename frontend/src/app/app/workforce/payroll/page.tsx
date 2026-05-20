@@ -183,7 +183,7 @@ export default function WorkforcePayrollPage() {
             <Button
               variant="outline"
               onClick={() => {
-                void downloadPayrollCsv(selectedPeriod.id, orgId).catch((err) => {
+                void downloadPayrollCsv(selectedPeriod.id).catch((err) => {
                   toast({
                     title: err instanceof Error ? err.message : "Export failed",
                     variant: "danger",
@@ -223,7 +223,6 @@ export default function WorkforcePayrollPage() {
               key={e.id}
               employeeName={employeeIndex.get(e.employee_id) ?? e.employee_id}
               periodId={activePeriodId}
-              orgId={orgId}
               entry={e}
               canMutate={canMutate && selectedPeriod?.status === "DRAFT"}
               canRemoveAdjustments={canMutate && selectedPeriod?.status === "DRAFT"}
@@ -286,8 +285,8 @@ function NewPeriodDialog({ onCreate, pending }: { onCreate: (start: string, end:
   );
 }
 
-async function downloadPayrollCsv(periodId: string, orgId: string) {
-  const path = `${apiPaths.workforcePayrollExport(periodId)}?org_id=${encodeURIComponent(orgId)}`;
+async function downloadPayrollCsv(periodId: string) {
+  const path = apiPaths.workforcePayrollExport(periodId);
   const res = await apiFetchRaw(path);
   const blob = await res.blob();
   const url = URL.createObjectURL(blob);
@@ -298,8 +297,8 @@ async function downloadPayrollCsv(periodId: string, orgId: string) {
   URL.revokeObjectURL(url);
 }
 
-async function downloadPayrollPdf(entryId: string, orgId: string) {
-  const path = `${apiPaths.workforcePayrollPayslipPdf(entryId)}?org_id=${encodeURIComponent(orgId)}`;
+async function downloadPayrollPdf(entryId: string) {
+  const path = apiPaths.workforcePayrollPayslipPdf(entryId);
   const res = await apiFetchRaw(path);
   const blob = await res.blob();
   const url = URL.createObjectURL(blob);
@@ -318,14 +317,12 @@ function moneyOrDash(value: string | null | undefined) {
 function PayrollEntryCard({
   employeeName,
   periodId,
-  orgId,
   entry,
   canMutate,
   canRemoveAdjustments,
 }: {
   employeeName: string;
   periodId: string;
-  orgId: string;
   entry: WorkforcePayrollEntry;
   canMutate: boolean;
   canRemoveAdjustments: boolean;
@@ -411,7 +408,6 @@ function PayrollEntryCard({
             preview={payslip.data}
             periodId={periodId}
             payrollEntryId={entry.id}
-            orgId={orgId}
             canRemoveAdjustments={canRemoveAdjustments}
             deleteAdj={deleteAdj}
           />
@@ -425,14 +421,12 @@ function PayslipPreviewBlock({
   preview,
   periodId,
   payrollEntryId,
-  orgId,
   canRemoveAdjustments,
   deleteAdj,
 }: {
   preview: { period: { start_date: string; end_date: string; status: string }; entry: WorkforcePayrollEntry; adjustments: WorkforcePayrollAdjustment[] };
   periodId: string;
   payrollEntryId: string;
-  orgId: string;
   canRemoveAdjustments: boolean;
   deleteAdj: ReturnType<typeof useDeleteWorkforcePayrollAdjustment>;
 }) {
@@ -452,7 +446,7 @@ function PayslipPreviewBlock({
           variant="outline"
           size="sm"
           onClick={() => {
-            void downloadPayrollPdf(payrollEntryId, orgId).catch((err) => {
+            void downloadPayrollPdf(payrollEntryId).catch((err) => {
               toast({
                 title: err instanceof Error ? err.message : "Download failed",
                 variant: "danger",

@@ -13,13 +13,21 @@ async def test_detect_and_create_runs_global_and_location_contexts(monkeypatch):
     location = SimpleNamespace(id=uuid4(), name="Karachi HQ")
     service = AlertsService(db=SimpleNamespace(), repo=SimpleNamespace())  # type: ignore[arg-type]
 
+    settings_obj = SimpleNamespace(
+        anomaly_spike_multiplier=Decimal("1.5"),
+        vendor_concentration_threshold_pct=Decimal("50.00"),
+        budget_variance_alert_threshold_pct=Decimal("10.00"),
+        misc_growth_multiplier=Decimal("1.4"),
+    )
+    first_scalar = True
+
     async def fake_scalar(_query):
-        return SimpleNamespace(
-            anomaly_spike_multiplier=Decimal("1.5"),
-            vendor_concentration_threshold_pct=Decimal("50.00"),
-            budget_variance_alert_threshold_pct=Decimal("10.00"),
-            misc_growth_multiplier=Decimal("1.4"),
-        )
+        nonlocal first_scalar
+        if first_scalar:
+            first_scalar = False
+            return settings_obj
+        # Workforce detectors call scalar(count(...)); return zero for this scoped test.
+        return 0
 
     service.db.scalar = fake_scalar  # type: ignore[attr-defined]
 
@@ -44,6 +52,19 @@ async def test_detect_and_create_runs_global_and_location_contexts(monkeypatch):
     monkeypatch.setattr(service, "_detect_margin_decline", make_detector("margin"))
     monkeypatch.setattr(service, "_detect_subscription_creep", make_detector("subscription"))
     monkeypatch.setattr(service, "_detect_inventory_stockout_risk", make_detector("inventory"))
+    # Workforce detectors are org-wide and not part of this location-context assertion.
+    async def _wf_noop(*_args, **_kwargs):
+        return 0
+
+    monkeypatch.setattr(service, "_detect_workforce_missing_checkout", _wf_noop)
+    monkeypatch.setattr(service, "_detect_workforce_repeated_lateness", _wf_noop)
+    monkeypatch.setattr(service, "_detect_workforce_pending_leave", _wf_noop)
+    monkeypatch.setattr(service, "_detect_workforce_payroll_due", _wf_noop)
+    monkeypatch.setattr(service, "_detect_workforce_unpaid_payroll", _wf_noop)
+    monkeypatch.setattr(service, "_detect_workforce_high_absenteeism", _wf_noop)
+    monkeypatch.setattr(service, "_detect_workforce_overtime_threshold", _wf_noop)
+    monkeypatch.setattr(service, "_detect_workforce_contract_expiry", _wf_noop)
+    monkeypatch.setattr(service, "_detect_workforce_announcement_ack", _wf_noop)
 
     created = await service.detect_and_create(org_id)
 

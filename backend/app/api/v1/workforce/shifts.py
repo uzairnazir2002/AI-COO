@@ -1,10 +1,10 @@
 import uuid
 from datetime import date
 
-from fastapi import APIRouter, Body, Depends, HTTPException, Query
+from fastapi import APIRouter, Body, Depends, HTTPException, Query, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_current_user, get_org_context
+from app.api.deps import get_current_user, get_org_context, require_sensitive_reauth, resolve_workforce_org_id_from_request
 from app.db.session import get_db
 from app.domain.models.user import User
 from app.domain.repos.audit_repo import AuditRepo
@@ -30,29 +30,33 @@ def _assert_mutation_role(role: str) -> None:
 
 @router.get("", response_model=list[WorkforceShiftOut])
 async def list_shifts(
-    org_id: uuid.UUID = Query(...),
+    request: Request,
+    org_id: uuid.UUID | None = Query(default=None),
     include_inactive: bool = Query(default=False),
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    await get_org_context(org_id=org_id, user=user, db=db)
+    resolved_org_id = await resolve_workforce_org_id_from_request(org_id, request, db)
+    await get_org_context(org_id=resolved_org_id, user=user, db=db)
     svc = WorkforceShiftService(shift_repo=WorkforceShiftRepo(db), employee_repo=WorkforceEmployeeRepo(db))
-    rows = await svc.list_shifts(org_id=org_id, include_inactive=include_inactive)
+    rows = await svc.list_shifts(org_id=resolved_org_id, include_inactive=include_inactive)
     return [WorkforceShiftOut.model_validate(row, from_attributes=True) for row in rows]
 
 
 @router.post("", response_model=WorkforceShiftOut)
 async def create_shift(
+    request: Request,
     body: WorkforceShiftCreateIn = Body(...),
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    ctx = await get_org_context(org_id=body.org_id, user=user, db=db)
+    resolved_org_id = await resolve_workforce_org_id_from_request(body.org_id, request, db)
+    ctx = await get_org_context(org_id=resolved_org_id, user=user, db=db)
     _assert_mutation_role(ctx.role)
     svc = WorkforceShiftService(shift_repo=WorkforceShiftRepo(db), employee_repo=WorkforceEmployeeRepo(db))
     try:
         row = await svc.create_shift(
-            org_id=body.org_id,
+            org_id=resolved_org_id,
             actor_user_id=user.id,
             name=body.name,
             start_time=body.start_time,
@@ -64,7 +68,7 @@ async def create_shift(
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     await AuditRepo(db).log(
         user.id,
-        body.org_id,
+        resolved_org_id,
         "workforce.shift.create",
         "workforce_shift",
         str(row.id),
@@ -76,17 +80,19 @@ async def create_shift(
 
 @router.put("/{shift_id}", response_model=WorkforceShiftOut)
 async def update_shift(
+    request: Request,
     shift_id: uuid.UUID,
     body: WorkforceShiftUpdateIn = Body(...),
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    ctx = await get_org_context(org_id=body.org_id, user=user, db=db)
+    resolved_org_id = await resolve_workforce_org_id_from_request(body.org_id, request, db)
+    ctx = await get_org_context(org_id=resolved_org_id, user=user, db=db)
     _assert_mutation_role(ctx.role)
     svc = WorkforceShiftService(shift_repo=WorkforceShiftRepo(db), employee_repo=WorkforceEmployeeRepo(db))
     try:
         row = await svc.update_shift(
-            org_id=body.org_id,
+            org_id=resolved_org_id,
             shift_id=shift_id,
             name=body.name,
             start_time=body.start_time,
@@ -100,7 +106,7 @@ async def update_shift(
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     await AuditRepo(db).log(
         user.id,
-        body.org_id,
+        resolved_org_id,
         "workforce.shift.update",
         "workforce_shift",
         str(row.id),
@@ -112,21 +118,24 @@ async def update_shift(
 
 @router.delete("/{shift_id}")
 async def delete_shift(
+    request: Request,
     shift_id: uuid.UUID,
-    org_id: uuid.UUID = Query(...),
+    org_id: uuid.UUID | None = Query(default=None),
+    _reauth: None = Depends(require_sensitive_reauth()),
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    ctx = await get_org_context(org_id=org_id, user=user, db=db)
+    resolved_org_id = await resolve_workforce_org_id_from_request(org_id, request, db)
+    ctx = await get_org_context(org_id=resolved_org_id, user=user, db=db)
     _assert_mutation_role(ctx.role)
     svc = WorkforceShiftService(shift_repo=WorkforceShiftRepo(db), employee_repo=WorkforceEmployeeRepo(db))
     try:
-        row = await svc.deactivate_shift(org_id=org_id, shift_id=shift_id)
+        row = await svc.deactivate_shift(org_id=resolved_org_id, shift_id=shift_id)
     except NotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     await AuditRepo(db).log(
         user.id,
-        org_id,
+        resolved_org_id,
         "workforce.shift.deactivate",
         "workforce_shift",
         str(row.id),
@@ -138,7 +147,8 @@ async def delete_shift(
 
 @router.get("/assignments", response_model=list[WorkforceShiftAssignmentOut])
 async def list_assignments(
-    org_id: uuid.UUID = Query(...),
+    request: Request,
+    org_id: uuid.UUID | None = Query(default=None),
     employee_id: uuid.UUID | None = Query(default=None),
     shift_id: uuid.UUID | None = Query(default=None),
     as_of: date | None = Query(default=None),
@@ -146,24 +156,27 @@ async def list_assignments(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    await get_org_context(org_id=org_id, user=user, db=db)
+    resolved_org_id = await resolve_workforce_org_id_from_request(org_id, request, db)
+    await get_org_context(org_id=resolved_org_id, user=user, db=db)
     svc = WorkforceShiftService(shift_repo=WorkforceShiftRepo(db), employee_repo=WorkforceEmployeeRepo(db))
-    rows = await svc.list_assignments(org_id=org_id, employee_id=employee_id, shift_id=shift_id, as_of=as_of, limit=limit)
+    rows = await svc.list_assignments(org_id=resolved_org_id, employee_id=employee_id, shift_id=shift_id, as_of=as_of, limit=limit)
     return [WorkforceShiftAssignmentOut.model_validate(row, from_attributes=True) for row in rows]
 
 
 @router.post("/assignments", response_model=WorkforceShiftAssignmentOut)
 async def create_assignment(
+    request: Request,
     body: WorkforceShiftAssignmentCreateIn = Body(...),
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    ctx = await get_org_context(org_id=body.org_id, user=user, db=db)
+    resolved_org_id = await resolve_workforce_org_id_from_request(body.org_id, request, db)
+    ctx = await get_org_context(org_id=resolved_org_id, user=user, db=db)
     _assert_mutation_role(ctx.role)
     svc = WorkforceShiftService(shift_repo=WorkforceShiftRepo(db), employee_repo=WorkforceEmployeeRepo(db))
     try:
         row = await svc.assign_shift(
-            org_id=body.org_id,
+            org_id=resolved_org_id,
             actor_user_id=user.id,
             employee_id=body.employee_id,
             shift_id=body.shift_id,
@@ -174,7 +187,7 @@ async def create_assignment(
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     await AuditRepo(db).log(
         user.id,
-        body.org_id,
+        resolved_org_id,
         "workforce.shift_assignment.create",
         "workforce_shift_assignment",
         str(row.id),

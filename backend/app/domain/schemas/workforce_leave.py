@@ -6,7 +6,7 @@ from pydantic import BaseModel, Field
 
 
 class WorkforceLeaveTypeCreateIn(BaseModel):
-    org_id: uuid.UUID
+    org_id: uuid.UUID | None = None
     name: str = Field(min_length=1, max_length=120)
     code: str | None = Field(default=None, max_length=40)
     is_paid: bool = True
@@ -15,7 +15,7 @@ class WorkforceLeaveTypeCreateIn(BaseModel):
 
 
 class WorkforceLeaveTypeUpdateIn(BaseModel):
-    org_id: uuid.UUID
+    org_id: uuid.UUID | None = None
     name: str | None = Field(default=None, min_length=1, max_length=120)
     code: str | None = Field(default=None, max_length=40)
     is_paid: bool | None = None
@@ -51,7 +51,7 @@ class WorkforceLeaveBalanceOut(BaseModel):
 
 
 class WorkforceLeaveBalanceAllocateIn(BaseModel):
-    org_id: uuid.UUID
+    org_id: uuid.UUID | None = None
     employee_id: uuid.UUID
     leave_type_id: uuid.UUID
     year: int = Field(..., ge=2000, le=2100)
@@ -59,7 +59,7 @@ class WorkforceLeaveBalanceAllocateIn(BaseModel):
 
 
 class WorkforceLeaveRequestCreateIn(BaseModel):
-    org_id: uuid.UUID
+    org_id: uuid.UUID | None = None
     employee_id: uuid.UUID
     leave_type_id: uuid.UUID
     start_date: date
@@ -87,7 +87,7 @@ class WorkforceLeaveRequestOut(BaseModel):
 
 
 class WorkforceLeaveRequestDecisionIn(BaseModel):
-    org_id: uuid.UUID
+    org_id: uuid.UUID | None = None
     status: str = Field(..., max_length=16)  # APPROVED / REJECTED / CANCELLED
     reviewer_note: str | None = Field(default=None, max_length=500)
 

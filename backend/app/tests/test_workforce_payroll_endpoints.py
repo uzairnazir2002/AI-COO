@@ -111,6 +111,9 @@ def _build_app(*, monkeypatch, payroll_module, role="OWNER"):
 
     app.dependency_overrides[payroll_module.get_current_user] = fake_user
     app.dependency_overrides[payroll_module.get_db] = fake_db
+    from app.api import deps as shared_deps
+    app.dependency_overrides[shared_deps.get_db] = fake_db
+    app.dependency_overrides[shared_deps.get_current_user] = fake_user
     monkeypatch.setattr(payroll_module, "get_org_context", fake_ctx)
     monkeypatch.setattr(payroll_module, "AuditRepo", _FakeAuditRepo)
     monkeypatch.setattr(payroll_module, "_svc", lambda _db: _FakePayrollService())

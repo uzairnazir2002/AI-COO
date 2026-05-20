@@ -371,7 +371,7 @@ export default function WorkforceHrPage() {
                       if (!orgId) return;
                       setUploading(true);
                       try {
-                        await uploadWorkforceHrDocument(orgId, file, { employee_id: selectedEmployeeId });
+                        await uploadWorkforceHrDocument(file, { employee_id: selectedEmployeeId });
                         toast({ title: "Document uploaded", variant: "success" });
                       } catch (err) {
                         toast({ title: err instanceof Error ? err.message : "Upload failed", variant: "danger" });

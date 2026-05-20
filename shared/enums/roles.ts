@@ -1,1 +1,1 @@
-﻿export type Role = "OWNER" | "EDITOR" | "VIEWER";
+export type Role = "OWNER" | "EDITOR" | "MANAGER" | "VIEWER";

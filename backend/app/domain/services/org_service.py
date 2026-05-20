@@ -126,6 +126,7 @@ class OrgService:
             "owner_mfa_required",
             "owner_session_max_minutes",
             "sensitive_action_reauth_minutes",
+            "workforce_org_context_canonical",
         ):
             value = getattr(body, field)
             if value is not None:

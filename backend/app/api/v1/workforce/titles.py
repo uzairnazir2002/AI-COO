@@ -1,9 +1,9 @@
 import uuid
 
-from fastapi import APIRouter, Body, Depends, HTTPException, Query
+from fastapi import APIRouter, Body, Depends, HTTPException, Query, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_current_user, get_org_context
+from app.api.deps import get_current_user, get_org_context, require_sensitive_reauth, resolve_workforce_org_id_from_request
 from app.db.session import get_db
 from app.domain.models.user import User
 from app.domain.repos.audit_repo import AuditRepo
@@ -22,30 +22,34 @@ def _assert_mutation_role(role: str) -> None:
 
 @router.get("", response_model=list[WorkforceTitleOut])
 async def list_titles(
-    org_id: uuid.UUID = Query(...),
+    request: Request,
+    org_id: uuid.UUID | None = Query(default=None),
     include_inactive: bool = Query(default=False),
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    await get_org_context(org_id=org_id, user=user, db=db)
+    resolved_org_id = await resolve_workforce_org_id_from_request(org_id, request, db)
+    await get_org_context(org_id=resolved_org_id, user=user, db=db)
     rows = await WorkforceTitleService(WorkforceTitleRepo(db)).list_titles(
-        org_id=org_id, include_inactive=include_inactive
+        org_id=resolved_org_id, include_inactive=include_inactive
     )
     return [WorkforceTitleOut.model_validate(row, from_attributes=True) for row in rows]
 
 
 @router.post("", response_model=WorkforceTitleOut)
 async def create_title(
+    request: Request,
     body: WorkforceTitleCreateIn = Body(...),
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    ctx = await get_org_context(org_id=body.org_id, user=user, db=db)
+    resolved_org_id = await resolve_workforce_org_id_from_request(body.org_id, request, db)
+    ctx = await get_org_context(org_id=resolved_org_id, user=user, db=db)
     _assert_mutation_role(ctx.role)
     svc = WorkforceTitleService(WorkforceTitleRepo(db))
     try:
         row = await svc.create_title(
-            org_id=body.org_id,
+            org_id=resolved_org_id,
             actor_user_id=user.id,
             name=body.name,
             level=body.level,
@@ -55,7 +59,7 @@ async def create_title(
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     await AuditRepo(db).log(
         user.id,
-        body.org_id,
+        resolved_org_id,
         "workforce.title.create",
         "workforce_title",
         str(row.id),
@@ -67,17 +71,19 @@ async def create_title(
 
 @router.put("/{title_id}", response_model=WorkforceTitleOut)
 async def update_title(
+    request: Request,
     title_id: uuid.UUID,
     body: WorkforceTitleUpdateIn = Body(...),
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    ctx = await get_org_context(org_id=body.org_id, user=user, db=db)
+    resolved_org_id = await resolve_workforce_org_id_from_request(body.org_id, request, db)
+    ctx = await get_org_context(org_id=resolved_org_id, user=user, db=db)
     _assert_mutation_role(ctx.role)
     svc = WorkforceTitleService(WorkforceTitleRepo(db))
     try:
         row = await svc.update_title(
-            org_id=body.org_id,
+            org_id=resolved_org_id,
             title_id=title_id,
             name=body.name,
             level=body.level,
@@ -89,7 +95,7 @@ async def update_title(
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     await AuditRepo(db).log(
         user.id,
-        body.org_id,
+        resolved_org_id,
         "workforce.title.update",
         "workforce_title",
         str(row.id),
@@ -101,21 +107,24 @@ async def update_title(
 
 @router.delete("/{title_id}")
 async def delete_title(
+    request: Request,
     title_id: uuid.UUID,
-    org_id: uuid.UUID = Query(...),
+    org_id: uuid.UUID | None = Query(default=None),
+    _reauth: None = Depends(require_sensitive_reauth()),
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    ctx = await get_org_context(org_id=org_id, user=user, db=db)
+    resolved_org_id = await resolve_workforce_org_id_from_request(org_id, request, db)
+    ctx = await get_org_context(org_id=resolved_org_id, user=user, db=db)
     _assert_mutation_role(ctx.role)
     svc = WorkforceTitleService(WorkforceTitleRepo(db))
     try:
-        row = await svc.deactivate_title(org_id=org_id, title_id=title_id)
+        row = await svc.deactivate_title(org_id=resolved_org_id, title_id=title_id)
     except NotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     await AuditRepo(db).log(
         user.id,
-        org_id,
+        resolved_org_id,
         "workforce.title.deactivate",
         "workforce_title",
         str(row.id),

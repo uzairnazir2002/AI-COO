@@ -242,6 +242,17 @@ def test_employee_create_forbidden_for_viewer(monkeypatch, workforce_modules):
     assert res.status_code == 403
 
 
+def test_employee_create_forbidden_for_manager(monkeypatch, workforce_modules):
+    org_id = uuid.uuid4()
+    app = _build_app(monkeypatch=monkeypatch, workforce_modules=workforce_modules, role="MANAGER")
+    client = TestClient(app)
+    res = client.post(
+        "/api/v1/workforce/employees",
+        json={"org_id": str(org_id), "first_name": "A", "last_name": "B"},
+    )
+    assert res.status_code == 403
+
+
 def test_department_create_allowed_for_editor(monkeypatch, workforce_modules):
     now = datetime.now(tz=timezone.utc)
     org_id = uuid.uuid4()
@@ -278,4 +289,115 @@ def test_workforce_endpoints_reject_cross_org(monkeypatch, workforce_modules):
     for res in responses:
         assert res.status_code == 403
         assert res.json()["detail"] == "Forbidden"
+
+
+def test_workforce_endpoints_reject_header_query_org_mismatch(monkeypatch, workforce_modules):
+    allowed_org_id = uuid.uuid4()
+    app = _build_isolation_app(monkeypatch=monkeypatch, workforce_modules=workforce_modules, allowed_org_id=allowed_org_id)
+    client = TestClient(app)
+    res = client.get(
+        f"/api/v1/workforce/employees?org_id={allowed_org_id}",
+        headers={"X-Org-Id": str(uuid.uuid4())},
+    )
+    assert res.status_code == 403
+    assert res.json()["detail"] == "org_id does not match request context"
+
+
+def test_workforce_endpoints_reject_header_body_org_mismatch(monkeypatch, workforce_modules):
+    now = datetime.now(tz=timezone.utc)
+    allowed_org_id = uuid.uuid4()
+    _FakeDepartmentService.created = SimpleNamespace(
+        id=uuid.uuid4(),
+        org_id=allowed_org_id,
+        created_by_user_id=uuid.uuid4(),
+        name="Operations",
+        code="OPS",
+        is_active=True,
+        created_at=now,
+        updated_at=now,
+    )
+    app = _build_app(monkeypatch=monkeypatch, workforce_modules=workforce_modules, role="OWNER")
+    client = TestClient(app)
+    res = client.post(
+        "/api/v1/workforce/departments",
+        json={"org_id": str(allowed_org_id), "name": "Operations"},
+        headers={"X-Org-Id": str(uuid.uuid4())},
+    )
+    assert res.status_code == 403
+    assert res.json()["detail"] == "org_id does not match request context"
+
+
+def test_employee_list_filters_for_manager_scope(monkeypatch, workforce_modules):
+    employees, _departments, _titles = workforce_modules
+    now = datetime.now(tz=timezone.utc)
+    org_id = uuid.uuid4()
+    team_id = uuid.uuid4()
+    other_id = uuid.uuid4()
+    _FakeEmployeeService.listed = [
+        SimpleNamespace(
+            id=team_id,
+            org_id=org_id,
+            created_by_user_id=uuid.uuid4(),
+            employee_code="E-TEAM",
+            first_name="Team",
+            last_name="Member",
+            email="team@example.com",
+            phone=None,
+            department_id=None,
+            title_id=None,
+            manager_employee_id=None,
+            location_id=None,
+            employment_type="FULL_TIME",
+            employment_status="ACTIVE",
+            start_date=date(2026, 1, 1),
+            end_date=None,
+            salary_type="SALARIED",
+            base_salary=Decimal("1000.00"),
+            hourly_rate=None,
+            is_active=True,
+            created_at=now,
+            updated_at=now,
+        ),
+        SimpleNamespace(
+            id=other_id,
+            org_id=org_id,
+            created_by_user_id=uuid.uuid4(),
+            employee_code="E-OTHER",
+            first_name="Other",
+            last_name="Member",
+            email="other@example.com",
+            phone=None,
+            department_id=None,
+            title_id=None,
+            manager_employee_id=None,
+            location_id=None,
+            employment_type="FULL_TIME",
+            employment_status="ACTIVE",
+            start_date=date(2026, 1, 1),
+            end_date=None,
+            salary_type="SALARIED",
+            base_salary=Decimal("2000.00"),
+            hourly_rate=None,
+            is_active=True,
+            created_at=now,
+            updated_at=now,
+        ),
+    ]
+    app = _build_app(monkeypatch=monkeypatch, workforce_modules=workforce_modules, role="MANAGER")
+    client = TestClient(app)
+
+    async def fake_scope(**_kwargs):
+        return SimpleNamespace(
+            role="MANAGER",
+            can_access_employee=lambda eid: eid == team_id,
+            is_manager=True,
+        )
+
+    monkeypatch.setattr(employees, "build_workforce_access_scope", fake_scope)
+    res = client.get(f"/api/v1/workforce/employees?org_id={org_id}")
+    assert res.status_code == 200, res.text
+    body = res.json()
+    assert len(body) == 1
+    assert body[0]["id"] == str(team_id)
+    assert body[0]["base_salary"] is None
 

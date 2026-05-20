@@ -11,7 +11,7 @@ class AnnouncementAttachmentIn(BaseModel):
 
 
 class WorkforceAnnouncementCreateIn(BaseModel):
-    org_id: uuid.UUID
+    org_id: uuid.UUID | None = None
     title: str = Field(min_length=1, max_length=240)
     body: str = Field(min_length=1)
     priority: str = Field(default="NORMAL", max_length=16)
@@ -27,7 +27,7 @@ class WorkforceAnnouncementCreateIn(BaseModel):
 
 
 class WorkforceAnnouncementUpdateIn(BaseModel):
-    org_id: uuid.UUID
+    org_id: uuid.UUID | None = None
     title: str | None = Field(default=None, min_length=1, max_length=240)
     body: str | None = Field(default=None, min_length=1)
     priority: str | None = Field(default=None, max_length=16)
@@ -46,15 +46,15 @@ class WorkforceAnnouncementUpdateIn(BaseModel):
 
 
 class WorkforceAnnouncementPublishIn(BaseModel):
-    org_id: uuid.UUID
+    org_id: uuid.UUID | None = None
 
 
 class WorkforceAnnouncementArchiveIn(BaseModel):
-    org_id: uuid.UUID
+    org_id: uuid.UUID | None = None
 
 
 class WorkforceAnnouncementAcknowledgeIn(BaseModel):
-    org_id: uuid.UUID
+    org_id: uuid.UUID | None = None
 
 
 class WorkforceAnnouncementReceiptOut(BaseModel):
@@ -133,7 +133,7 @@ class WorkforceAutomationKeysOut(BaseModel):
 
 
 class WorkforceAnnouncementTemplateCreateIn(BaseModel):
-    org_id: uuid.UUID
+    org_id: uuid.UUID | None = None
     name: str = Field(min_length=1, max_length=200)
     body_template: str = Field(min_length=1)
     code: str | None = Field(default=None, max_length=64)
@@ -142,7 +142,7 @@ class WorkforceAnnouncementTemplateCreateIn(BaseModel):
 
 
 class WorkforceAnnouncementTemplateUpdateIn(BaseModel):
-    org_id: uuid.UUID
+    org_id: uuid.UUID | None = None
     name: str | None = Field(default=None, min_length=1, max_length=200)
     body_template: str | None = Field(default=None, min_length=1)
     code: str | None = Field(default=None, max_length=64)

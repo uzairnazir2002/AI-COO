@@ -21,7 +21,7 @@ class InviteIn(BaseModel):
     @field_validator("role")
     @classmethod
     def role_allowed(cls, value: str) -> str:
-        allowed = {"OWNER", "EDITOR", "VIEWER"}
+        allowed = {"OWNER", "EDITOR", "MANAGER", "VIEWER"}
         if value not in allowed:
             raise ValueError("Invalid role")
         return value
@@ -44,6 +44,7 @@ class OrgSettingsOut(BaseModel):
     owner_mfa_required: bool
     owner_session_max_minutes: int
     sensitive_action_reauth_minutes: int
+    workforce_org_context_canonical: bool = True
 
 
 class OrgSettingsUpdateIn(BaseModel):
@@ -56,6 +57,7 @@ class OrgSettingsUpdateIn(BaseModel):
     owner_mfa_required: bool | None = None
     owner_session_max_minutes: int | None = None
     sensitive_action_reauth_minutes: int | None = None
+    workforce_org_context_canonical: bool | None = None
 
     @field_validator("starting_cash")
     @classmethod

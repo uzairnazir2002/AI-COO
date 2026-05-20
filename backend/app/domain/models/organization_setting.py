@@ -32,3 +32,4 @@ class OrganizationSetting(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     owner_mfa_required: Mapped[bool] = mapped_column(default=False, nullable=False)
     owner_session_max_minutes: Mapped[int] = mapped_column(Integer, default=120, nullable=False)
     sensitive_action_reauth_minutes: Mapped[int] = mapped_column(Integer, default=30, nullable=False)
+    workforce_org_context_canonical: Mapped[bool] = mapped_column(default=True, nullable=False)

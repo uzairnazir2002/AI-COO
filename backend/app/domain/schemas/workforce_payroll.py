@@ -6,7 +6,7 @@ from pydantic import BaseModel, Field
 
 
 class WorkforcePayrollPeriodCreateIn(BaseModel):
-    org_id: uuid.UUID
+    org_id: uuid.UUID | None = None
     start_date: date
     end_date: date
 
@@ -27,14 +27,14 @@ class WorkforcePayrollPeriodOut(BaseModel):
 
 
 class WorkforcePayrollGenerateDraftIn(BaseModel):
-    org_id: uuid.UUID
+    org_id: uuid.UUID | None = None
     payroll_period_id: uuid.UUID
     include_inactive_employees: bool = False
     overtime_multiplier: Decimal = Field(default=Decimal("1.5"), ge=Decimal("1.0"), le=Decimal("5.0"))
 
 
 class WorkforcePayrollPeriodActionIn(BaseModel):
-    org_id: uuid.UUID
+    org_id: uuid.UUID | None = None
 
 
 class WorkforcePayrollEntryOut(BaseModel):
@@ -61,7 +61,7 @@ class WorkforcePayrollEntryOut(BaseModel):
 
 
 class WorkforcePayrollAdjustmentCreateIn(BaseModel):
-    org_id: uuid.UUID
+    org_id: uuid.UUID | None = None
     payroll_period_id: uuid.UUID
     payroll_entry_id: uuid.UUID
     employee_id: uuid.UUID

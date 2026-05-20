@@ -20,7 +20,7 @@ export function useWorkforceReportsSummary(from: string, to: string) {
     queryKey: qk.workforceIntelligenceReportsSummary(orgId || "", from, to),
     queryFn: () =>
       api<WorkforceReportsSummaryResponse>(
-        `${apiPaths.workforceIntelligenceReportsSummary}?org_id=${orgId}&from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`,
+        `${apiPaths.workforceIntelligenceReportsSummary}?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`,
         { schema: workforceReportsSummarySchema },
       ),
     enabled: Boolean(orgId && from && to),

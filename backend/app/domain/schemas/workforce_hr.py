@@ -5,7 +5,7 @@ from pydantic import BaseModel, Field
 
 
 class WorkforcePolicyCreateIn(BaseModel):
-    org_id: uuid.UUID
+    org_id: uuid.UUID | None = None
     code: str = Field(min_length=1, max_length=64)
     title: str = Field(min_length=1, max_length=240)
     body: str = Field(min_length=1)
@@ -32,11 +32,11 @@ class WorkforcePolicyOut(BaseModel):
 
 
 class WorkforcePolicyPublishIn(BaseModel):
-    org_id: uuid.UUID
+    org_id: uuid.UUID | None = None
 
 
 class WorkforcePolicyAckCreateIn(BaseModel):
-    org_id: uuid.UUID
+    org_id: uuid.UUID | None = None
     employee_id: uuid.UUID
 
 
@@ -70,7 +70,7 @@ class WorkforceDocumentOut(BaseModel):
 
 
 class WorkforceDocumentDeactivateIn(BaseModel):
-    org_id: uuid.UUID
+    org_id: uuid.UUID | None = None
 
 
 class WorkforceDocumentUploadOut(BaseModel):
@@ -82,7 +82,7 @@ class WorkforceDocumentUploadOut(BaseModel):
 
 
 class WorkforceChecklistItemCreateIn(BaseModel):
-    org_id: uuid.UUID
+    org_id: uuid.UUID | None = None
     employee_id: uuid.UUID
     kind: str = Field(max_length=16)  # ONBOARDING | OFFBOARDING
     title: str = Field(min_length=1, max_length=240)
@@ -108,6 +108,6 @@ class WorkforceChecklistItemOut(BaseModel):
 
 
 class WorkforceChecklistDoneIn(BaseModel):
-    org_id: uuid.UUID
+    org_id: uuid.UUID | None = None
     is_done: bool
 

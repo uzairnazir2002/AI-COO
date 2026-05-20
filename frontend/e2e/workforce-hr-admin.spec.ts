@@ -83,8 +83,11 @@ test.describe("Workforce Phase 6: HR admin workflows", () => {
     // Document upload (bearer or cookie+csrf)
     const headers =
       authSession.authMode === "bearer"
-        ? { Authorization: `Bearer ${authSession.accessToken}` }
+        ? { Authorization: `Bearer ${authSession.accessToken}`, "X-Org-Id": authSession.orgId }
         : await csrfHeaderIfPresent(page);
+    if (authSession.authMode !== "bearer") {
+      headers["X-Org-Id"] = authSession.orgId;
+    }
 
     const docRes = await page.request.post(
       `${apiBase}/workforce/hr/documents/upload?org_id=${authSession.orgId}&employee_id=${emp.id}`,

@@ -555,7 +555,7 @@ export default function WorkforceCommunicationsPage() {
                   ev.target.value = "";
                   if (!f || !orgId) return;
                   try {
-                    const up = await uploadWorkforceAnnouncementAttachment(orgId, f);
+                    const up = await uploadWorkforceAnnouncementAttachment(f);
                     setUploadedAttachments((prev) => [...prev, { name: up.name, url: up.url }]);
                     toast({ title: "Uploaded", variant: "success" });
                   } catch (err) {

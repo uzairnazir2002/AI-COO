@@ -63,6 +63,7 @@ import type { Role } from "@/types/domain";
 const roleDescriptions: Record<Role, string> = {
   OWNER: "Full access, including invites, org settings, billing, reports, and transactions.",
   EDITOR: "Can manage transactions, settings, and reports but cannot invite members or manage billing ownership.",
+  MANAGER: "Can manage assigned team operations and approvals within scope but cannot access owner-only organization controls.",
   VIEWER: "Read-only access to dashboards, alerts, forecasts, reports, and transaction history.",
 };
 

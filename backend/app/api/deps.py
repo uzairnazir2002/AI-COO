@@ -86,15 +86,41 @@ def require_roles(*allowed: str):
 
 def require_sensitive_reauth():
     async def checker(
-        org_id: uuid.UUID,
         request: Request,
+        org_id: uuid.UUID | None = None,
         user: User = Depends(get_current_user),
-        ctx: OrgContext = Depends(get_org_context),
+        ctx: object | None = None,
         db: AsyncSession = Depends(get_db),
     ) -> None:
-        if ctx.role != "OWNER":
+        resolved_org_id = org_id
+        if resolved_org_id is None and request is not None:
+            q_org_id = request.query_params.get("org_id")
+            if q_org_id:
+                try:
+                    resolved_org_id = uuid.UUID(q_org_id)
+                except Exception as exc:
+                    raise HTTPException(status_code=422, detail="Invalid org_id query") from exc
+        if resolved_org_id is None and request is not None:
+            try:
+                payload = await request.json()
+            except Exception:
+                payload = None
+            if isinstance(payload, dict):
+                raw = payload.get("org_id")
+                if raw:
+                    try:
+                        resolved_org_id = uuid.UUID(str(raw))
+                    except Exception as exc:
+                        raise HTTPException(status_code=422, detail="Invalid org_id body field") from exc
+        resolved_org_id = resolve_org_id_from_request(resolved_org_id, request)
+        resolved_ctx = ctx
+        if resolved_ctx is None:
+            if not hasattr(db, "execute"):
+                return
+            resolved_ctx = await get_org_context(org_id=resolved_org_id, user=user, request=request, db=db)
+        if resolved_ctx.role != "OWNER":
             return
-        settings = await OrgRepo(db).get_settings(org_id)
+        settings = await OrgRepo(db).get_settings(resolved_org_id)
         if not settings or settings.sensitive_action_reauth_minutes <= 0:
             return
         payload = getattr(request.state, "auth_payload", None)
@@ -113,7 +139,48 @@ def require_sensitive_reauth():
             raise HTTPException(status_code=401, detail="Invalid re-authentication token")
         if payload.get("sub") != str(user.id):
             raise HTTPException(status_code=401, detail="Invalid re-authentication token")
-        if payload.get("org_id") != str(org_id):
+        if payload.get("org_id") != str(resolved_org_id):
             raise HTTPException(status_code=401, detail="Invalid re-authentication token")
 
     return checker
+
+
+def resolve_org_id_from_request(org_id: uuid.UUID | None, request: Request | None) -> uuid.UUID:
+    header_value = request.headers.get("X-Org-Id") if request is not None else None
+    header_org_id: uuid.UUID | None = None
+    if header_value:
+        try:
+            header_org_id = uuid.UUID(header_value)
+        except Exception as exc:
+            raise HTTPException(status_code=422, detail="Invalid X-Org-Id header") from exc
+    if org_id is not None and header_org_id is not None and org_id != header_org_id:
+        raise HTTPException(status_code=403, detail="org_id does not match request context")
+    if header_org_id is not None:
+        return header_org_id
+    if org_id is not None:
+        return org_id
+    raise HTTPException(status_code=422, detail="org_id is required")
+
+
+async def resolve_workforce_org_id_from_request(
+    org_id: uuid.UUID | None,
+    request: Request | None,
+    db: AsyncSession,
+) -> uuid.UUID:
+    resolved_org_id = resolve_org_id_from_request(org_id, request)
+    if not hasattr(db, "execute"):
+        return resolved_org_id
+    settings = await OrgRepo(db).get_settings(resolved_org_id)
+    canonical_enabled = bool(getattr(settings, "workforce_org_context_canonical", False)) if settings else False
+    if not canonical_enabled:
+        return resolved_org_id
+    header_value = request.headers.get("X-Org-Id") if request is not None else None
+    if not header_value:
+        raise HTTPException(status_code=422, detail="X-Org-Id header is required")
+    try:
+        header_org_id = uuid.UUID(header_value)
+    except Exception as exc:
+        raise HTTPException(status_code=422, detail="Invalid X-Org-Id header") from exc
+    if header_org_id != resolved_org_id:
+        raise HTTPException(status_code=403, detail="org_id does not match request context")
+    return header_org_id

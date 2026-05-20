@@ -49,6 +49,10 @@ function readCookie(name: string): string | null {
   return cookie ? decodeURIComponent(cookie.split("=").slice(1).join("=")) : null;
 }
 
+function selectedOrgFromCookie(): string | null {
+  return readCookie("ai_coo_selected_org");
+}
+
 function withCsrf(headers: Headers, method: string | undefined) {
   if (!cookieMode) return;
   const normalized = (method || "GET").toUpperCase();
@@ -133,6 +137,10 @@ export async function apiFetchRaw(path: string, options?: ApiRawOptions): Promis
   }
 
   headers.set("X-Request-ID", crypto.randomUUID());
+  if (!headers.has("X-Org-Id")) {
+    const selectedOrg = selectedOrgFromCookie();
+    if (selectedOrg) headers.set("X-Org-Id", selectedOrg);
+  }
   withCsrf(headers, method);
 
   const run = async () => {

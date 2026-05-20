@@ -139,7 +139,7 @@ export function useDashboardData() {
     queryKey: qk.workforceIntelligenceDashboard(orgId || "", to),
     queryFn: () =>
       api<WorkforceDashboardIntelResponse>(
-        `${apiPaths.workforceIntelligenceDashboard}?org_id=${orgId}&as_of=${encodeURIComponent(to)}`,
+        `${apiPaths.workforceIntelligenceDashboard}?as_of=${encodeURIComponent(to)}`,
         { schema: workforceDashboardIntelSchema },
       ),
     enabled,

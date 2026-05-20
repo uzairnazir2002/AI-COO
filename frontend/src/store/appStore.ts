@@ -3,7 +3,7 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
-export type OrgRole = "OWNER" | "EDITOR" | "VIEWER";
+export type OrgRole = "OWNER" | "EDITOR" | "MANAGER" | "VIEWER";
 export type ExperienceTier = "simple" | "standard" | "advanced";
 
 export type MeOrg = { org_id: string; role: OrgRole; name: string };

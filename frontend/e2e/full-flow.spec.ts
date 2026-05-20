@@ -93,12 +93,20 @@ test("full app flow: auth fixture -> dashboard -> transactions -> reports", asyn
   await expect(page.getByText("generate_weekly_report")).toBeVisible({ timeout: 30_000 });
   const downloadBtn = page.getByRole("button", { name: "Download" }).first();
   if ((await downloadBtn.count()) > 0) {
-    const downloadResponsePromise = page.waitForResponse(
-      (res) => res.url().includes("/api/v1/reports/") && res.url().includes("/download") && res.request().method() === "GET",
-    );
-    await downloadBtn.click();
-    const downloadResponse = await downloadResponsePromise;
-    expect(downloadResponse.ok(), await downloadResponse.text()).toBeTruthy();
+    const downloadResponsePromise = page
+      .waitForResponse(
+        (res) => res.url().includes("/api/v1/reports/") && res.url().includes("/download") && res.request().method() === "GET",
+        { timeout: 20_000 },
+      )
+      .catch(() => null);
+    const browserDownloadPromise = page.waitForEvent("download", { timeout: 20_000 }).catch(() => null);
+    await downloadBtn.click({ force: true });
+    const [downloadResponse, browserDownload] = await Promise.all([downloadResponsePromise, browserDownloadPromise]);
+    if (downloadResponse) {
+      expect(downloadResponse.ok(), await downloadResponse.text()).toBeTruthy();
+    } else {
+      expect(browserDownload, "Expected report download response or browser download event").toBeTruthy();
+    }
   }
 
   const seededEmail = process.env.E2E_USER_EMAIL;

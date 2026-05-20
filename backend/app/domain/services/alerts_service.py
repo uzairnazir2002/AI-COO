@@ -100,6 +100,9 @@ class AlertsService:
                 created += await self._detect_workforce_repeated_lateness(org_id)
                 created += await self._detect_workforce_pending_leave(org_id)
                 created += await self._detect_workforce_payroll_due(org_id)
+                created += await self._detect_workforce_unpaid_payroll(org_id)
+                created += await self._detect_workforce_high_absenteeism(org_id)
+                created += await self._detect_workforce_overtime_threshold(org_id)
                 created += await self._detect_workforce_contract_expiry(org_id)
                 created += await self._detect_workforce_announcement_ack(org_id)
         return created
@@ -229,6 +232,116 @@ class AlertsService:
             ),
             audit_action="alert.detect.workforce_payroll_due",
             audit_metadata={"due_periods": p, "unpaid_entries": u},
+        )
+
+    async def _detect_workforce_unpaid_payroll(self, org_id: uuid.UUID) -> int:
+        unpaid = await self.db.scalar(
+            select(func.count()).select_from(WorkforcePayrollEntry).where(
+                WorkforcePayrollEntry.org_id == org_id,
+                WorkforcePayrollEntry.status != "PAID",
+            )
+        )
+        u = int(unpaid or 0)
+        if u <= 0:
+            return 0
+        return await self._create_if_new(
+            Alert(
+                org_id=org_id,
+                location_id=None,
+                kind="RUNWAY",
+                severity="MEDIUM" if u < 25 else "HIGH",
+                title=f"Unpaid payroll entries ({u})",
+                description="Payroll entries remain unpaid and need settlement.",
+                meta={"subkind": "WORKFORCE_UNPAID_PAYROLL", "count": u, "impact": str(u)},
+            ),
+            audit_action="alert.detect.workforce_unpaid_payroll",
+            audit_metadata={"count": u},
+        )
+
+    async def _detect_workforce_high_absenteeism(self, org_id: uuid.UUID) -> int:
+        end = date.today()
+        start = end - timedelta(days=13)
+        rows = await self.db.execute(
+            select(
+                func.count().label("total"),
+                func.sum(case((WorkforceAttendanceRecord.status == "ABSENT", 1), else_=0)).label("absent"),
+            ).where(
+                WorkforceAttendanceRecord.org_id == org_id,
+                WorkforceAttendanceRecord.work_date >= start,
+                WorkforceAttendanceRecord.work_date <= end,
+            )
+        )
+        total, absent = rows.one()
+        t = int(total or 0)
+        a = int(absent or 0)
+        if t <= 0:
+            return 0
+        ratio = (Decimal(a) / Decimal(t) * Decimal("100")).quantize(Decimal("0.01"))
+        if ratio < Decimal("15.00"):
+            return 0
+        sev = "MEDIUM" if ratio < Decimal("25.00") else "HIGH"
+        return await self._create_if_new(
+            Alert(
+                org_id=org_id,
+                location_id=None,
+                kind="ANOMALY",
+                severity=sev,
+                title=f"High absenteeism risk ({ratio}%)",
+                description=f"Absence rate is elevated over the last 14 days ({a}/{t} records).",
+                meta={
+                    "subkind": "WORKFORCE_HIGH_ABSENTEEISM",
+                    "from": start.isoformat(),
+                    "to": end.isoformat(),
+                    "absent": a,
+                    "total": t,
+                    "absence_rate_pct": str(ratio),
+                    "impact": str(ratio),
+                },
+            ),
+            audit_action="alert.detect.workforce_high_absenteeism",
+            audit_metadata={"from": start.isoformat(), "to": end.isoformat(), "absence_rate_pct": str(ratio)},
+        )
+
+    async def _detect_workforce_overtime_threshold(self, org_id: uuid.UUID) -> int:
+        end = date.today()
+        start = end - timedelta(days=29)
+        rows = await self.db.execute(
+            select(
+                WorkforceAttendanceRecord.employee_id,
+                func.sum(func.coalesce(WorkforceAttendanceRecord.overtime_minutes, 0)).label("ot_minutes"),
+            )
+            .where(
+                WorkforceAttendanceRecord.org_id == org_id,
+                WorkforceAttendanceRecord.work_date >= start,
+                WorkforceAttendanceRecord.work_date <= end,
+            )
+            .group_by(WorkforceAttendanceRecord.employee_id)
+            .having(func.sum(func.coalesce(WorkforceAttendanceRecord.overtime_minutes, 0)) >= 600)
+            .limit(10)
+        )
+        top = [(str(emp_id), int(ot_minutes or 0)) for emp_id, ot_minutes in rows.all()]
+        if not top:
+            return 0
+        max_ot = max(v for _, v in top)
+        return await self._create_if_new(
+            Alert(
+                org_id=org_id,
+                location_id=None,
+                kind="ANOMALY",
+                severity="MEDIUM" if max_ot < 1200 else "HIGH",
+                title="Overtime threshold breach",
+                description=f"{len(top)} employees crossed overtime threshold in the last 30 days.",
+                meta={
+                    "subkind": "WORKFORCE_OVERTIME_THRESHOLD",
+                    "from": start.isoformat(),
+                    "to": end.isoformat(),
+                    "threshold_minutes": 600,
+                    "top": top,
+                    "impact": str(max_ot),
+                },
+            ),
+            audit_action="alert.detect.workforce_overtime_threshold",
+            audit_metadata={"from": start.isoformat(), "to": end.isoformat(), "top": top},
         )
 
     async def _detect_workforce_contract_expiry(self, org_id: uuid.UUID) -> int:

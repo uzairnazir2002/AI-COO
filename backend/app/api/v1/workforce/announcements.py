@@ -2,11 +2,11 @@ import re
 import uuid
 from urllib.parse import urlparse, urlunparse
 
-from fastapi import APIRouter, Body, Depends, File, HTTPException, Query, UploadFile
+from fastapi import APIRouter, Body, Depends, File, HTTPException, Query, Request, UploadFile
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_current_user, get_org_context
+from app.api.deps import get_current_user, get_org_context, require_sensitive_reauth, resolve_workforce_org_id_from_request
 from app.core.config import get_settings
 from app.db.session import get_db
 from app.domain.models.outbox_event import OutboxEvent
@@ -114,23 +114,27 @@ async def _enrich_deliveries(db: AsyncSession, rows: list) -> list[WorkforceAnno
 
 @router.get("/automation-keys", response_model=WorkforceAutomationKeysOut)
 async def list_automation_keys(
-    org_id: uuid.UUID = Query(...),
+    request: Request,
+    org_id: uuid.UUID | None = Query(default=None),
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    ctx = await get_org_context(org_id=org_id, user=user, db=db)
+    resolved_org_id = await resolve_workforce_org_id_from_request(org_id, request, db)
+    ctx = await get_org_context(org_id=resolved_org_id, user=user, db=db)
     _assert_mutation_role(ctx.role)
     return WorkforceAutomationKeysOut(keys=sorted(AUTOMATION_KEYS_KNOWN))
 
 
 @router.post("/attachments/upload", response_model=WorkforceAnnouncementAttachmentUploadOut)
 async def upload_announcement_attachment(
-    org_id: uuid.UUID = Query(...),
+    request: Request,
+    org_id: uuid.UUID | None = Query(default=None),
     file: UploadFile = File(...),
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    ctx = await get_org_context(org_id=org_id, user=user, db=db)
+    resolved_org_id = await resolve_workforce_org_id_from_request(org_id, request, db)
+    ctx = await get_org_context(org_id=resolved_org_id, user=user, db=db)
     _assert_mutation_role(ctx.role)
     body = await file.read()
     if len(body) > _ANNOUNCEMENT_UPLOAD_MAX_BYTES:
@@ -144,7 +148,7 @@ async def upload_announcement_attachment(
             detail="Unsupported content type; allowed: PDF, PNG, JPEG, plain text",
         )
     safe = _safe_upload_filename(file.filename)
-    key = f"workforce/announcements/{org_id}/{uuid.uuid4()}_{safe}"
+    key = f"workforce/announcements/{resolved_org_id}/{uuid.uuid4()}_{safe}"
     s3 = s3_client()
     settings = get_settings()
     ensure_bucket(s3)
@@ -153,7 +157,7 @@ async def upload_announcement_attachment(
     url = _presigned_attachment_url(object_key=key, filename=safe)
     await AuditRepo(db).log(
         user.id,
-        org_id,
+        resolved_org_id,
         "workforce.announcement.attachment.upload",
         "workforce_announcement_attachment",
         key,
@@ -170,30 +174,34 @@ async def upload_announcement_attachment(
 
 @router.get("/templates", response_model=list[WorkforceAnnouncementTemplateOut])
 async def list_announcement_templates(
-    org_id: uuid.UUID = Query(...),
+    request: Request,
+    org_id: uuid.UUID | None = Query(default=None),
     include_inactive: bool = Query(default=False),
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    ctx = await get_org_context(org_id=org_id, user=user, db=db)
+    resolved_org_id = await resolve_workforce_org_id_from_request(org_id, request, db)
+    ctx = await get_org_context(org_id=resolved_org_id, user=user, db=db)
     _assert_mutation_role(ctx.role)
     rows = await build_workforce_announcement_template_service(db).list_templates(
-        org_id=org_id, include_inactive=include_inactive
+        org_id=resolved_org_id, include_inactive=include_inactive
     )
     return [WorkforceAnnouncementTemplateOut.model_validate(r, from_attributes=True) for r in rows]
 
 
 @router.post("/templates", response_model=WorkforceAnnouncementTemplateOut)
 async def create_announcement_template(
+    request: Request,
     body: WorkforceAnnouncementTemplateCreateIn = Body(...),
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    ctx = await get_org_context(org_id=body.org_id, user=user, db=db)
+    resolved_org_id = await resolve_workforce_org_id_from_request(body.org_id, request, db)
+    ctx = await get_org_context(org_id=resolved_org_id, user=user, db=db)
     _assert_mutation_role(ctx.role)
     try:
         row = await build_workforce_announcement_template_service(db).create(
-            org_id=body.org_id,
+            org_id=resolved_org_id,
             actor_user_id=user.id,
             name=body.name,
             body_template=body.body_template,
@@ -205,7 +213,7 @@ async def create_announcement_template(
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     await AuditRepo(db).log(
         user.id,
-        body.org_id,
+        resolved_org_id,
         "workforce.announcement_template.create",
         "workforce_announcement_template",
         str(row.id),
@@ -218,16 +226,18 @@ async def create_announcement_template(
 @router.put("/templates/{template_id}", response_model=WorkforceAnnouncementTemplateOut)
 async def update_announcement_template(
     template_id: uuid.UUID,
+    request: Request,
     body: WorkforceAnnouncementTemplateUpdateIn = Body(...),
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    ctx = await get_org_context(org_id=body.org_id, user=user, db=db)
+    resolved_org_id = await resolve_workforce_org_id_from_request(body.org_id, request, db)
+    ctx = await get_org_context(org_id=resolved_org_id, user=user, db=db)
     _assert_mutation_role(ctx.role)
     fs = body.model_fields_set
     try:
         row = await build_workforce_announcement_template_service(db).update(
-            org_id=body.org_id,
+            org_id=resolved_org_id,
             template_id=template_id,
             name=body.name if "name" in fs else None,
             body_template=body.body_template if "body_template" in fs else None,
@@ -245,7 +255,7 @@ async def update_announcement_template(
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     await AuditRepo(db).log(
         user.id,
-        body.org_id,
+        resolved_org_id,
         "workforce.announcement_template.update",
         "workforce_announcement_template",
         str(row.id),
@@ -257,14 +267,16 @@ async def update_announcement_template(
 
 @router.get("", response_model=list[WorkforceAnnouncementOut])
 async def list_announcements(
-    org_id: uuid.UUID = Query(...),
+    request: Request,
+    org_id: uuid.UUID | None = Query(default=None),
     include_archived: bool = Query(default=False),
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    ctx = await get_org_context(org_id=org_id, user=user, db=db)
+    resolved_org_id = await resolve_workforce_org_id_from_request(org_id, request, db)
+    ctx = await get_org_context(org_id=resolved_org_id, user=user, db=db)
     rows = await build_workforce_announcement_service(db).list_for_user(
-        org_id=org_id,
+        org_id=resolved_org_id,
         user_id=user.id,
         user_email=user.email,
         role=ctx.role,
@@ -281,18 +293,20 @@ async def list_announcements(
 
 @router.post("", response_model=WorkforceAnnouncementOut)
 async def create_announcement(
+    request: Request,
     body: WorkforceAnnouncementCreateIn = Body(...),
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    ctx = await get_org_context(org_id=body.org_id, user=user, db=db)
+    resolved_org_id = await resolve_workforce_org_id_from_request(body.org_id, request, db)
+    ctx = await get_org_context(org_id=resolved_org_id, user=user, db=db)
     _assert_mutation_role(ctx.role)
     att = None
     if body.attachments is not None:
         att = [a.model_dump() for a in body.attachments]
     try:
         row = await build_workforce_announcement_service(db).create(
-            org_id=body.org_id,
+            org_id=resolved_org_id,
             actor_user_id=user.id,
             title=body.title,
             body=body.body,
@@ -311,7 +325,7 @@ async def create_announcement(
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     await AuditRepo(db).log(
         user.id,
-        body.org_id,
+        resolved_org_id,
         "workforce.announcement.create",
         "workforce_announcement",
         str(row.id),
@@ -324,18 +338,20 @@ async def create_announcement(
 @router.get("/{announcement_id}/deliveries", response_model=WorkforceAnnouncementDeliveryListOut)
 async def list_announcement_deliveries(
     announcement_id: uuid.UUID,
-    org_id: uuid.UUID = Query(...),
+    request: Request,
+    org_id: uuid.UUID | None = Query(default=None),
     status: str | None = Query(default=None, description="Filter: PENDING, RETRYING, SENT, FAILED, or ALL"),
     page: int = Query(default=1, ge=1, le=10_000),
     page_size: int = Query(default=50, ge=1, le=200),
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    ctx = await get_org_context(org_id=org_id, user=user, db=db)
+    resolved_org_id = await resolve_workforce_org_id_from_request(org_id, request, db)
+    ctx = await get_org_context(org_id=resolved_org_id, user=user, db=db)
     _assert_mutation_role(ctx.role)
     try:
         rows, total = await build_workforce_announcement_service(db).list_deliveries_page(
-            org_id=org_id,
+            org_id=resolved_org_id,
             announcement_id=announcement_id,
             status=status,
             page=page,
@@ -349,12 +365,14 @@ async def list_announcement_deliveries(
 
 @router.put("/{announcement_id}", response_model=WorkforceAnnouncementOut)
 async def update_announcement(
+    request: Request,
     announcement_id: uuid.UUID,
     body: WorkforceAnnouncementUpdateIn = Body(...),
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    ctx = await get_org_context(org_id=body.org_id, user=user, db=db)
+    resolved_org_id = await resolve_workforce_org_id_from_request(body.org_id, request, db)
+    ctx = await get_org_context(org_id=resolved_org_id, user=user, db=db)
     _assert_mutation_role(ctx.role)
     fs = body.model_fields_set
     att: list[dict] | None = None
@@ -366,7 +384,7 @@ async def update_announcement(
             att = [a.model_dump() for a in body.attachments]
     try:
         row = await build_workforce_announcement_service(db).update(
-            org_id=body.org_id,
+            org_id=resolved_org_id,
             announcement_id=announcement_id,
             title=body.title if "title" in fs else None,
             body=body.body if "body" in fs else None,
@@ -394,7 +412,7 @@ async def update_announcement(
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     await AuditRepo(db).log(
         user.id,
-        body.org_id,
+        resolved_org_id,
         "workforce.announcement.update",
         "workforce_announcement",
         str(row.id),
@@ -407,22 +425,25 @@ async def update_announcement(
 
 @router.post("/{announcement_id}/publish", response_model=WorkforceAnnouncementOut)
 async def publish_announcement(
+    request: Request,
     announcement_id: uuid.UUID,
     body: WorkforceAnnouncementPublishIn = Body(...),
+    _reauth: None = Depends(require_sensitive_reauth()),
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    ctx = await get_org_context(org_id=body.org_id, user=user, db=db)
+    resolved_org_id = await resolve_workforce_org_id_from_request(body.org_id, request, db)
+    ctx = await get_org_context(org_id=resolved_org_id, user=user, db=db)
     _assert_mutation_role(ctx.role)
     try:
-        row = await build_workforce_announcement_service(db).publish(org_id=body.org_id, announcement_id=announcement_id)
+        row = await build_workforce_announcement_service(db).publish(org_id=resolved_org_id, announcement_id=announcement_id)
     except NotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     await AuditRepo(db).log(
         user.id,
-        body.org_id,
+        resolved_org_id,
         "workforce.announcement.publish",
         "workforce_announcement",
         str(row.id),
@@ -435,20 +456,23 @@ async def publish_announcement(
 
 @router.post("/{announcement_id}/archive", response_model=WorkforceAnnouncementOut)
 async def archive_announcement(
+    request: Request,
     announcement_id: uuid.UUID,
     body: WorkforceAnnouncementArchiveIn = Body(...),
+    _reauth: None = Depends(require_sensitive_reauth()),
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    ctx = await get_org_context(org_id=body.org_id, user=user, db=db)
+    resolved_org_id = await resolve_workforce_org_id_from_request(body.org_id, request, db)
+    ctx = await get_org_context(org_id=resolved_org_id, user=user, db=db)
     _assert_mutation_role(ctx.role)
     try:
-        row = await build_workforce_announcement_service(db).archive(org_id=body.org_id, announcement_id=announcement_id)
+        row = await build_workforce_announcement_service(db).archive(org_id=resolved_org_id, announcement_id=announcement_id)
     except NotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     await AuditRepo(db).log(
         user.id,
-        body.org_id,
+        resolved_org_id,
         "workforce.announcement.archive",
         "workforce_announcement",
         str(row.id),
@@ -462,14 +486,16 @@ async def archive_announcement(
 @router.get("/{announcement_id}", response_model=WorkforceAnnouncementDetailOut)
 async def get_announcement(
     announcement_id: uuid.UUID,
-    org_id: uuid.UUID = Query(...),
+    request: Request,
+    org_id: uuid.UUID | None = Query(default=None),
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    ctx = await get_org_context(org_id=org_id, user=user, db=db)
+    resolved_org_id = await resolve_workforce_org_id_from_request(org_id, request, db)
+    ctx = await get_org_context(org_id=resolved_org_id, user=user, db=db)
     try:
         row, receipt = await build_workforce_announcement_service(db).get_and_mark_read(
-            org_id=org_id,
+            org_id=resolved_org_id,
             announcement_id=announcement_id,
             user_id=user.id,
             user_email=user.email,
@@ -484,15 +510,17 @@ async def get_announcement(
 
 @router.post("/{announcement_id}/acknowledge", response_model=WorkforceAnnouncementReceiptOut)
 async def acknowledge_announcement(
+    request: Request,
     announcement_id: uuid.UUID,
     body: WorkforceAnnouncementAcknowledgeIn = Body(...),
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    await get_org_context(org_id=body.org_id, user=user, db=db)
+    resolved_org_id = await resolve_workforce_org_id_from_request(body.org_id, request, db)
+    await get_org_context(org_id=resolved_org_id, user=user, db=db)
     try:
         rec = await build_workforce_announcement_service(db).acknowledge(
-            org_id=body.org_id, announcement_id=announcement_id, user_id=user.id, user_email=user.email
+            org_id=resolved_org_id, announcement_id=announcement_id, user_id=user.id, user_email=user.email
         )
     except NotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
@@ -500,7 +528,7 @@ async def acknowledge_announcement(
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     await AuditRepo(db).log(
         user.id,
-        body.org_id,
+        resolved_org_id,
         "workforce.announcement.acknowledge",
         "workforce_announcement",
         str(announcement_id),

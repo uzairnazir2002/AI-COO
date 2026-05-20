@@ -34,7 +34,8 @@ def _app_with_overrides(monkeypatch, organizations_module, role: str, ctx_org_id
     async def fake_db():
         yield _FakeDB()
 
-    async def fake_ctx(org_id: uuid.UUID, user=None, db=None):
+    async def fake_ctx(org_id: uuid.UUID, user=None, request=None, db=None):
+        _ = (org_id, user, request, db)
         return SimpleNamespace(org_id=ctx_org_id, role=role)
 
     app.dependency_overrides[organizations_module.get_current_user] = fake_user
@@ -45,6 +46,7 @@ def _app_with_overrides(monkeypatch, organizations_module, role: str, ctx_org_id
     app.dependency_overrides[shared_deps.get_db] = fake_db
     app.dependency_overrides[shared_deps.get_current_user] = fake_user
     app.dependency_overrides[shared_deps.get_org_context] = fake_ctx
+    monkeypatch.setattr(shared_deps, "get_org_context", fake_ctx)
     monkeypatch.setattr(organizations_module, "get_org_context", fake_ctx)
     monkeypatch.setattr(organizations_module, "OrgService", lambda *args, **kwargs: service)
     return app
