@@ -37,7 +37,9 @@ class InviteAcceptIn(BaseModel):
 
 
 class ConfirmIn(BaseModel):
-    token: str
+    token: str | None = None
+    code: str | None = Field(default=None, min_length=6, max_length=6)
+    email: EmailStr | None = None
     password: str | None = Field(default=None, min_length=8, max_length=128)
 
 
@@ -47,8 +49,7 @@ class ResendConfirmationIn(BaseModel):
 
 class ResendConfirmationOut(BaseModel):
     ok: bool
-    sent: bool
-    already_active: bool = False
+    message: str
 
 
 class DevConfirmationTokenOut(BaseModel):

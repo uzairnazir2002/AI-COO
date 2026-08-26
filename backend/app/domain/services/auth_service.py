@@ -22,6 +22,10 @@ def _h(token: str) -> str:
     return hashlib.sha256(token.encode("utf-8")).hexdigest()
 
 
+def _generate_confirmation_code() -> str:
+    return f"{secrets.randbelow(1_000_000):06d}"
+
+
 def _generate_recovery_codes(count: int = 10) -> list[str]:
     return [secrets.token_hex(4).upper() for _ in range(count)]
 
@@ -34,26 +38,59 @@ class AuthService:
         self.outbox_repo = outbox_repo
 
     async def _issue_confirmation_token(self, *, user_id: uuid.UUID, email: str, dedupe_suffix: str) -> str:
+        settings = get_settings()
         raw_token = secrets.token_urlsafe(32)
+        raw_code = _generate_confirmation_code()
         token_hash = _h(raw_token)
+        code_hash = _h(raw_code)
+        now = utc_now()
+        token_expiry = now + timedelta(minutes=settings.auth_confirmation_token_ttl_minutes)
+        code_expiry = now + timedelta(minutes=settings.auth_confirmation_code_ttl_minutes)
+        await self.auth_repo.invalidate_unused_confirmation_tokens(user_id)
         await self.auth_repo.create_confirmation_token(
             user_id=user_id,
             token_hash=token_hash,
-            expires_at=utc_now() + timedelta(hours=24),
+            expires_at=token_expiry,
+            code_hash=code_hash,
+            code_expires_at=code_expiry,
+            code_max_attempts=settings.auth_confirmation_max_attempts,
         )
+        frontend_base = settings.frontend_url.rstrip("/")
+        confirm_link = f"{frontend_base}/auth/confirm?token={raw_token}"
+        subject = "Confirm your AI-COO account"
+        body_text = (
+            "Welcome to AI-COO.\n\n"
+            f"Confirm your account by opening this link:\n{confirm_link}\n\n"
+            f"Or use this 6-digit confirmation code: {raw_code}\n\n"
+            f"Link expires in {settings.auth_confirmation_token_ttl_minutes} minutes. "
+            f"Code expires in {settings.auth_confirmation_code_ttl_minutes} minutes.\n\n"
+            "If you did not create this account, you can ignore this email."
+        )
+        body_html = f"""
+<html>
+  <body style="font-family: Arial, sans-serif; color: #0f172a;">
+    <h2>Confirm your AI-COO account</h2>
+    <p>Welcome to AI-COO. Confirm your account by clicking the button below.</p>
+    <p>
+      <a href="{confirm_link}" style="display:inline-block;padding:10px 16px;background:#0ea5e9;color:#fff;text-decoration:none;border-radius:6px;">
+        Confirm account
+      </a>
+    </p>
+    <p>Fallback 6-digit code: <strong>{raw_code}</strong></p>
+    <p>Link expires in {settings.auth_confirmation_token_ttl_minutes} minutes. Code expires in {settings.auth_confirmation_code_ttl_minutes} minutes.</p>
+    <p>If you did not create this account, ignore this email.</p>
+  </body>
+</html>
+""".strip()
         if self.outbox_repo is not None:
             await self.outbox_repo.create_event(
                 org_id=None,
                 event_type="email.send",
                 payload={
                     "to": email.lower(),
-                    "subject": "Confirm your AI COO account",
-                    "body": (
-                        "Welcome to AI COO.\n\n"
-                        "Confirm your account with this token:\n"
-                        f"{raw_token}\n\n"
-                        "Call POST /api/v1/auth/confirm with {\"token\":\"...\"}."
-                    ),
+                    "subject": subject,
+                    "body": body_text,
+                    "html_body": body_html,
                 },
                 dedupe_key=f"register-confirm:{user_id}:{dedupe_suffix}",
                 max_attempts=5,
@@ -69,19 +106,19 @@ class AuthService:
         await self.audit_repo.log(user.id, None, "auth.register", "user", str(user.id), {"email": email.lower()})
         return user
 
-    async def resend_confirmation(self, email: str) -> tuple[bool, bool]:
+    async def resend_confirmation(self, email: str) -> None:
         user = await self.auth_repo.get_user_by_email(email.lower())
         if not user:
-            return False, False
+            return
         if user.is_active:
-            return False, True
+            return
         await self._issue_confirmation_token(
             user_id=user.id,
             email=email,
             dedupe_suffix=f"resend:{secrets.token_hex(6)}",
         )
         await self.audit_repo.log(user.id, None, "auth.confirm.resend", "user", str(user.id), {"email": email.lower()})
-        return True, False
+        return
 
     async def login(
         self,
@@ -241,19 +278,65 @@ class AuthService:
         )
         return user
 
-    async def confirm_registration(self, token: str):
-        rec = await self.auth_repo.get_confirmation_token(_h(token))
-        now = utc_now()
-        if not rec or rec.used_at is not None or rec.expires_at <= now:
-            raise UnauthorizedError("Invalid or expired confirmation token")
-        user = await self.auth_repo.get_user(rec.user_id)
+    async def confirm_registration(self, *, token: str | None = None, email: str | None = None, code: str | None = None):
+        if token:
+            rec = await self.auth_repo.get_confirmation_token(_h(token))
+            now = utc_now()
+            if not rec or rec.used_at is not None or rec.invalidated_at is not None or rec.expires_at <= now:
+                raise UnauthorizedError("Invalid or expired confirmation token")
+            user = await self.auth_repo.get_user(rec.user_id)
+            if not user:
+                raise UnauthorizedError("Invalid confirmation token")
+            user.is_active = True
+            await self.auth_repo.save_user(user)
+            await self.auth_repo.mark_confirmation_token_used(rec)
+            await self.audit_repo.log(user.id, None, "auth.confirm", "user", str(user.id), {"method": "token"})
+            return user
+
+        if code and email:
+            user = await self.auth_repo.get_user_by_email(email.lower())
+            if not user:
+                raise UnauthorizedError("Invalid confirmation code")
+            rec = await self.auth_repo.get_confirmation_token_by_code_hash_for_user(user_id=user.id, code_hash=_h(code))
+            now = utc_now()
+            if not rec or rec.used_at is not None or rec.invalidated_at is not None:
+                raise UnauthorizedError("Invalid confirmation code")
+            if rec.code_expires_at is None or rec.code_expires_at <= now:
+                raise UnauthorizedError("Invalid or expired confirmation code")
+            attempts = int(rec.code_attempts or 0)
+            max_attempts = int(rec.code_max_attempts or get_settings().auth_confirmation_max_attempts)
+            if attempts >= max_attempts:
+                raise UnauthorizedError("Confirmation code attempts exceeded")
+            user.is_active = True
+            await self.auth_repo.save_user(user)
+            await self.auth_repo.mark_confirmation_token_used(rec)
+            await self.audit_repo.log(user.id, None, "auth.confirm", "user", str(user.id), {"method": "code"})
+            return user
+
+        if code and not email:
+            raise UnauthorizedError("Email is required for confirmation code")
+
+        raise UnauthorizedError("Token or confirmation code is required")
+
+    async def register_invalid_code_attempt(self, *, email: str, code: str) -> None:
+        user = await self.auth_repo.get_user_by_email(email.lower())
         if not user:
-            raise UnauthorizedError("Invalid confirmation token")
-        user.is_active = True
-        await self.auth_repo.save_user(user)
-        await self.auth_repo.mark_confirmation_token_used(rec)
-        await self.audit_repo.log(user.id, None, "auth.confirm", "user", str(user.id), {})
-        return user
+            return
+        rec = await self.auth_repo.get_pending_confirmation_token_for_user(user.id)
+        if not rec or not rec.code_hash:
+            return
+        await self.auth_repo.increment_confirmation_code_attempts(rec)
+        now = utc_now()
+        max_attempts = int(rec.code_max_attempts or get_settings().auth_confirmation_max_attempts)
+        attempts = int(rec.code_attempts or 0)
+        await self.audit_repo.log(
+            user.id,
+            None,
+            "auth.confirm.code_failed",
+            "user",
+            str(user.id),
+            {"attempts": attempts, "max_attempts": max_attempts, "at": now.isoformat()},
+        )
 
     async def setup_mfa(self, *, user_id: uuid.UUID, password: str) -> tuple[str, str]:
         user = await self.auth_repo.get_user(user_id)

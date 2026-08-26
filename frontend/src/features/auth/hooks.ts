@@ -56,7 +56,7 @@ export function useRegister() {
 export function useConfirmRegistration() {
   const toast = useToast();
   return useMutation({
-    mutationFn: async (payload: { token: string; password?: string }) =>
+    mutationFn: async (payload: { token?: string; code?: string; email?: string; password?: string }) =>
       api<RegisterOutResponse>(apiPaths.confirm, {
         method: "POST",
         body: JSON.stringify(payload),
@@ -91,12 +91,6 @@ export function useResendConfirmation() {
         skipAuth: true,
         schema: resendConfirmationSchema,
       }),
-    onSuccess: (data) => {
-      if (data.already_active) {
-        toast.toast({ title: "Account already active", description: "You can sign in directly.", variant: "warning" });
-        return;
-      }
-      toast.toast({ title: data.sent ? "Confirmation re-issued" : "No pending account found" });
-    },
+    onSuccess: (data) => toast.toast({ title: "Request received", description: data.message }),
   });
 }

@@ -76,6 +76,12 @@ class OutboxRepo:
         event.last_error = None
         await self.db.flush()
 
+    async def mark_sent_dry_run(self, event: OutboxEvent) -> None:
+        event.status = "SENT_DRY_RUN"
+        event.sent_at = utc_now()
+        event.last_error = "Email delivery skipped because EMAIL_DRY_RUN=true"
+        await self.db.flush()
+
     async def mark_retry_or_failed(self, event: OutboxEvent, error: str) -> None:
         event.attempts += 1
         event.last_error = error[:2000]

@@ -55,7 +55,7 @@ from app.domain.services.privacy_service import PrivacyService
 from app.domain.repos.deletion_repo import DeletionRepo
 
 router = APIRouter()
-_CONFIRM_TOKEN_RE = re.compile(r"token:\n([A-Za-z0-9_-]+)")
+_CONFIRM_TOKEN_RE = re.compile(r"(?:token=|token:\n)([A-Za-z0-9_-]+)")
 
 
 def _set_auth_cookies(response: Response, access_token: str, refresh_token: str) -> None:
@@ -254,9 +254,16 @@ async def confirm(request: Request, body: ConfirmIn, db: AsyncSession = Depends(
     await enforce_auth_rate_limit(request, "confirm", 10)
     svc = AuthService(AuthRepo(db), OrgRepo(db), AuditRepo(db), OutboxRepo(db))
     if body.password:
+        if not body.token:
+            raise HTTPException(status_code=400, detail="Invite token is required")
         user = await svc.accept_invite(body.token, body.password)
     else:
-        user = await svc.confirm_registration(body.token)
+        try:
+            user = await svc.confirm_registration(token=body.token, code=body.code, email=body.email)
+        except UnauthorizedError as exc:
+            if body.code and body.email:
+                await svc.register_invalid_code_attempt(email=str(body.email), code=body.code)
+            raise HTTPException(status_code=401, detail=str(exc)) from exc
     await db.commit()
     return RegisterOut(user_id=user.id, account_confirmed=True)
 
@@ -265,9 +272,12 @@ async def confirm(request: Request, body: ConfirmIn, db: AsyncSession = Depends(
 async def resend_confirmation(request: Request, body: ResendConfirmationIn, db: AsyncSession = Depends(get_db)):
     await enforce_auth_rate_limit(request, "resend_confirmation", 10)
     svc = AuthService(AuthRepo(db), OrgRepo(db), AuditRepo(db), OutboxRepo(db))
-    sent, already_active = await svc.resend_confirmation(body.email)
+    await svc.resend_confirmation(body.email)
     await db.commit()
-    return ResendConfirmationOut(ok=True, sent=sent, already_active=already_active)
+    return ResendConfirmationOut(
+        ok=True,
+        message="If an account exists and needs confirmation, we sent a new confirmation email.",
+    )
 
 
 @router.get("/dev/confirmation-token", response_model=DevConfirmationTokenOut)

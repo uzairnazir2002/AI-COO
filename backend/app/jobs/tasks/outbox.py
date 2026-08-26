@@ -46,18 +46,42 @@ async def _process(batch_size: int, correlation_id: str | None = None) -> int:
         delivery_repo = WorkforceAnnouncementDeliveryRepo(db)
         for event in events:
             try:
+                delivery_mode = "sent"
                 if event.event_type == "email.send":
                     payload = event.payload or {}
-                    send_email(
+                    event_id = str(getattr(event, "id", "unknown"))
+                    logger.info("outbox_email_event_claimed", event_id=event_id)
+                    result = send_email(
                         payload["to"],
                         payload["subject"],
                         payload["body"],
+                        html_body=payload.get("html_body"),
                     )
-                await repo.mark_sent(event)
+                    logger.info(
+                        "outbox_email_provider_result",
+                        event_id=event_id,
+                        provider=result.provider,
+                        status=result.status,
+                        provider_message_id=result.provider_message_id,
+                        error_code=result.error_code,
+                    )
+                    if result.status == "sent_dry_run":
+                        await repo.mark_sent_dry_run(event)
+                    elif result.status == "sent":
+                        await repo.mark_sent(event)
+                    else:
+                        raise RuntimeError(
+                            f"email provider failed ({result.provider}) {result.error_code or ''} {result.error_message or ''}".strip()
+                        )
+                else:
+                    await repo.mark_sent(event)
                 raw_did = (event.payload or {}).get("workforce_announcement_delivery_id")
                 if raw_did:
                     try:
-                        await delivery_repo.mark_sent(delivery_id=uuid.UUID(str(raw_did)))
+                        if event.status == "SENT_DRY_RUN":
+                            await delivery_repo.mark_sent_dry_run(delivery_id=uuid.UUID(str(raw_did)))
+                        else:
+                            await delivery_repo.mark_sent(delivery_id=uuid.UUID(str(raw_did)))
                     except (ValueError, TypeError):
                         logger.warning("outbox_invalid_delivery_id", raw=raw_did)
             except Exception as exc:

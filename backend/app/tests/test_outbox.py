@@ -5,6 +5,7 @@ import pytest
 
 from app.domain.models.report import Report
 from app.domain.services.report_service import ReportService
+from app.infra.email import SendEmailResult
 
 
 class _ScalarRows:
@@ -145,12 +146,17 @@ async def test_outbox_consumer_sends_and_marks_delivered(monkeypatch):
         async def mark_sent(self, ev):
             ev.status = "SENT"
 
+        async def mark_sent_dry_run(self, ev):
+            ev.status = "SENT_DRY_RUN"
+
         async def mark_retry_or_failed(self, ev, _error: str):
             ev.status = "FAILED"
             ev.last_error = _error
 
-    def _send_email(to: str, subject: str, _body: str):
+    def _send_email(to: str, subject: str, _body: str, html_body: str | None = None):
+        assert html_body is None
         sent.append((to, subject))
+        return SendEmailResult(status="sent", provider="smtp")
 
     monkeypatch.setattr(outbox_tasks, "SessionLocal", lambda: fake_session)
     monkeypatch.setattr(outbox_tasks, "OutboxRepo", _FakeOutboxRepo)
@@ -197,6 +203,9 @@ async def test_outbox_consumer_retries_then_fails(monkeypatch):
         async def mark_sent(self, ev):
             ev.status = "SENT"
 
+        async def mark_sent_dry_run(self, ev):
+            ev.status = "SENT_DRY_RUN"
+
         async def mark_retry_or_failed(self, ev, _error: str):
             ev.attempts += 1
             ev.last_error = _error
@@ -205,8 +214,9 @@ async def test_outbox_consumer_retries_then_fails(monkeypatch):
             else:
                 ev.status = "RETRYING"
 
-    def _send_email(_to: str, _subject: str, _body: str):
-        raise RuntimeError("smtp down")
+    def _send_email(_to: str, _subject: str, _body: str, html_body: str | None = None):
+        assert html_body is None
+        return SendEmailResult(status="failed", provider="smtp", error_message="smtp down")
 
     monkeypatch.setattr(outbox_tasks, "SessionLocal", lambda: fake_session)
     monkeypatch.setattr(outbox_tasks, "OutboxRepo", _FakeOutboxRepo)
@@ -217,3 +227,51 @@ async def test_outbox_consumer_retries_then_fails(monkeypatch):
     assert processed == 2
     assert retry_event.status == "RETRYING"
     assert fail_event.status == "FAILED"
+
+
+@pytest.mark.asyncio
+async def test_outbox_consumer_marks_dry_run_email(monkeypatch):
+    monkeypatch.setenv("SECRET_KEY", "test")
+    monkeypatch.setenv("DATABASE_URL", "postgresql+asyncpg://u:p@localhost:5432/db")
+    monkeypatch.setenv("REDIS_URL", "redis://localhost:6379/0")
+    from importlib import reload
+    import app.jobs.tasks.outbox as outbox_tasks
+
+    outbox_tasks = reload(outbox_tasks)
+    fake_session = _FakeAsyncSession()
+
+    event = _FakeEvent(
+        event_type="email.send",
+        payload={"to": "owner@example.com", "subject": "s", "body": "b"},
+    )
+
+    class _FakeOutboxRepo:
+        def __init__(self, _db):
+            pass
+
+        async def claim_pending(self, limit: int):
+            assert limit == 25
+            return [event]
+
+        async def mark_sent(self, ev):
+            ev.status = "SENT"
+
+        async def mark_sent_dry_run(self, ev):
+            ev.status = "SENT_DRY_RUN"
+
+        async def mark_retry_or_failed(self, ev, _error: str):
+            ev.status = "FAILED"
+            ev.last_error = _error
+
+    def _send_email(_to: str, _subject: str, _body: str, html_body: str | None = None):
+        assert html_body is None
+        return SendEmailResult(status="sent_dry_run", provider="dry_run")
+
+    monkeypatch.setattr(outbox_tasks, "SessionLocal", lambda: fake_session)
+    monkeypatch.setattr(outbox_tasks, "OutboxRepo", _FakeOutboxRepo)
+    monkeypatch.setattr(outbox_tasks, "WorkforceAnnouncementDeliveryRepo", _FakeDeliveryRepo)
+    monkeypatch.setattr(outbox_tasks, "send_email", _send_email)
+
+    processed = await outbox_tasks._process(25)
+    assert processed == 1
+    assert event.status == "SENT_DRY_RUN"

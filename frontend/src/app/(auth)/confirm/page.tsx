@@ -12,10 +12,12 @@ import { useConfirmRegistration, useResendConfirmation } from "@/features/auth/h
 export default function ConfirmPage() {
   const router = useRouter();
   const [token, setToken] = useState("");
+  const [code, setCode] = useState("");
   const [error, setError] = useState("");
   const [email, setEmail] = useState<string | null>(null);
   /** When registration did not pass `?email=`, user can enter an address to resend. */
   const [emailForResend, setEmailForResend] = useState("");
+  const [cooldown, setCooldown] = useState(0);
   const confirm = useConfirmRegistration();
   const resend = useResendConfirmation();
 
@@ -26,11 +28,44 @@ export default function ConfirmPage() {
     setEmail(params.get("email"));
   }, []);
 
+  useEffect(() => {
+    if (!token) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        await confirm.mutateAsync({ token });
+        if (!cancelled) router.replace("/auth/login");
+      } catch (err) {
+        if (!cancelled) setError(err instanceof Error ? err.message : "Confirmation failed");
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // run once when token is parsed
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token]);
+
+  useEffect(() => {
+    if (cooldown <= 0) return;
+    const timer = window.setTimeout(() => setCooldown((prev) => Math.max(0, prev - 1)), 1000);
+    return () => window.clearTimeout(timer);
+  }, [cooldown]);
+
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError("");
     try {
-      await confirm.mutateAsync({ token });
+      if (token) {
+        await confirm.mutateAsync({ token });
+      } else {
+        const resolvedEmail = (email || emailForResend.trim()).trim();
+        if (!resolvedEmail || !code.trim()) {
+          setError("Email and 6-digit code are required.");
+          return;
+        }
+        await confirm.mutateAsync({ email: resolvedEmail, code: code.trim() });
+      }
       router.replace("/auth/login");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Confirmation failed");
@@ -44,7 +79,7 @@ export default function ConfirmPage() {
           <p className="text-xs font-semibold uppercase tracking-[0.28em] text-primary">Confirm account</p>
           <h1 className="mt-3 text-3xl font-semibold">Activate your access</h1>
           <p className="mt-2 text-sm text-muted-foreground">
-            {email ? `A confirmation token was issued for ${email}.` : "Paste the confirmation token delivered by the email outbox workflow."}
+            {email ? `A confirmation email was issued for ${email}.` : "Enter your token link or 6-digit confirmation code from email."}
           </p>
           {!email ? (
             <div className="mt-4 space-y-2">
@@ -59,7 +94,8 @@ export default function ConfirmPage() {
             </div>
           ) : null}
           <form className="mt-8 space-y-4" onSubmit={onSubmit}>
-            <Input placeholder="Confirmation token" value={token} onChange={(event) => setToken(event.target.value)} required />
+            <Input placeholder="Confirmation token (optional if using code)" value={token} onChange={(event) => setToken(event.target.value)} />
+            <Input placeholder="6-digit confirmation code" value={code} onChange={(event) => setCode(event.target.value)} />
             {error ? <p className="text-sm text-danger">{error}</p> : null}
             <Button className="w-full" disabled={confirm.isPending} type="submit">
               Confirm account <ArrowRight className="ml-2 h-4 w-4" />
@@ -69,10 +105,13 @@ export default function ConfirmPage() {
                 type="button"
                 variant="outline"
                 className="w-full"
-                disabled={resend.isPending}
-                onClick={() => void resend.mutateAsync({ email: (email || emailForResend.trim()) as string })}
+                disabled={resend.isPending || cooldown > 0}
+                onClick={() => {
+                  void resend.mutateAsync({ email: (email || emailForResend.trim()) as string });
+                  setCooldown(30);
+                }}
               >
-                Resend confirmation token
+                {cooldown > 0 ? `Resend in ${cooldown}s` : "Resend confirmation"}
               </Button>
             ) : null}
             <p className="text-center text-sm text-muted-foreground">

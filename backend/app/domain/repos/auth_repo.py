@@ -112,8 +112,21 @@ class AuthRepo:
         user_id: uuid.UUID,
         token_hash: str,
         expires_at: datetime,
+        *,
+        code_hash: str | None = None,
+        code_expires_at: datetime | None = None,
+        code_max_attempts: int = 5,
     ) -> AccountConfirmationToken:
-        tok = AccountConfirmationToken(user_id=user_id, token_hash=token_hash, expires_at=expires_at)
+        tok = AccountConfirmationToken(
+            user_id=user_id,
+            token_hash=token_hash,
+            expires_at=expires_at,
+            code_hash=code_hash,
+            code_expires_at=code_expires_at,
+            code_attempts=0,
+            code_max_attempts=code_max_attempts,
+            invalidated_at=None,
+        )
         self.db.add(tok)
         await self.db.flush()
         return tok
@@ -123,6 +136,55 @@ class AuthRepo:
             select(AccountConfirmationToken).where(AccountConfirmationToken.token_hash == token_hash)
         )
         return q.scalar_one_or_none()
+
+    async def get_pending_confirmation_token_for_user(self, user_id: uuid.UUID) -> AccountConfirmationToken | None:
+        q = await self.db.execute(
+            select(AccountConfirmationToken)
+            .where(
+                AccountConfirmationToken.user_id == user_id,
+                AccountConfirmationToken.used_at.is_(None),
+                AccountConfirmationToken.invalidated_at.is_(None),
+            )
+            .order_by(AccountConfirmationToken.created_at.desc())
+        )
+        return q.scalars().first()
+
+    async def get_confirmation_token_by_code_hash_for_user(
+        self,
+        *,
+        user_id: uuid.UUID,
+        code_hash: str,
+    ) -> AccountConfirmationToken | None:
+        q = await self.db.execute(
+            select(AccountConfirmationToken)
+            .where(
+                AccountConfirmationToken.user_id == user_id,
+                AccountConfirmationToken.code_hash == code_hash,
+                AccountConfirmationToken.used_at.is_(None),
+                AccountConfirmationToken.invalidated_at.is_(None),
+            )
+            .order_by(AccountConfirmationToken.created_at.desc())
+        )
+        return q.scalars().first()
+
+    async def invalidate_unused_confirmation_tokens(self, user_id: uuid.UUID) -> int:
+        tokens_q = await self.db.execute(
+            select(AccountConfirmationToken).where(
+                AccountConfirmationToken.user_id == user_id,
+                AccountConfirmationToken.used_at.is_(None),
+                AccountConfirmationToken.invalidated_at.is_(None),
+            )
+        )
+        rows = list(tokens_q.scalars().all())
+        now = utc_now()
+        for row in rows:
+            row.invalidated_at = now
+        await self.db.flush()
+        return len(rows)
+
+    async def increment_confirmation_code_attempts(self, token: AccountConfirmationToken) -> None:
+        token.code_attempts = int(token.code_attempts or 0) + 1
+        await self.db.flush()
 
     async def mark_confirmation_token_used(self, token: AccountConfirmationToken) -> None:
         from app.utils.time import utc_now

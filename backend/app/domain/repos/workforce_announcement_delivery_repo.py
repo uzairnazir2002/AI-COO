@@ -78,6 +78,18 @@ class WorkforceAnnouncementDeliveryRepo:
         self.db.add(row)
         await self.db.flush()
 
+    async def mark_sent_dry_run(self, *, delivery_id: uuid.UUID, outbox_event_id: uuid.UUID | None = None) -> None:
+        row = await self.get_by_id(delivery_id=delivery_id)
+        if row is None:
+            return
+        row.status = "SENT_DRY_RUN"
+        row.sent_at = datetime.now(tz=timezone.utc)
+        row.error = "Email delivery skipped because EMAIL_DRY_RUN=true"
+        if outbox_event_id is not None:
+            row.outbox_event_id = outbox_event_id
+        self.db.add(row)
+        await self.db.flush()
+
     async def mark_failed(self, *, delivery_id: uuid.UUID, error: str) -> None:
         row = await self.get_by_id(delivery_id=delivery_id)
         if row is None:

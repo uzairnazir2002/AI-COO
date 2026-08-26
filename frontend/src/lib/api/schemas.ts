@@ -85,8 +85,7 @@ export const registerOutSchema = z.object({
 
 export const resendConfirmationSchema = z.object({
   ok: z.boolean(),
-  sent: z.boolean(),
-  already_active: z.boolean(),
+  message: z.string(),
 });
 
 export const reportGenerateSchema = z.object({

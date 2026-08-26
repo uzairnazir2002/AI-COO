@@ -1,6 +1,6 @@
 from functools import lru_cache
 
-from pydantic import Field
+from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -52,7 +52,18 @@ class Settings(BaseSettings):
     smtp_port: int = Field(default=1025, alias="SMTP_PORT")
     smtp_user: str = Field(default="", alias="SMTP_USER")
     smtp_password: str = Field(default="", alias="SMTP_PASSWORD")
+    smtp_starttls: bool = Field(default=False, alias="SMTP_STARTTLS")
+    smtp_ssl: bool = Field(default=False, alias="SMTP_SSL")
+    email_provider: str = Field(default="smtp", alias="EMAIL_PROVIDER")
     email_dry_run: bool = Field(default=True, alias="EMAIL_DRY_RUN")
+    email_from_name: str = Field(default="AI-COO", alias="EMAIL_FROM_NAME")
+    email_from_address: str = Field(default="", alias="EMAIL_FROM_ADDRESS")
+    email_reply_to: str = Field(default="", alias="EMAIL_REPLY_TO")
+    resend_api_key: str = Field(default="", alias="RESEND_API_KEY")
+    frontend_url: str = Field(default="http://localhost:3000", alias="FRONTEND_URL")
+    auth_confirmation_token_ttl_minutes: int = Field(default=30, alias="AUTH_CONFIRMATION_TOKEN_TTL_MINUTES")
+    auth_confirmation_code_ttl_minutes: int = Field(default=15, alias="AUTH_CONFIRMATION_CODE_TTL_MINUTES")
+    auth_confirmation_max_attempts: int = Field(default=5, alias="AUTH_CONFIRMATION_MAX_ATTEMPTS")
 
     ai_provider: str = Field(default="stub", alias="AI_PROVIDER")
     ai_openai_api_key: str = Field(default="", alias="AI_OPENAI_API_KEY")
@@ -91,6 +102,18 @@ class Settings(BaseSettings):
     plaid_country_codes: str = Field(default="US", alias="PLAID_COUNTRY_CODES")
     plaid_webhook_url: str = Field(default="", alias="PLAID_WEBHOOK_URL")
     plaid_webhook_secret: str = Field(default="", alias="PLAID_WEBHOOK_SECRET")
+
+    @model_validator(mode="after")
+    def _validate_email_provider(self):
+        provider = (self.email_provider or "smtp").strip().lower()
+        if provider not in {"smtp", "resend"}:
+            raise ValueError("EMAIL_PROVIDER must be one of: smtp, resend")
+        if provider == "resend" and not self.email_dry_run:
+            if not (self.resend_api_key or "").strip():
+                raise ValueError("RESEND_API_KEY is required when EMAIL_PROVIDER=resend and EMAIL_DRY_RUN=false")
+            if not (self.email_from_address or "").strip():
+                raise ValueError("EMAIL_FROM_ADDRESS is required when EMAIL_PROVIDER=resend and EMAIL_DRY_RUN=false")
+        return self
 
 
 @lru_cache
